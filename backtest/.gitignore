@@ -1,0 +1,10 @@
+input/
+log/
+output/
+tmp/
+wind/
+db/
+spot_backtest_result/
+
+*.rar
+*.zip

@@ -8,6 +8,8 @@ import plotly.graph_objects as go
 import plotly.colors as pc
 import pandas as pd
 
+from dsp_config import DATA_DIR
+
 def standard_prices(se: pd.Series):
     # return (se - se.mean()) / se.std()
     return (se - se.iloc[0]) / (se.iloc[0] * 0.01)
@@ -102,7 +104,7 @@ def plot_df(df: pd.DataFrame, title: str):
     line_plot.show()
 
 def plot_file(spot: str, suffix: str):
-    df = pd.read_csv(f'../dsp_conv/merged_{spot}_{suffix}.csv')
+    df = pd.read_csv(f'{DATA_DIR}/dsp_conv/merged_{spot}_{suffix}.csv')
     plot_df(df, title=f"{spot} {suffix}")
 
 def main(spot: str, suffix: str):

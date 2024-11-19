@@ -8,6 +8,8 @@ import pandas as pd
 import pathlib
 import glob
 
+from dsp_config import DATA_DIR
+
 def intersect_lines(spot_df: pd.DataFrame, oi_df: pd.DataFrame):
     spot_df['dt'] = pd.to_datetime(spot_df['dt'])
     spot_df['spot_price'] = pd.to_numeric(spot_df['spot_price'])
@@ -22,8 +24,8 @@ def intersect_lines(spot_df: pd.DataFrame, oi_df: pd.DataFrame):
     return merged_df
 
 def intersect_merge_files(spot: str, suffix: str):
-    spot_df = pd.read_csv(f'../dsp_conv/spot_{spot}_{suffix}.csv')
-    oi_fs = glob.glob(f'../dsp_conv/strike_oi_smooth_{spot}_{suffix}_*.csv')
+    spot_df = pd.read_csv(f'{DATA_DIR}/dsp_conv/spot_{spot}_{suffix}.csv')
+    oi_fs = glob.glob(f'{DATA_DIR}/dsp_conv/strike_oi_smooth_{spot}_{suffix}_*.csv')
     inter_dfs = []
     for oi_fp in oi_fs:
         csv_name = pathlib.Path(oi_fp).stem
@@ -43,7 +45,7 @@ def intersect_merge_files(spot: str, suffix: str):
         inter_dfs.append(in_df)
     spot_df = spot_df.set_index('dt')
     merged = pd.concat([spot_df, *inter_dfs], axis=1)
-    merged.to_csv(f'../dsp_conv/merged_{spot}_{suffix}.csv')
+    merged.to_csv(f'{DATA_DIR}/dsp_conv/merged_{spot}_{suffix}.csv')
 
 @click.command()
 @click.option('-s', '--spot', type=str, help="spot code: 159915 510050")

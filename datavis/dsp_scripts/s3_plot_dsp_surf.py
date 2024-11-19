@@ -6,6 +6,8 @@ import plotly.graph_objects as go
 import numpy as np
 import pandas as pd
 
+from dsp_config import DATA_DIR
+
 def plot_df(df: pd.DataFrame, title: str):
     df['dt'] = pd.to_datetime(df['dt']).apply(lambda x: x.strftime('%m-%d %H:%M:%S'))
     x_uni = np.sort(df['dt'].unique())
@@ -69,7 +71,7 @@ def plot_df(df: pd.DataFrame, title: str):
     fig.show()
 
 def plot_file(spot: str, date: str):
-    df = pd.read_csv(f'../dsp_plot/strike_oi_smooth_{spot}_{date}.csv')
+    df = pd.read_csv(f'{DATA_DIR}/dsp_plot/strike_oi_smooth_{spot}_{date}.csv')
     plot_df(df, title=f"{spot} {date}")
 
 def main(spot: str, date: str):

@@ -5,6 +5,7 @@ import datetime
 from dateutil.relativedelta import relativedelta
 import sqlalchemy
 import pandas as pd
+from dsp_config import DATA_DIR
 
 def get_engine():
     return sqlalchemy.create_engine('postgresql+psycopg2://option:option@localhost:15432/opt')
@@ -68,7 +69,7 @@ def dl_oi_data(spot: str, expiry_date: datetime.date, md_date: datetime.date):
     # print(df)
     # print(df['dt'])
     # df.to_csv('test.csv', index=False)
-    df.to_csv(f'../dsp_input/strike_oi_diff_{spot}_{md_date.strftime('%Y%m%d')}.csv',
+    df.to_csv(f'{DATA_DIR}/dsp_input/strike_oi_diff_{spot}_{md_date.strftime('%Y%m%d')}.csv',
             index=False)
 
 def get_nearest_expirydate(spot: str, dt: datetime.datetime):

@@ -14,6 +14,8 @@ import scipy.signal as ssig
 import scipy.interpolate as sitp
 import click
 
+from dsp_config import DATA_DIR
+
 def left_gaussian(sig, wsize, sigma):
     wsize = min(wsize, len(sig))
     gau = ssig.windows.gaussian(wsize, sigma)
@@ -109,7 +111,7 @@ def smooth_column_2d_grid(df: pd.DataFrame, col_name: str,
     # print(grid_1d)
     grid_1d.ffill(inplace=True)
     grid_1d.fillna(0, inplace=True)
-    grid_1d.astype('Int64').to_csv(f'../tmp/grid_1d_input_{col_name}.csv')
+    grid_1d.astype('Int64').to_csv(f'{DATA_DIR}/tmp/grid_1d_input_{col_name}.csv')
     # print(grid_1d)
     # grid_1d = downsample_time(grid_1d, 60)
     se_ts = grid_1d.index.astype('int64') // 10**9
@@ -168,26 +170,26 @@ def smooth_spot_df(df: pd.DataFrame, dsp_sec, ts_sigma_sec_list: list[int]):
 # 这个是为了绘图编写的 DSP 函数的配置方案。
 def dsp_file_2_plot(spot: str, date: str):
     # 这个时间滤波窗口的大小根据做不同波段的因果验证可以有不同的调整。
-    df = pd.read_csv(f'../dsp_input/strike_oi_diff_{spot}_{date}.csv')
+    df = pd.read_csv(f'{DATA_DIR}/dsp_input/strike_oi_diff_{spot}_{date}.csv')
     df['dt'] = pd.to_datetime(df['dt'])
 
     df_res = smooth_oi_csv(df, dsp_sec=120, ts_sigma_sec=1200, strike_sigma_price=0.3)
-    df_res.to_csv(f'../dsp_plot/strike_oi_smooth_{spot}_{date}.csv')
+    df_res.to_csv(f'{DATA_DIR}/dsp_plot/strike_oi_smooth_{spot}_{date}.csv')
 
     df_spot = smooth_spot_df(df, dsp_sec=120, ts_sigma_sec_list=[300])
-    df_spot.to_csv(f'../dsp_plot/spot_{spot}_{date}.csv')
+    df_spot.to_csv(f'{DATA_DIR}/dsp_plot/spot_{spot}_{date}.csv')
 
 
 # 这个是为了计算不同长度的相关关系做的 dsp
 def dsp_file_2_intersect(spot: str, suffix: str, ts_sigma_list: list[int], strike_sigma_list: list[float]):
-    df = pd.read_csv(f'../dsp_input/strike_oi_diff_{spot}_{suffix}.csv')
+    df = pd.read_csv(f'{DATA_DIR}/dsp_input/strike_oi_diff_{spot}_{suffix}.csv')
     df['dt'] = pd.to_datetime(df['dt'])
     for ts_sigma in ts_sigma_list:
         for strike_sigma in strike_sigma_list:
             df_res = smooth_oi_csv(df, dsp_sec=60, ts_sigma_sec=ts_sigma, strike_sigma_price=strike_sigma)
-            df_res.to_csv(f'../dsp_conv/strike_oi_smooth_{spot}_{suffix}_{ts_sigma}_{strike_sigma}.csv')
+            df_res.to_csv(f'{DATA_DIR}/dsp_conv/strike_oi_smooth_{spot}_{suffix}_{ts_sigma}_{strike_sigma}.csv')
     df_spot = smooth_spot_df(df, dsp_sec=60, ts_sigma_sec_list=ts_sigma_list)
-    df_spot.to_csv(f'../dsp_conv/spot_{spot}_{suffix}.csv')
+    df_spot.to_csv(f'{DATA_DIR}/dsp_conv/spot_{spot}_{suffix}.csv')
     
 def dsp_plot_tasks():
     # plot_dsp_file('159915', '20241017')

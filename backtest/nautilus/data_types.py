@@ -1,5 +1,6 @@
 # 整理一下我载入回测使用的数据类型。
 
+from decimal import Decimal
 import tqdm
 import pandas as pd
 
@@ -19,6 +20,8 @@ class MyQuoteTick(QuoteTick):
         self.delta = delta
     def set_action(self, action):
         self.action = action
+    def set_oi(self, oicp):
+        self.oicp = oicp
 
 class OptionInfo:
     def __init__(self, inst, cp, expiry_date, first_day, last_day, strike):
@@ -67,6 +70,8 @@ def df_to_my_quote(df, inst):
             tick.set_greeks(tup.impv, tup.delta)
         if hasattr(tup, 'action'):
             tick.set_action(tup.action)
+        if hasattr(tup, 'oicp'):
+            tick.set_oi(tup.oicp)
         res.append(tick)
     return res
 
@@ -89,6 +94,8 @@ def prepare_spot_quote(csv_fpath, engine, venue, bgdt, eddt):
         price_precision=4,
         price_increment=Price.from_str("0.0001"),
         lot_size=Quantity.from_int(10000),
+        margin_init=Decimal("1"),
+        margin_maint=Decimal("1"),
         ts_event=0,
         ts_init=0,
     )
@@ -114,6 +121,7 @@ def prepare_option_quote(csv_fpath, engine, venue, bgdt, eddt):
         df_clip.loc[:, 'ask']= df_clip['closep']
         df_clip.loc[:, 'bid'] = df_clip['closep']
         id = df_clip['tradecode'].iloc[0]
+        # print(id)
         cp = 1 if 'C2' in id else -1
         opt_symbol = Symbol(id)
         inst = Equity(
@@ -123,6 +131,8 @@ def prepare_option_quote(csv_fpath, engine, venue, bgdt, eddt):
             price_precision=4,
             price_increment=Price.from_str("0.0001"),
             lot_size=Quantity.from_int(10000),
+            margin_init=Decimal("1"),
+            margin_maint=Decimal("1"),
             ts_event=0,
             ts_init=0
         )

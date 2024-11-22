@@ -4,6 +4,7 @@
 """
 
 import pandas as pd
+from backtest.config import DATA_DIR
 
 bgdt = pd.to_datetime('2024-01-01')
 eddt = pd.to_datetime('2024-02-01')

@@ -20,7 +20,7 @@ from nautilus_trader.model.identifiers import Venue, InstrumentId
 from nautilus_trader.model.enums import TimeInForce
 from nautilus_trader.model.enums import OrderSide
 
-from data_types import MyQuoteTick, OptionInfo
+from backtest.nautilus.data_types import MyQuoteTick, OptionInfo
 
 class StrategyBullSpread2Config(StrategyConfig, frozen=True):
     mode: int = None
@@ -222,6 +222,7 @@ class StrategyBullSpread2(Strategy):
         for holdinfo in self.holds:
             ids.add(holdinfo.buy_opt.id)
             ids.add(holdinfo.sell_opt.id)
+        self.log.info(f"close all ids: {ids}")
         for id in ids:
             self.close_all_positions(id)
         self.holds = []

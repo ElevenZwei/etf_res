@@ -15,7 +15,7 @@ from nautilus_trader.model.identifiers import Venue, InstrumentId
 from nautilus_trader.model.enums import TimeInForce
 from nautilus_trader.model.enums import OrderSide
 
-from data_types import MyQuoteTick, OptionInfo
+from backtest.nautilus.data_types import MyQuoteTick, OptionInfo
 
 class StrategyBullSpreadConfig(StrategyConfig, frozen=True):
     mode: int = None

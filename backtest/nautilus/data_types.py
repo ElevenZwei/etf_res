@@ -14,6 +14,8 @@ from nautilus_trader.model.currencies import CNY
 from nautilus_trader.backtest.models import FillModel
 from nautilus_trader.model.enums import AccountType, OmsType, TimeInForce
 
+from backtest.config import DATA_DIR
+
 class MyQuoteTick(QuoteTick):
     def set_greeks(self, impv, delta):
         self.impv = impv
@@ -55,7 +57,7 @@ def df_to_my_quote(df, inst):
     df['epoch_ns'] = df.index.astype('int64')
     df = df.sort_values(by='epoch_ns')
     code = df['code'].iloc[0]
-    df.to_csv(f'../tmp/{code}_2.csv')
+    df.to_csv(f'{DATA_DIR}/tmp/{code}_2.csv')
     for tup in df.itertuples():
         tick = MyQuoteTick(
             instrument_id=inst.id,

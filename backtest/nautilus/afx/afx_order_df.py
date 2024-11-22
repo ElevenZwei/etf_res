@@ -3,6 +3,7 @@
 import click
 import pandas as pd
 from pathlib import Path
+from backtest.config import DATA_DIR
 
 def process_file(df: pd.DataFrame):
     df = df[['ts_init', 'instrument_id', 'side', 'filled_qty', 'time_in_force', 'is_reduce_only', 'avg_px']].copy()
@@ -23,7 +24,7 @@ def main(fpathstr: str):
     fpath: Path = Path(fpathstr)
     df = pd.read_csv(fpath)
     df = process_file(df)
-    df.to_csv(f'../output/{fpath.stem}_t.csv')
+    df.to_csv(f'{DATA_DIR}/output/{fpath.stem}_t.csv')
 
 @click.command()
 @click.option('-f', '--file')

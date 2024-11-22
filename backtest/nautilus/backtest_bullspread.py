@@ -4,8 +4,9 @@ import click
 from nautilus_trader.model.identifiers import TraderId
 from nautilus_trader.backtest.engine import BacktestEngine, BacktestEngineConfig
 
-from data_types import prepare_venue, prepare_spot_quote, prepare_option_quote
-from strategy_bullspread import StrategyBullSpread, StrategyBullSpreadConfig
+from backtest.nautilus.data_types import prepare_venue, prepare_spot_quote, prepare_option_quote
+from backtest.nautilus.strategy_bullspread import StrategyBullSpread, StrategyBullSpreadConfig
+from backtest.config import DATA_DIR
 
 def run(mode: int):
     bgdt = datetime.date(2024, 2, 1)
@@ -18,14 +19,14 @@ def run(mode: int):
     ven = prepare_venue(engine, venue_name)
     if mode == 1:
         spot_inst = prepare_spot_quote(
-            '../input/oi_signal_159915_act_changes.csv',
+            f'{DATA_DIR}/input/oi_signal_159915_act_changes.csv',
             engine, ven, bgdt, eddt)
     elif mode == 2:
         spot_inst = prepare_spot_quote(
-            '../input/oi_signal_159915_act_full.csv',
+            f'{DATA_DIR}/input/oi_signal_159915_act_full.csv',
             engine, ven, bgdt, eddt)
     opt_info = prepare_option_quote(
-        '../input/tl_greeks_159915_all_fixed.csv',
+        f'{DATA_DIR}/input/tl_greeks_159915_all_fixed.csv',
         engine, ven, bgdt, eddt)
 
     suffix=f"{mode}"
@@ -44,9 +45,9 @@ def run(mode: int):
     engine.add_strategy(strategy=bull_str)
     result = engine.run()
 
-    engine.trader.generate_account_report(ven).to_csv(f'../output/opt_bullsp_account_{suffix}.csv')
-    engine.trader.generate_order_fills_report().to_csv(f'../output/opt_bullsp_order_{suffix}.csv')
-    engine.trader.generate_positions_report().to_csv(f'../output/opt_bullsp_pos_{suffix}.csv')
+    engine.trader.generate_account_report(ven).to_csv(f'{DATA_DIR}/output/opt_bullsp_account_{suffix}.csv')
+    engine.trader.generate_order_fills_report().to_csv(f'{DATA_DIR}/output/opt_bullsp_order_{suffix}.csv')
+    engine.trader.generate_positions_report().to_csv(f'{DATA_DIR}/output/opt_bullsp_pos_{suffix}.csv')
     engine.reset()
     engine.dispose()
 

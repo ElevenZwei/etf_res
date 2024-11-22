@@ -4,10 +4,11 @@ import click
 import pandas as pd
 
 def process(prefix: str):
-    input = f"output/{prefix}_net_worth.csv"
+    input = f"../../data/output/{prefix}_net_worth.csv"
     output = input[:input.rfind('.')]+'_fixed.csv'
 
     df = pd.read_csv(input)
+    # print(df)
     df.columns = ['dt', 'net']
     df['gain'] = (df['net'] - 1_000_000) / 10000
     df['dt'] = pd.to_datetime(df['dt'])

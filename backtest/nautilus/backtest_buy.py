@@ -5,8 +5,8 @@ import click
 from nautilus_trader.model.identifiers import TraderId
 from nautilus_trader.backtest.engine import BacktestEngine, BacktestEngineConfig
 
-from data_types import prepare_venue, prepare_spot_quote, prepare_option_quote
-from strategy_buy import StrategyBuy, StrategyBuyConfig
+from backtest.nautilus.data_types import prepare_venue, prepare_spot_quote, prepare_option_quote
+from backtest.nautilus.strategy_buy import StrategyBuy, StrategyBuyConfig
 
 def run(size_mode: int):
     bgdt = datetime.date(2024, 2, 1)

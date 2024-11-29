@@ -1,6 +1,4 @@
-import glob
 import pandas as pd
-import tqdm
 
 def convert_mdt_df(df: pd.DataFrame):
     df = df.rename(columns={
@@ -34,20 +32,3 @@ def convert_mdt_df(df: pd.DataFrame):
             'last_price', 'open_interest', 'volume', 'tick_num'
     ]]
     return df
-
-def convert_mdt(fname):
-    df = pd.read_csv(f'./wind/{fname}')
-    df = convert_mdt_df(df)
-    df.to_csv(f'../db/{fname}', index=False)
-
-def batch_convert():
-    fs = glob.glob('./wind/mdt_*.csv')
-    for fpath in tqdm.tqdm(fs):
-        fname = fpath.split('\\')[-1]
-        convert_mdt(fname)
-
-if __name__ == '__main__':
-    batch_convert()
-
-    
-

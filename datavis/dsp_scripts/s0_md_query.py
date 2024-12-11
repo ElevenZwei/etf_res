@@ -33,6 +33,7 @@ def dl_oi_data(spot: str, expiry_date: datetime.date, md_date: datetime.date):
     bg_time = '09:30:00'
     ed_time = '15:30:00'
     query = f"""
+        set enable_nestloop=false;
         with OI as (
             select *, oi - oi_open as oi_diff, log(oi) - log(oi_open) as oi_dlog
             from (
@@ -64,6 +65,9 @@ def dl_oi_data(spot: str, expiry_date: datetime.date, md_date: datetime.date):
 
     with get_engine().connect() as conn:
         df = pd.read_sql(query, conn)
+    
+    if df.shape[0] == 0:
+        raise RuntimeError("db is empty.")
 
     df['dt'] = df['dt'].dt.tz_convert('Asia/Shanghai')
     df['dt'] = df['dt'].dt.strftime('%Y-%m-%dT%H:%M:%S%z')

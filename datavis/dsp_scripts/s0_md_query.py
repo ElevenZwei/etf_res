@@ -1,5 +1,6 @@
 # 从 market_data_tick 数据表里面查询 OI 数据并且储存在 csv 文件里。
 
+from typing import Optional
 import click
 import datetime
 from dateutil.relativedelta import relativedelta
@@ -10,7 +11,7 @@ from dsp_config import DATA_DIR
 def get_engine():
     return sqlalchemy.create_engine('postgresql+psycopg2://option:option@localhost:15432/opt')
 
-def dl_expiry_date(spot: str, year: int, month: int) -> datetime.date:
+def dl_expiry_date(spot: str, year: int, month: int) -> Optional[datetime.date]:
     d_from = datetime.datetime(year, month, 1)
     d_to = datetime.datetime(year, month, 28)
     query = f"""
@@ -69,25 +70,28 @@ def dl_oi_data(spot: str, expiry_date: datetime.date, md_date: datetime.date):
     # print(df)
     # print(df['dt'])
     # df.to_csv('test.csv', index=False)
-    df.to_csv(f'{DATA_DIR}/dsp_input/strike_oi_diff_{spot}_{md_date.strftime('%Y%m%d')}.csv',
+    md_date_str = md_date.strftime('%Y%m%d')
+    df.to_csv(f'{DATA_DIR}/dsp_input/strike_oi_diff_{spot}_{md_date_str}.csv',
             index=False)
 
 def get_nearest_expirydate(spot: str, dt: datetime.datetime):
-    exp: datetime.date = dl_expiry_date(spot, dt.year, dt.month)
+    exp: Optional[datetime.date] = dl_expiry_date(spot, dt.year, dt.month)
     if exp is None:
         return exp
     # 对于当月交割日已经过去的情况，切换到下一个月
     if exp < dt.date():
         dt += relativedelta(months=1)
-        exp = dl_expiry_date(dt.year, dt.month)
+        exp = dl_expiry_date(spot, dt.year, dt.month)
     return exp
 
-def auto_dl(spot: str, md_date: str, year: int = None, month: int = None):
+def auto_dl(spot: str, md_date: str, year: Optional[int] = None, month: Optional[int] = None):
     dt = datetime.datetime.strptime(md_date, '%Y%m%d')
     if year is None or month is None:
         exp = get_nearest_expirydate(spot, dt)
     else:
         exp = dl_expiry_date(spot, year, month)
+    if exp is None:
+        exit(1)
     dl_oi_data(spot, exp, dt)
 
 @click.command()

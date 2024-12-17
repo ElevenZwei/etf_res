@@ -3,7 +3,6 @@
 """
 
 import click
-import datetime
 import plotly.graph_objects as go
 import plotly.colors as pc
 import pandas as pd
@@ -16,6 +15,7 @@ def standard_prices(se: pd.Series):
 
 # OI 使用 / std 和 / 1000 在曲线之间的关系上会产生区别。
 def standard_oi_diff(se: pd.Series):
+    # return (se - se.iloc[0])
     return (se - se.iloc[0]) / 500
     # return (se - se.mean()) / se.std()
 
@@ -30,33 +30,33 @@ def plot_df(df: pd.DataFrame, title: str):
     df = df.drop(columns=['dt'])
     df['dt'] = df['sdt']
     x_uni = df['dt']
-    y_spot = standard_prices(df['spot_price'])
-    y_spot_300 = standard_prices(df['spot_price_300'])
+    y_spot = standard_prices(df.loc[:, 'spot_price'])
+    y_spot_300 = standard_prices(df.loc[:, 'spot_price_300'])
 
-    y_pc_120_3 = -1 * standard_oi_diff(df['oi_cp_120_0.3'])
-    y_pc_300_3 = -1 * standard_oi_diff(df['oi_cp_300_0.3'])
-    y_pc_600_3 = -1 * standard_oi_diff(df['oi_cp_600_0.3'])
-    y_pc_1200_3 = -1 * standard_oi_diff(df['oi_cp_1200_0.3'])
+    y_pc_120_3 = -1 * standard_oi_diff(df.loc[:, 'oi_cp_120_0.3'])
+    y_pc_300_3 = -1 * standard_oi_diff(df.loc[:, 'oi_cp_300_0.3'])
+    y_pc_600_3 = -1 * standard_oi_diff(df.loc[:, 'oi_cp_600_0.3'])
+    y_pc_1200_3 = -1 * standard_oi_diff(df.loc[:, 'oi_cp_1200_0.3'])
 
-    y_pc_120_4 = -1 * standard_oi_diff(df['oi_cp_120_0.4'])
-    y_pc_300_4 = -1 * standard_oi_diff(df['oi_cp_300_0.4'])
-    y_pc_600_4 = -1 * standard_oi_diff(df['oi_cp_600_0.4'])
-    y_pc_1200_4 = -1 * standard_oi_diff(df['oi_cp_1200_0.4'])
+    y_pc_120_4 = -1 * standard_oi_diff(df.loc[:, 'oi_cp_120_0.4'])
+    y_pc_300_4 = -1 * standard_oi_diff(df.loc[:, 'oi_cp_300_0.4'])
+    y_pc_600_4 = -1 * standard_oi_diff(df.loc[:, 'oi_cp_600_0.4'])
+    y_pc_1200_4 = -1 * standard_oi_diff(df.loc[:, 'oi_cp_1200_0.4'])
 
-    y_pc_120_5 = -1 * standard_oi_diff(df['oi_cp_120_0.5'])
-    y_pc_300_5 = -1 * standard_oi_diff(df['oi_cp_300_0.5'])
-    y_pc_600_5 = -1 * standard_oi_diff(df['oi_cp_600_0.5'])
-    y_pc_1200_5 = -1 * standard_oi_diff(df['oi_cp_1200_0.5'])
+    y_pc_120_5 = -1 * standard_oi_diff(df.loc[:, 'oi_cp_120_0.5'])
+    y_pc_300_5 = -1 * standard_oi_diff(df.loc[:, 'oi_cp_300_0.5'])
+    y_pc_600_5 = -1 * standard_oi_diff(df.loc[:, 'oi_cp_600_0.5'])
+    y_pc_1200_5 = -1 * standard_oi_diff(df.loc[:, 'oi_cp_1200_0.5'])
 
-    y_pc_120_6 = -1 * standard_oi_diff(df['oi_cp_120_0.6'])
-    y_pc_300_6 = -1 * standard_oi_diff(df['oi_cp_300_0.6'])
-    y_pc_600_6 = -1 * standard_oi_diff(df['oi_cp_600_0.6'])
-    y_pc_1200_6 = -1 * standard_oi_diff(df['oi_cp_1200_0.6'])
+    y_pc_120_6 = -1 * standard_oi_diff(df.loc[:, 'oi_cp_120_0.6'])
+    y_pc_300_6 = -1 * standard_oi_diff(df.loc[:, 'oi_cp_300_0.6'])
+    y_pc_600_6 = -1 * standard_oi_diff(df.loc[:, 'oi_cp_600_0.6'])
+    y_pc_1200_6 = -1 * standard_oi_diff(df.loc[:, 'oi_cp_1200_0.6'])
 
-    y_pc_120_8 = -1 * standard_oi_diff(df['oi_cp_120_0.8'])
-    y_pc_300_8 = -1 * standard_oi_diff(df['oi_cp_300_0.8'])
-    y_pc_600_8 = -1 * standard_oi_diff(df['oi_cp_600_0.8'])
-    y_pc_1200_8 = -1 * standard_oi_diff(df['oi_cp_1200_0.8'])
+    y_pc_120_8 = -1 * standard_oi_diff(df.loc[:, 'oi_cp_120_0.8'])
+    y_pc_300_8 = -1 * standard_oi_diff(df.loc[:, 'oi_cp_300_0.8'])
+    y_pc_600_8 = -1 * standard_oi_diff(df.loc[:, 'oi_cp_600_0.8'])
+    y_pc_1200_8 = -1 * standard_oi_diff(df.loc[:, 'oi_cp_1200_0.8'])
 
     line_plot = go.Figure()
     
@@ -101,14 +101,18 @@ def plot_df(df: pd.DataFrame, title: str):
         xaxis_title='Time',
         yaxis_title='OI',
     )
-    line_plot.show()
+    return line_plot
 
-def plot_file(spot: str, suffix: str):
+def plot_file(spot: str, suffix: str, save: bool, show: bool):
     df = pd.read_csv(f'{DATA_DIR}/dsp_conv/merged_{spot}_{suffix}.csv')
-    plot_df(df, title=f"{spot} {suffix}")
+    line_plot = plot_df(df, title=f"{spot} {suffix}")
+    if show:
+        line_plot.show()
+    if save:
+        pass
 
 def main(spot: str, suffix: str):
-    plot_file(spot, suffix)
+    plot_file(spot, suffix, save=True, show=True)
 
 @click.command()
 @click.option('-s', '--spot', type=str, help="spot code: 159915 510050")
@@ -117,11 +121,5 @@ def click_main(spot: str, suffix: str):
     main(spot, suffix)
 
 if __name__ == '__main__':
-    # plot_file('159915', '20241104')
-    # plot_file('159915', '20241108')
-    # plot_file('159915', '20241105')
-    # plot_file('159915', '20241106')
-    # plot_file('159915', '20241112')
-    # plot_file('510050', '20241114_am')
     click_main()
     pass

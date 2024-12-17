@@ -52,7 +52,7 @@ def gaussian_every_column(df: pd.DataFrame, wsize, sigma, use_left_gaussian):
 def downsample_time(df: pd.DataFrame, interval_sec: int):
     df = df.resample(f'{interval_sec}s').first()
     # 这里跳过没有开盘的时间
-    df = df[~df.isna().all(axis=1)]
+    df = df.loc[~df.isna().all(axis=1)]
     return df
 
 def interpolate_strike(pivot_df: pd.DataFrame):
@@ -103,7 +103,7 @@ def smooth_column_2d_grid(df: pd.DataFrame, col_name: str,
         df = df.set_index('dt')
         # 这个是分组之后组内重新采样，这个用 SQL 非常难刻画，不知道为什么 SQL 在数据变形方面并不好用。
         df = df.groupby('strike').resample('1s').first().drop(columns=['strike']).reset_index()
-        df = df[df.notna().all(axis=1)]
+        df = df.loc[df.notna().all(axis=1)]
         print("df after remove dup lines:")
         print(df)
 
@@ -111,9 +111,9 @@ def smooth_column_2d_grid(df: pd.DataFrame, col_name: str,
     # print(grid_1d)
     grid_1d.ffill(inplace=True)
     grid_1d.fillna(0, inplace=True)
-    grid_1d.astype('Int64').to_csv(f'{DATA_DIR}/tmp/grid_1d_input_{col_name}.csv')
+    grid_1d.astype('Float64').to_csv(f'{DATA_DIR}/tmp/grid_1d_input_{col_name}.csv')
     # print(grid_1d)
-    # grid_1d = downsample_time(grid_1d, 60)
+    # grid_1d = downsample_time(grid_1d, 30)
     se_ts = grid_1d.index.astype('int64') // 10**9
     ts_wsize, ts_sigma, ts_diff_med = calc_window(se_ts, ts_sigma_sec, 3.5)
     print(f"ts_diff_med={ts_diff_med}, ts_wsize={ts_wsize}, ts_sigma={ts_sigma}")
@@ -139,24 +139,34 @@ def smooth_column(df: pd.DataFrame, input_name: str, out1_name: str, out2_name: 
 
 def smooth_oi_csv(df: pd.DataFrame, dsp_sec, ts_sigma_sec, strike_sigma_price):
     oi_c_1d, oi_c_2d = smooth_column(
-            df, 'oi_diff_c', 'oi_c_gau_ts', 'oi_c_gau_2d',
-            dsp_sec, ts_sigma_sec, strike_sigma_price)
+            df,
+            input_name='oi_diff_c',
+            # input_name='oi_dlog_c',
+            out1_name='oi_c_gau_ts', out2_name='oi_c_gau_2d',
+            dsp_sec=dsp_sec, ts_sigma_sec=ts_sigma_sec, strike_sigma_price=strike_sigma_price)
     oi_p_1d, oi_p_2d = smooth_column(
-            df, 'oi_diff_p', 'oi_p_gau_ts', 'oi_p_gau_2d',
-            dsp_sec, ts_sigma_sec, strike_sigma_price)
+            df,
+            input_name='oi_diff_p',
+            # input_name='oi_dlog_p',
+            out1_name='oi_p_gau_ts', out2_name='oi_p_gau_2d',
+            dsp_sec=dsp_sec, ts_sigma_sec=ts_sigma_sec, strike_sigma_price=strike_sigma_price)
     df['oi_diff_cp'] = df['oi_diff_c'] - df['oi_diff_p']
+    # df['oi_dlog_cp'] = df['oi_dlog_c'] - df['oi_dlog_p']
     oi_cp_1d, oi_cp_2d = smooth_column(
-            df, 'oi_diff_cp', 'oi_cp_gau_ts', 'oi_cp_gau_2d',
-            dsp_sec, ts_sigma_sec, strike_sigma_price)
+            df,
+            input_name='oi_diff_cp',
+            # input_name='oi_dlog_cp',
+            out1_name='oi_cp_gau_ts', out2_name='oi_cp_gau_2d',
+            dsp_sec=dsp_sec, ts_sigma_sec=ts_sigma_sec, strike_sigma_price=strike_sigma_price)
     df_res = pd.concat([oi_c_1d, oi_c_2d, oi_p_1d, oi_p_2d, oi_cp_1d, oi_cp_2d], axis=1)
     df_res['spotcode'] = df['spotcode'][0]
     df_res['expirydate'] = df['expirydate'][0]
     return df_res
 
 def smooth_spot_df(df: pd.DataFrame, dsp_sec, ts_sigma_sec_list: list[int]):
-    df = df[['dt', 'spotcode', 'spot_price']].drop_duplicates()
+    df = df.loc[:, ['dt', 'spotcode', 'spot_price']].drop_duplicates()
     df['spotcode'] = df['spotcode'].astype('str')
-    se_ts = df['dt'].astype('int64').values // 10**9
+    se_ts = df.loc[:, ['dt']].astype('int64').values // 10**9
 
     for ts_sigma_sec in ts_sigma_sec_list:
         ts_wsize, ts_sigma, ts_diff_med = calc_window(se_ts, ts_sigma_sec, 3.5)

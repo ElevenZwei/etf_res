@@ -1,6 +1,11 @@
-DATA_DIR='../data'
-
+from pathlib import Path
 import os
+
+def get_file_dir():
+    fpath = Path(__file__).resolve()
+    return fpath.parent
+
+DATA_DIR = get_file_dir() / '..' / 'data'
 
 os.makedirs(f"{DATA_DIR}/dsp_input", exist_ok=True)
 os.makedirs(f"{DATA_DIR}/dsp_conv", exist_ok=True)

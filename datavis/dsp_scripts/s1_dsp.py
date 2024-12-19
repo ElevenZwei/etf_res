@@ -137,7 +137,13 @@ def smooth_column(df: pd.DataFrame, input_name: str, out1_name: str, out2_name: 
     oi_2d = oi_grid_2d.reset_index().melt(id_vars='dt', value_name=out2_name, var_name='strike')
     return oi_1d.set_index(['dt', 'strike']), oi_2d.set_index(['dt', 'strike'])
 
+def cut_off_degenerate_gambler(df: pd.DataFrame):
+    pass
+
 def smooth_oi_csv(df: pd.DataFrame, dsp_sec, ts_sigma_sec, strike_sigma_price):
+    # 如果 Call 平仓表示跌，Call 开仓也表示跌，这个时候我们改用绝对值表示 Call 引发的波动，值得尝试。
+    df['oi_diff_c'] = np.abs(df['oi_diff_c'])
+    df['oi_diff_p'] = np.abs(df['oi_diff_p'])
     oi_c_1d, oi_c_2d = smooth_column(
             df,
             input_name='oi_diff_c',

@@ -2,25 +2,37 @@
 对于期权 OI 很多曲面的交叉线做一个二维绘图。
 """
 
+from collections import defaultdict
 import click
 import plotly.graph_objects as go
 import plotly.colors as pc
 import pandas as pd
 
-from dsp_config import DATA_DIR
+from dsp_config import DATA_DIR, get_spot_config
+
+PLOT_CONFIG = {
+    'spot_color_seq': pc.sequential.tempo,
+    'oi_color_seqs': [
+        pc.sequential.Peach,
+        pc.sequential.Burg,
+        pc.sequential.Magenta,
+        pc.sequential.Purp,
+        pc.sequential.Teal,
+    ],
+}
 
 def standard_prices(se: pd.Series):
     # return (se - se.mean()) / se.std()
     return (se - se.iloc[0]) / (se.iloc[0] * 0.01)
 
 # OI 使用 / std 和 / 1000 在曲线之间的关系上会产生区别。
-def standard_oi_diff(se: pd.Series):
+def standard_oi_diff(se: pd.Series, zoom: int):
     # return (se - se.iloc[0])
-    return (se - se.iloc[0]) / 500
+    return (se - se.iloc[0]) / zoom
     # return (se - se.mean()) / se.std()
 
-def plot_df(df: pd.DataFrame, title: str):
-    print(df.columns)
+def plot_df(df: pd.DataFrame, spot: str, title: str):
+    spot_config = get_spot_config(spot)
     df['dt'] = pd.to_datetime(df['dt'])
 
     # clip morning.
@@ -29,72 +41,32 @@ def plot_df(df: pd.DataFrame, title: str):
     df.loc[:, 'sdt'] = df['dt'].apply(lambda x: x.strftime('%m-%d %H:%M:%S'))
     df = df.drop(columns=['dt'])
     df['dt'] = df['sdt']
-    x_uni = df['dt']
+    x_ts_uni = df['dt']
+
+    # structure: {strike_sigma: {ts_sigma: series}}
+    oi_pc_series = defaultdict(lambda: defaultdict())
+    for strike_sigma in spot_config.oi_strike_gaussian_sigmas:
+        for ts_sigma in spot_config.oi_ts_gaussian_sigmas:
+            oi_pc_series[strike_sigma][ts_sigma] = (-1 * standard_oi_diff(
+                    se=df.loc[:, f'oi_cp_{ts_sigma}_{strike_sigma}'],
+                    zoom=spot_config.oi_plot_intersect_zoom)
+            )
+
     y_spot = standard_prices(df.loc[:, 'spot_price'])
     y_spot_300 = standard_prices(df.loc[:, 'spot_price_300'])
 
-    y_pc_120_3 = -1 * standard_oi_diff(df.loc[:, 'oi_cp_120_0.3'])
-    y_pc_300_3 = -1 * standard_oi_diff(df.loc[:, 'oi_cp_300_0.3'])
-    y_pc_600_3 = -1 * standard_oi_diff(df.loc[:, 'oi_cp_600_0.3'])
-    y_pc_1200_3 = -1 * standard_oi_diff(df.loc[:, 'oi_cp_1200_0.3'])
-
-    y_pc_120_4 = -1 * standard_oi_diff(df.loc[:, 'oi_cp_120_0.4'])
-    y_pc_300_4 = -1 * standard_oi_diff(df.loc[:, 'oi_cp_300_0.4'])
-    y_pc_600_4 = -1 * standard_oi_diff(df.loc[:, 'oi_cp_600_0.4'])
-    y_pc_1200_4 = -1 * standard_oi_diff(df.loc[:, 'oi_cp_1200_0.4'])
-
-    y_pc_120_5 = -1 * standard_oi_diff(df.loc[:, 'oi_cp_120_0.5'])
-    y_pc_300_5 = -1 * standard_oi_diff(df.loc[:, 'oi_cp_300_0.5'])
-    y_pc_600_5 = -1 * standard_oi_diff(df.loc[:, 'oi_cp_600_0.5'])
-    y_pc_1200_5 = -1 * standard_oi_diff(df.loc[:, 'oi_cp_1200_0.5'])
-
-    y_pc_120_6 = -1 * standard_oi_diff(df.loc[:, 'oi_cp_120_0.6'])
-    y_pc_300_6 = -1 * standard_oi_diff(df.loc[:, 'oi_cp_300_0.6'])
-    y_pc_600_6 = -1 * standard_oi_diff(df.loc[:, 'oi_cp_600_0.6'])
-    y_pc_1200_6 = -1 * standard_oi_diff(df.loc[:, 'oi_cp_1200_0.6'])
-
-    y_pc_120_8 = -1 * standard_oi_diff(df.loc[:, 'oi_cp_120_0.8'])
-    y_pc_300_8 = -1 * standard_oi_diff(df.loc[:, 'oi_cp_300_0.8'])
-    y_pc_600_8 = -1 * standard_oi_diff(df.loc[:, 'oi_cp_600_0.8'])
-    y_pc_1200_8 = -1 * standard_oi_diff(df.loc[:, 'oi_cp_1200_0.8'])
-
     line_plot = go.Figure()
-    
-    cs = pc.sequential.tempo
+    line_plot.add_trace(go.Scatter(x=x_ts_uni, y=y_spot, mode='lines', name='spot', line={'color': PLOT_CONFIG['spot_color_seq'][1]}))
+    line_plot.add_trace(go.Scatter(x=x_ts_uni, y=y_spot_300, mode='lines', name='spot 300', line={'color': PLOT_CONFIG['spot_color_seq'][4]}))
 
-    line_plot.add_trace(go.Scatter(x=x_uni, y=y_spot, mode='lines', name='spot', line={'color': cs[1]}))
-    line_plot.add_trace(go.Scatter(x=x_uni, y=y_spot_300, mode='lines', name='spot 300', line={'color': cs[4]}))
-    
-    c3 = pc.sequential.Peach
-    c4 = pc.sequential.Burg
-    c5 = pc.sequential.Magenta
-    c6 = pc.sequential.Purp
-    c8 = pc.sequential.Teal
-
-    line_plot.add_trace(go.Scatter(x=x_uni, y=y_pc_120_3, mode='lines', name='pc 120 0.3', line={'color': c3[1]}))
-    line_plot.add_trace(go.Scatter(x=x_uni, y=y_pc_300_3, mode='lines', name='pc 300 0.3', line={'color': c3[2]}))
-    line_plot.add_trace(go.Scatter(x=x_uni, y=y_pc_600_3, mode='lines', name='pc 600 0.3', line={'color': c3[3]}))
-    line_plot.add_trace(go.Scatter(x=x_uni, y=y_pc_1200_3, mode='lines', name='pc 1200 0.3', line={'color': c3[4]}))
-
-    line_plot.add_trace(go.Scatter(x=x_uni, y=y_pc_120_4, mode='lines', name='pc 120 0.4', line={'color': c4[1]}))
-    line_plot.add_trace(go.Scatter(x=x_uni, y=y_pc_300_4, mode='lines', name='pc 300 0.4', line={'color': c4[2]}))
-    line_plot.add_trace(go.Scatter(x=x_uni, y=y_pc_600_4, mode='lines', name='pc 600 0.4', line={'color': c4[3]}))
-    line_plot.add_trace(go.Scatter(x=x_uni, y=y_pc_1200_4, mode='lines', name='pc 1200 0.4', line={'color': c4[4]}))
-
-    line_plot.add_trace(go.Scatter(x=x_uni, y=y_pc_120_5, mode='lines', name='pc 120 0.5', line={'color': c5[1]}))
-    line_plot.add_trace(go.Scatter(x=x_uni, y=y_pc_300_5, mode='lines', name='pc 300 0.5', line={'color': c5[2]}))
-    line_plot.add_trace(go.Scatter(x=x_uni, y=y_pc_600_5, mode='lines', name='pc 600 0.5', line={'color': c5[3]}))
-    line_plot.add_trace(go.Scatter(x=x_uni, y=y_pc_1200_5, mode='lines', name='pc 1200 0.5', line={'color': c5[4]}))
-
-    line_plot.add_trace(go.Scatter(x=x_uni, y=y_pc_120_6, mode='lines', name='pc 120 0.6', line={'color': c6[1]}))
-    line_plot.add_trace(go.Scatter(x=x_uni, y=y_pc_300_6, mode='lines', name='pc 300 0.6', line={'color': c6[2]}))
-    line_plot.add_trace(go.Scatter(x=x_uni, y=y_pc_600_6, mode='lines', name='pc 600 0.6', line={'color': c6[3]}))
-    line_plot.add_trace(go.Scatter(x=x_uni, y=y_pc_1200_6, mode='lines', name='pc 1200 0.6', line={'color': c6[4]}))
-
-    line_plot.add_trace(go.Scatter(x=x_uni, y=y_pc_120_8, mode='lines', name='pc 120 0.8', line={'color': c8[1]}))
-    line_plot.add_trace(go.Scatter(x=x_uni, y=y_pc_300_8, mode='lines', name='pc 300 0.8', line={'color': c8[2]}))
-    line_plot.add_trace(go.Scatter(x=x_uni, y=y_pc_600_8, mode='lines', name='pc 600 0.8', line={'color': c8[3]}))
-    line_plot.add_trace(go.Scatter(x=x_uni, y=y_pc_1200_8, mode='lines', name='pc 1200 0.8', line={'color': c8[4]}))
+    for strike_id, strike_sigma in enumerate(spot_config.oi_strike_gaussian_sigmas):
+        for ts_id, ts_sigma in enumerate(spot_config.oi_ts_gaussian_sigmas):
+            line_plot.add_trace(go.Scatter(
+                x=x_ts_uni,
+                y=oi_pc_series[strike_sigma][ts_sigma],
+                mode='lines',
+                name=f'pc {ts_sigma} {strike_sigma}',
+                line={'color': PLOT_CONFIG['oi_color_seqs'][strike_id][ts_id+1]}))
 
     line_plot.update_layout(
         title=f'{title} OI Intersects',
@@ -105,7 +77,7 @@ def plot_df(df: pd.DataFrame, title: str):
 
 def plot_file(spot: str, suffix: str, save: bool, show: bool):
     df = pd.read_csv(f'{DATA_DIR}/dsp_conv/merged_{spot}_{suffix}.csv')
-    line_plot = plot_df(df, title=f"{spot} {suffix}")
+    line_plot = plot_df(df, spot=spot, title=f"{spot} {suffix}")
     if show:
         line_plot.show()
     if save:

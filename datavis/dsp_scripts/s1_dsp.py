@@ -14,7 +14,7 @@ import scipy.signal as ssig
 import scipy.interpolate as sitp
 import click
 
-from dsp_config import DATA_DIR
+from dsp_config import DATA_DIR, get_spot_config
 
 def left_gaussian(sig, wsize, sigma):
     wsize = min(wsize, len(sig))
@@ -137,13 +137,26 @@ def smooth_column(df: pd.DataFrame, input_name: str, out1_name: str, out2_name: 
     oi_2d = oi_grid_2d.reset_index().melt(id_vars='dt', value_name=out2_name, var_name='strike')
     return oi_1d.set_index(['dt', 'strike']), oi_2d.set_index(['dt', 'strike'])
 
-def cut_off_degenerate_gambler(df: pd.DataFrame):
-    pass
+# 排除赌狗以及我也不理解他们出于什么样的目的参与交易的人的影响
+# 如果数据里面当日开盘的 ask < 0.0005 那么就把这个期权去掉。
+# 我发现这个会增加很多的数据传输量，我可以想一个更简单的办法，
+# 比如说只留下距离平值 20% 以内的。
+def cut_off_degenerate_gambler(df: pd.DataFrame, keep_percent: float=0.2):
+    spot = df.loc[:, 'spot_price'].iloc[0]
+    strikes_se = df.loc[:, 'strike']
+    strikes = strikes_se.unique()
+    strikes = [x for x in strikes if abs(x - spot) / spot <= keep_percent] 
+    strike_max = max(strikes)
+    strike_min = min(strikes)
+    df = df.loc[(strikes_se > strike_min) & (strikes_se < strike_max)].copy()
+    print(df)
+    return df
 
 def smooth_oi_csv(df: pd.DataFrame, dsp_sec, ts_sigma_sec, strike_sigma_price):
     # 如果 Call 平仓表示跌，Call 开仓也表示跌，这个时候我们改用绝对值表示 Call 引发的波动，值得尝试。
-    df['oi_diff_c'] = np.abs(df['oi_diff_c'])
-    df['oi_diff_p'] = np.abs(df['oi_diff_p'])
+    # df['oi_diff_c'] = np.abs(df['oi_diff_c'])
+    # df['oi_diff_p'] = np.abs(df['oi_diff_p'])
+    df = cut_off_degenerate_gambler(df, 0.2)
     oi_c_1d, oi_c_2d = smooth_column(
             df,
             input_name='oi_diff_c',
@@ -165,8 +178,9 @@ def smooth_oi_csv(df: pd.DataFrame, dsp_sec, ts_sigma_sec, strike_sigma_price):
             out1_name='oi_cp_gau_ts', out2_name='oi_cp_gau_2d',
             dsp_sec=dsp_sec, ts_sigma_sec=ts_sigma_sec, strike_sigma_price=strike_sigma_price)
     df_res = pd.concat([oi_c_1d, oi_c_2d, oi_p_1d, oi_p_2d, oi_cp_1d, oi_cp_2d], axis=1)
-    df_res['spotcode'] = df['spotcode'][0]
-    df_res['expirydate'] = df['expirydate'][0]
+    print(df)
+    df_res['spotcode'] = df.loc[:, 'spotcode'].iloc[0]
+    df_res['expirydate'] = df.loc[:, 'expirydate'].iloc[0]
     return df_res
 
 def smooth_spot_df(df: pd.DataFrame, dsp_sec, ts_sigma_sec_list: list[int]):
@@ -184,12 +198,12 @@ def smooth_spot_df(df: pd.DataFrame, dsp_sec, ts_sigma_sec_list: list[int]):
     return df
 
 # 这个是为了绘图编写的 DSP 函数的配置方案。
-def dsp_file_2_plot(spot: str, date: str):
+def dsp_file_2_plot(spot: str, date: str, strike_sigma: float):
     # 这个时间滤波窗口的大小根据做不同波段的因果验证可以有不同的调整。
     df = pd.read_csv(f'{DATA_DIR}/dsp_input/strike_oi_diff_{spot}_{date}.csv')
     df['dt'] = pd.to_datetime(df['dt'])
 
-    df_res = smooth_oi_csv(df, dsp_sec=120, ts_sigma_sec=1200, strike_sigma_price=0.3)
+    df_res = smooth_oi_csv(df, dsp_sec=120, ts_sigma_sec=1200, strike_sigma_price=strike_sigma)
     df_res.to_csv(f'{DATA_DIR}/dsp_plot/strike_oi_smooth_{spot}_{date}.csv')
 
     df_spot = smooth_spot_df(df, dsp_sec=120, ts_sigma_sec_list=[300])
@@ -207,36 +221,14 @@ def dsp_file_2_intersect(spot: str, suffix: str, ts_sigma_list: list[int], strik
     df_spot = smooth_spot_df(df, dsp_sec=60, ts_sigma_sec_list=ts_sigma_list)
     df_spot.to_csv(f'{DATA_DIR}/dsp_conv/spot_{spot}_{suffix}.csv')
     
-def dsp_plot_tasks():
-    # plot_dsp_file('159915', '20241017')
-    # plot_dsp_file('159915', '20241018')
-    # plot_dsp_file('159915', '20241021')
-    # plot_dsp_file('159915', '20241023')
-    # plot_dsp_file('159915', '20241101')
-    # plot_dsp_file('159915', '20241104')
-    dsp_file_2_plot('510050', '20241114_am')
-    pass
-
-ts_sigma_list = [120, 300, 600, 1200]
-strike_sigma_list = [0.3, 0.4, 0.5, 0.6, 0.8]
-def dsp_conv_tasks():
-    # data_dsp_file('159915', '20241017m', ts_sigma_list, strike_sigma_list)
-    # data_dsp_file('159915', '20241018', ts_sigma_list, strike_sigma_list)
-    # data_dsp_file('159915', '20241021', ts_sigma_list, strike_sigma_list)
-    # data_dsp_file('159915', '20241022', ts_sigma_list, strike_sigma_list)
-    # data_dsp_file('159915', '20241023', ts_sigma_list, strike_sigma_list)
-    # data_dsp_file('159915', '20241101', ts_sigma_list, strike_sigma_list)
-    # data_dsp_file('159915', '20241104', ts_sigma_list, strike_sigma_list)
-    # data_dsp_file('159915', '20241105', ts_sigma_list, strike_sigma_list)
-    # data_dsp_file('159915', '20241106', ts_sigma_list, strike_sigma_list)
-    # data_dsp_file('159915', '20241108', ts_sigma_list, strike_sigma_list)
-    # data_dsp_file('159915', '20241112', ts_sigma_list, strike_sigma_list)
-    dsp_file_2_intersect('510050', '20241114_am', ts_sigma_list, strike_sigma_list)
-    pass
-
 def main(spot: str, suffix: str):
-    dsp_file_2_plot(spot, suffix)
-    dsp_file_2_intersect(spot, suffix, ts_sigma_list, strike_sigma_list)
+    spot_config = get_spot_config(spot)
+    dsp_file_2_plot(spot, suffix,
+            strike_sigma=spot_config.oi_strike_gaussian_sigmas[1])
+    dsp_file_2_intersect(spot, suffix,
+            spot_config.oi_ts_gaussian_sigmas,
+            spot_config.oi_strike_gaussian_sigmas,
+    )
 
 @click.command()
 @click.option('-s', '--spot', type=str, help="spot code: 159915 510050")
@@ -245,8 +237,6 @@ def click_main(spot: str, suffix: str):
     main(spot, suffix)
 
 if __name__ == '__main__':
-    # dsp_plot_tasks()
-    # dsp_conv_tasks()
     click_main()
     pass
 

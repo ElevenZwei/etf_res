@@ -149,7 +149,7 @@ def cut_off_degenerate_gambler(df: pd.DataFrame, keep_percent: float=0.2):
     strike_max = max(strikes)
     strike_min = min(strikes)
     df = df.loc[(strikes_se > strike_min) & (strikes_se < strike_max)].copy()
-    print(df)
+    # print(df)
     return df
 
 def smooth_oi_csv(df: pd.DataFrame, dsp_sec, ts_sigma_sec, strike_sigma_price):
@@ -178,7 +178,7 @@ def smooth_oi_csv(df: pd.DataFrame, dsp_sec, ts_sigma_sec, strike_sigma_price):
             out1_name='oi_cp_gau_ts', out2_name='oi_cp_gau_2d',
             dsp_sec=dsp_sec, ts_sigma_sec=ts_sigma_sec, strike_sigma_price=strike_sigma_price)
     df_res = pd.concat([oi_c_1d, oi_c_2d, oi_p_1d, oi_p_2d, oi_cp_1d, oi_cp_2d], axis=1)
-    print(df)
+    # print(df)
     df_res['spotcode'] = df.loc[:, 'spotcode'].iloc[0]
     df_res['expirydate'] = df.loc[:, 'expirydate'].iloc[0]
     return df_res

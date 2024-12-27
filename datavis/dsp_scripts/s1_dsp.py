@@ -91,8 +91,7 @@ def calc_window(series, sigma, multi):
     res_wsize = int(res_sigma * multi)
     return res_wsize, res_sigma, diff_med 
 
-def smooth_column_2d_grid(df: pd.DataFrame, col_name: str,
-                          dsp_sec: int, ts_sigma_sec, strike_sigma_price):
+def remove_dup_lines(df: pd.DataFrame):
     df = df.sort_values(['dt', 'strike'])
     df = df.drop_duplicates()
     duplicate_lines_bitmap = df.groupby(['dt', 'strike']).transform('size') > 1
@@ -106,14 +105,19 @@ def smooth_column_2d_grid(df: pd.DataFrame, col_name: str,
         df = df.loc[df.notna().all(axis=1)]
         print("df after remove dup lines:")
         print(df)
+    return df
 
+def smooth_time_axis()
+
+def smooth_column_2d_grid(df: pd.DataFrame, col_name: str,
+                          dsp_sec: int, ts_sigma_sec, strike_sigma_price):
     grid_1d = df.pivot(index='dt', columns='strike', values=col_name)
     # print(grid_1d)
     grid_1d.ffill(inplace=True)
     grid_1d.fillna(0, inplace=True)
-    grid_1d.astype('Float64').to_csv(f'{DATA_DIR}/tmp/grid_1d_input_{col_name}.csv')
+    # grid_1d.astype('Float64').to_csv(f'{DATA_DIR}/tmp/grid_1d_input_{col_name}.csv')
     # print(grid_1d)
-    # grid_1d = downsample_time(grid_1d, 30)
+    grid_1d = downsample_time(grid_1d, 30)
     se_ts = grid_1d.index.astype('int64') // 10**9
     ts_wsize, ts_sigma, ts_diff_med = calc_window(se_ts, ts_sigma_sec, 3.5)
     print(f"ts_diff_med={ts_diff_med}, ts_wsize={ts_wsize}, ts_sigma={ts_sigma}")
@@ -131,6 +135,7 @@ def smooth_column_2d_grid(df: pd.DataFrame, col_name: str,
 
 def smooth_column(df: pd.DataFrame, input_name: str, out1_name: str, out2_name: str,
                   dsp_sec: int, ts_sigma_sec, strike_sigma_price):
+    df = remove_dup_lines(df)
     oi_grid, oi_grid_2d = smooth_column_2d_grid(
             df, input_name, dsp_sec, ts_sigma_sec, strike_sigma_price)
     oi_1d = oi_grid.reset_index().melt(id_vars='dt', value_name=out1_name, var_name='strike')

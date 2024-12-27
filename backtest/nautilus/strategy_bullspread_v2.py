@@ -180,9 +180,14 @@ class StrategyBullSpread2(Strategy):
         tick_id = tick.instrument_id
         opt_info: OptionInfo = self.id_info[tick_id]
         # 期权到期或者持有时间超出限制都是全部清空。
+        # 这里要思考一个问题，有的期权的数据只有很少一段。
         if now.date() == opt_info.last_day:
-            self.close_all()
-            self.enable_trade = True
+            for entry in self.holds:
+                if entry.buy_opt.id == tick_id or entry.sell_opt.id == tick_id:
+                    self.log.info(f"option {tick_id} expired.")
+                    self.close_all()
+                    self.enable_trade = True
+                    return
 
     def pick_available_options(self, now: datetime.datetime):
         now_date = now.date()
@@ -215,6 +220,8 @@ class StrategyBullSpread2(Strategy):
         # avail = avail.loc[avail['delta'].abs() < abs(target_delta)]
         # self.log.info(repr(avail))
         avail = avail.sort_values(by='delta', key=lambda x: abs(x - target_delta))
+        if (avail.shape[0] == 0):
+            return None
         return avail.iloc[0]
 
     def close_all(self):

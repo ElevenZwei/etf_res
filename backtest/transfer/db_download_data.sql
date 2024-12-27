@@ -8,6 +8,8 @@
 @set bgdt='2024-01-01'
 @set eddt='2024-11-01'
 @set rootcode='159915.SZ'
+
+-- 这个是抽取 greeks 文件的 SQL 脚本
 --explain analyze
 with dt_contract as (
 	select dt, rootcode, code, tradecode, strike, expirydate
@@ -20,6 +22,8 @@ with dt_contract as (
 select md.dt, md.code, tradecode, closep, openinterest, rootcode, strike, expirydate from market_data md
 join dt_contract on md.dt::date = dt_contract.dt and md.code = dt_contract.code
 where md.dt >= $bgdt and md.dt <= $eddt;
+
+-- 抽取 spot 文件的脚本是从 open_interest_net 这个视图里得到的。
 
 select expirydate, count(*) as cnt
 from contract_info ci 

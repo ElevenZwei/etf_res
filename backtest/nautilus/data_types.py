@@ -88,6 +88,7 @@ def prepare_spot_quote(csv_fpath, engine, venue, bgdt, eddt):
     spot = codes[0]
     df.loc[:, 'ask'] = df['price']
     df.loc[:, 'bid'] = df['price']
+    print('loading spot:', spot)
     spot_symbol = Symbol(spot)
     inst = Equity(
         instrument_id=InstrumentId(symbol=spot_symbol, venue=venue),
@@ -117,6 +118,8 @@ def prepare_option_quote(csv_fpath, engine, venue, bgdt, eddt):
     df = df[(se_dt >= bgdt) & (se_dt < eddt)]
     # df.to_csv('../input/tl_options_159915_clip.csv')
     codes = df['code'].unique()
+    if 'tradecode' not in df.columns:
+        df['tradecode'] = df['code']
     infos = {}
     for code in tqdm.tqdm(codes):
         df_clip = df[df['code'] == code].copy()
@@ -124,7 +127,8 @@ def prepare_option_quote(csv_fpath, engine, venue, bgdt, eddt):
         df_clip.loc[:, 'bid'] = df_clip['closep']
         id = df_clip['tradecode'].iloc[0]
         # print(id)
-        cp = 1 if 'C2' in id else -1
+        cp = 1 if ('C2' in id or '-C-' in id) else -1
+        print('loading option:', id)
         opt_symbol = Symbol(id)
         inst = Equity(
             instrument_id=InstrumentId(symbol=opt_symbol, venue=venue),

@@ -6,3 +6,5 @@ Simplified to the following steps:
 3. Use different gaussian sigmas alongside the spot price.
 
 """
+
+

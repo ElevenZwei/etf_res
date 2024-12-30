@@ -38,6 +38,11 @@ SPOT_CONFIGS = {
         oi_strike_gaussian_sigmas=[0.4, 0.5, 0.6, 0.8],
         oi_plot_intersect_zoom=3000,
     ),
+    '588000': SpotConfig(
+        oi_ts_gaussian_sigmas=SPOT_DEFAULT_TS_SIGMAS,
+        oi_strike_gaussian_sigmas=[0.025, 0.05, 0.075, 0.1, 0.15],
+        oi_plot_intersect_zoom=1000,
+    ),
     'default': SpotConfig(
         oi_ts_gaussian_sigmas=SPOT_DEFAULT_TS_SIGMAS,
         oi_strike_gaussian_sigmas=[0.3, 0.4, 0.5, 0.6, 0.8],

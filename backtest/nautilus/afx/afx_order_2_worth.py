@@ -10,13 +10,17 @@ from collections import defaultdict
 from backtest.config import DATA_DIR
 
 def make_opt_pivot(df: pd.DataFrame):
+    if 'tradecode' not in df.columns:
+        df['tradecode'] = df['code']
     df = df[['dt', 'tradecode', 'closep']].copy()
+    df['dt'] = pd.to_datetime(df['dt']).dt.tz_localize('Asia/Shanghai')
     df = df.sort_values(['dt', 'tradecode'])
     df = df.drop_duplicates()
     df = df.rename(columns={'tradecode': 'code'})
-    df['code'] = df['code'].apply(lambda x: 'OPT' + x)
+    df['code'] = df['code'].apply(lambda x: 'OPT' + x.replace('-', '_'))
     df['dt'] = pd.to_datetime(df['dt'])
     res = df.pivot(index='dt', columns='code', values='closep')
+    df = df.ffill()
     return res
 
 def make_order_df(df: pd.DataFrame):
@@ -24,7 +28,7 @@ def make_order_df(df: pd.DataFrame):
         {'BUY': 1, 'SELL': -1}
     )
     df['amount'] = df['amount'] * df['direction']
-    df['code'] = df['code'].apply(lambda x: 'OPT' + x.rstrip('.sim'))
+    df['code'] = df['code'].apply(lambda x: 'OPT' + x.rstrip('.sim').replace('-', '_'))
     df = df[['dt', 'code', 'amount', 'price']].copy()
     df['dt'] = pd.to_datetime(df['dt']).dt.tz_convert('Asia/Shanghai')
     df = df.set_index('dt')
@@ -86,10 +90,12 @@ def calc_pnls(opt_df: pd.DataFrame, order_df: pd.DataFrame):
     return pnl_df
 
 def main():
-    opt_df = pd.read_csv(f'{DATA_DIR}/input/tl_greeks_159915_all_fixed.csv')
+    # opt_df = pd.read_csv(f'{DATA_DIR}/input/tl_greeks_159915_all_fixed.csv')
+    opt_df = pd.read_csv(f'{DATA_DIR}/input/nifty_greeks_combined.csv')
     opt_df = make_opt_pivot(opt_df)
-    # print(opt_df)
-    order_df = pd.read_csv(f'{DATA_DIR}/output/opt_bullsp_order_2_t.csv')
+    print(opt_df)
+    # opt_df.to_csv('opt_df.csv')
+    order_df = pd.read_csv(f'{DATA_DIR}/output/opt_bullsp_order_5_t.csv')
     order_df = make_order_df(order_df)
 
     """
@@ -98,7 +104,7 @@ def main():
     order_dt = order_df.index.unique()
     opt_dt = opt_df.index.unique()
     order_only_dt = set(order_dt) - set(opt_dt)
-    print(order_only_dt)
+    # print(order_only_dt)
 
     # print(order_df)
     pnl_df = calc_pnls(opt_df, order_df)

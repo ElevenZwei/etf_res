@@ -107,23 +107,20 @@ def remove_dup_lines(df: pd.DataFrame):
         print(df)
     return df
 
-def smooth_time_axis()
-
-def smooth_column_2d_grid(df: pd.DataFrame, col_name: str,
-                          dsp_sec: int, ts_sigma_sec, strike_sigma_price):
+def smooth_time_axis(df: pd.DataFrame, col_name: str, dsp_sec: int, ts_sigma_sec: int):
     grid_1d = df.pivot(index='dt', columns='strike', values=col_name)
-    # print(grid_1d)
     grid_1d.ffill(inplace=True)
     grid_1d.fillna(0, inplace=True)
-    # grid_1d.astype('Float64').to_csv(f'{DATA_DIR}/tmp/grid_1d_input_{col_name}.csv')
-    # print(grid_1d)
     grid_1d = downsample_time(grid_1d, 30)
     se_ts = grid_1d.index.astype('int64') // 10**9
     ts_wsize, ts_sigma, ts_diff_med = calc_window(se_ts, ts_sigma_sec, 3.5)
-    print(f"ts_diff_med={ts_diff_med}, ts_wsize={ts_wsize}, ts_sigma={ts_sigma}")
-
+    print(f"dsp_sec={dsp_sec}, ts_diff_med={ts_diff_med}, ts_wsize={ts_wsize}, ts_sigma={ts_sigma}")
     grid_1d = gaussian_every_column(grid_1d, ts_wsize, ts_sigma, use_left_gaussian=True)
-    grid_1d = downsample_time(grid_1d, dsp_sec)
+    return grid_1d
+
+def smooth_column_2d_grid(df: pd.DataFrame, col_name: str,
+                          dsp_sec: int, ts_sigma_sec, strike_sigma_price):
+    grid_1d = smooth_time_axis(df, col_name, dsp_sec, ts_sigma_sec)
     grid_1d = interpolate_strike(grid_1d)
 
     strike_wsize, strike_sigma, strike_med = calc_window(grid_1d.columns, strike_sigma_price, 2.5)
@@ -135,7 +132,6 @@ def smooth_column_2d_grid(df: pd.DataFrame, col_name: str,
 
 def smooth_column(df: pd.DataFrame, input_name: str, out1_name: str, out2_name: str,
                   dsp_sec: int, ts_sigma_sec, strike_sigma_price):
-    df = remove_dup_lines(df)
     oi_grid, oi_grid_2d = smooth_column_2d_grid(
             df, input_name, dsp_sec, ts_sigma_sec, strike_sigma_price)
     oi_1d = oi_grid.reset_index().melt(id_vars='dt', value_name=out1_name, var_name='strike')
@@ -161,6 +157,7 @@ def smooth_oi_csv(df: pd.DataFrame, dsp_sec, ts_sigma_sec, strike_sigma_price):
     # 如果 Call 平仓表示跌，Call 开仓也表示跌，这个时候我们改用绝对值表示 Call 引发的波动，值得尝试。
     # df['oi_diff_c'] = np.abs(df['oi_diff_c'])
     # df['oi_diff_p'] = np.abs(df['oi_diff_p'])
+    df = remove_dup_lines(df)
     df = cut_off_degenerate_gambler(df, 0.2)
     oi_c_1d, oi_c_2d = smooth_column(
             df,

@@ -6,7 +6,7 @@ import plotly.graph_objects as go
 import numpy as np
 import pandas as pd
 
-from dsp_config import DATA_DIR
+from dsp_config import DATA_DIR, gen_wide_suffix
 
 def plot_df(df: pd.DataFrame, title: str):
     df['dt'] = pd.to_datetime(df['dt']).apply(lambda x: x.strftime('%m-%d %H:%M:%S'))
@@ -73,24 +73,28 @@ def plot_df(df: pd.DataFrame, title: str):
 
     return fig
 
-def plot_file(spot: str, date: str, show: bool, save: bool):
-    df = pd.read_csv(f'{DATA_DIR}/dsp_plot/strike_oi_smooth_{spot}_{date}.csv')
-    figure = plot_df(df, title=f"{spot} {date}")
+def plot_file(spot: str, suffix: str, show: bool, save: bool, wide: bool):
+    wide_suffix = gen_wide_suffix(wide)
+    suffix = f'{suffix}{wide_suffix}'
+    df = pd.read_csv(f'{DATA_DIR}/dsp_plot/strike_oi_smooth_{spot}_{suffix}.csv')
+    figure = plot_df(df, title=f"{spot} {suffix}")
     if show:
         figure.show()
     if save:
-        figure.write_html(f'{DATA_DIR}/html_oi/oi_smooth_{spot}_{date}.html')
-        figure.write_image(f'{DATA_DIR}/png_oi/oi_smooth_{spot}_{date}.png',
+        figure.write_html(f'{DATA_DIR}/html_oi/oi_smooth_{spot}_{suffix}.html')
+        figure.write_image(f'{DATA_DIR}/png_oi/oi_smooth_{spot}_{suffix}.png',
                            width=1200, height=800)
 
-def main(spot: str, suffix: str, show: bool = True, save: bool = True):
-    plot_file(spot, suffix, show=show, save=save)
+def main(spot: str, suffix: str,
+         show: bool, save: bool, wide: bool):
+    plot_file(spot, suffix, show=show, save=save, wide=wide)
 
 @click.command()
 @click.option('-s', '--spot', type=str, help="spot code: 159915 510050")
 @click.option('-d', '--suffix', type=str, help="csv file name suffix.")
 @click.option('--show', type=bool, default=True, help="show plot.")
 @click.option('--save', type=bool, default=True, help="save to html.")
+@click.option('--wide', type=bool, default=False, help="use wide plot.")
 def click_main(spot: str, suffix: str, save: bool, show: bool):
     main(spot, suffix=suffix, save=save, show=show)
 

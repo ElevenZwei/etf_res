@@ -9,7 +9,7 @@ from multiprocessing import Pool, Lock
 
 dl_lock = Lock()
 
-def process_date(dt, spot, refresh, plot, year, month):
+def process_date(dt, spot, refresh, plot, year, month, wide: bool):
     try:
         if refresh:
             with dl_lock:
@@ -19,7 +19,7 @@ def process_date(dt, spot, refresh, plot, year, month):
         dd.date_dsp(spot, dt.strftime('%Y%m%d'),
                     refresh=False, plot=plot,
                     year=year, month=month,
-                    show=False, save=True)
+                    show=False, save=True, wide=wide)
     except Exception as e:
         print(f'{dt.date()} failed, error: {e}')
 
@@ -31,11 +31,16 @@ def process_date(dt, spot, refresh, plot, year, month):
 @click.option('-p', '--plot', is_flag=True, default=False, help="Plot only, use existing data.")
 @click.option('-y', '--year', type=int)
 @click.option('-m', '--month', type=int)
-def click_main(spot: str, begin: str, end: str, refresh: bool, plot: bool, year: int, month: int):
+@click.option('--wide', type=bool, default=False, help="use wide plot.")
+def click_main(spot: str, begin: str, end: str,
+               refresh: bool, plot: bool,
+               year: int, month: int,
+               wide: bool):
     # Intel i9 也只能跑两个并发
-    max_concurrent_jobs = 2  # Set the maximum number of concurrent jobs
+    max_concurrent_jobs = 1  # Set the maximum number of concurrent jobs
     with Pool(processes=max_concurrent_jobs) as pool:
-        pool.starmap(process_date, [(dt, spot, refresh, plot, year, month) for dt in pd.date_range(begin, end)])
+        pool.starmap(process_date, [(dt, spot, refresh, plot, year, month, wide)
+                                    for dt in pd.date_range(begin, end)])
     
 if __name__ == '__main__':
     click_main()

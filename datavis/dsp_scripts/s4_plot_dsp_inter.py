@@ -8,7 +8,7 @@ import plotly.graph_objects as go
 import plotly.colors as pc
 import pandas as pd
 
-from dsp_config import DATA_DIR, get_spot_config
+from dsp_config import DATA_DIR, gen_wide_suffix, get_spot_config
 
 PLOT_CONFIG = {
     'spot_color_seq': pc.sequential.tempo,
@@ -31,7 +31,7 @@ def standard_oi_diff(se: pd.Series, zoom: int):
     return (se - se.iloc[0]) / zoom
     # return (se - se.mean()) / se.std()
 
-def plot_df(df: pd.DataFrame, spot: str, title: str):
+def plot_df(df: pd.DataFrame, spot: str, title: str, wide: bool):
     spot_config = get_spot_config(spot)
     df['dt'] = pd.to_datetime(df['dt'])
 
@@ -45,7 +45,8 @@ def plot_df(df: pd.DataFrame, spot: str, title: str):
 
     # structure: {strike_sigma: {ts_sigma: series}}
     oi_pc_series = defaultdict(lambda: defaultdict())
-    for strike_sigma in spot_config.oi_strike_gaussian_sigmas:
+    strike_sigmas = spot_config.get_strike_sigmas(wide)
+    for strike_sigma in strike_sigmas:
         for ts_sigma in spot_config.oi_ts_gaussian_sigmas:
             oi_pc_series[strike_sigma][ts_sigma] = (-1 * standard_oi_diff(
                     se=df.loc[:, f'oi_cp_{ts_sigma}_{strike_sigma}'],
@@ -59,7 +60,7 @@ def plot_df(df: pd.DataFrame, spot: str, title: str):
     line_plot.add_trace(go.Scatter(x=x_ts_uni, y=y_spot, mode='lines', name='spot', line={'color': PLOT_CONFIG['spot_color_seq'][1]}))
     line_plot.add_trace(go.Scatter(x=x_ts_uni, y=y_spot_300, mode='lines', name='spot 300', line={'color': PLOT_CONFIG['spot_color_seq'][4]}))
 
-    for strike_id, strike_sigma in enumerate(spot_config.oi_strike_gaussian_sigmas):
+    for strike_id, strike_sigma in enumerate(strike_sigmas):
         for ts_id, ts_sigma in enumerate(spot_config.oi_ts_gaussian_sigmas):
             line_plot.add_trace(go.Scatter(
                 x=x_ts_uni,
@@ -75,9 +76,11 @@ def plot_df(df: pd.DataFrame, spot: str, title: str):
     )
     return line_plot
 
-def plot_file(spot: str, suffix: str, save: bool, show: bool):
+def plot_file(spot: str, suffix: str, save: bool, show: bool, wide: bool):
+    wide_suffix = gen_wide_suffix(wide)
+    suffix = f'{suffix}{wide_suffix}'
     df = pd.read_csv(f'{DATA_DIR}/dsp_conv/merged_{spot}_{suffix}.csv')
-    line_plot = plot_df(df, spot=spot, title=f"{spot} {suffix}")
+    line_plot = plot_df(df, spot=spot, title=f"{spot} {suffix}", wide=wide)
     if show:
         line_plot.show()
     if save:
@@ -85,16 +88,17 @@ def plot_file(spot: str, suffix: str, save: bool, show: bool):
         line_plot.write_image(f'{DATA_DIR}/png_oi/oi_intersect_{spot}_{suffix}.png',
                               width=1200, height=800)
 
-def main(spot: str, suffix: str, save: bool, show: bool):
-    plot_file(spot, suffix, save=save, show=show)
+def main(spot: str, suffix: str, save: bool, show: bool, wide: bool):
+    plot_file(spot, suffix, save=save, show=show, wide=wide)
 
 @click.command()
 @click.option('-s', '--spot', type=str, help="spot code: 159915 510050")
 @click.option('-d', '--suffix', type=str, help="csv file name suffix.")
 @click.option('--save', type=bool, default=True, help="save to html.")
 @click.option('--show', type=bool, default=True, help="show plot.")
-def click_main(spot: str, suffix: str, save: bool, show: bool):
-    main(spot, suffix, save, show)
+@click.option('--wide', type=bool, default=False, help="wide plot.")
+def click_main(spot: str, suffix: str, save: bool, show: bool, wide: bool):
+    main(spot, suffix, save, show, wide=wide)
 
 if __name__ == '__main__':
     click_main()

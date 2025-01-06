@@ -14,7 +14,7 @@ import scipy.signal as ssig
 import scipy.interpolate as sitp
 import click
 
-from dsp_config import DATA_DIR, get_spot_config
+from dsp_config import DATA_DIR, get_spot_config, gen_wide_suffix
 
 def left_gaussian(sig, wsize, sigma):
     wsize = min(wsize, len(sig))
@@ -153,12 +153,16 @@ def cut_off_degenerate_gambler(df: pd.DataFrame, keep_percent: float=0.2):
     # print(df)
     return df
 
+def remove_dup_cut(df: pd.DataFrame, wide: bool):
+    df = remove_dup_lines(df)
+    if not wide:
+        df = cut_off_degenerate_gambler(df, 0.2)
+    return df
+
 def smooth_oi_csv(df: pd.DataFrame, dsp_sec, ts_sigma_sec, strike_sigma_price):
     # 如果 Call 平仓表示跌，Call 开仓也表示跌，这个时候我们改用绝对值表示 Call 引发的波动，值得尝试。
     # df['oi_diff_c'] = np.abs(df['oi_diff_c'])
     # df['oi_diff_p'] = np.abs(df['oi_diff_p'])
-    df = remove_dup_lines(df)
-    df = cut_off_degenerate_gambler(df, 0.2)
     print(f'smooth: ts_sigma_sec={ts_sigma_sec}, strike_sigma_price={strike_sigma_price}')
     oi_c_1d, oi_c_2d = smooth_column(
             df,
@@ -201,43 +205,49 @@ def smooth_spot_df(df: pd.DataFrame, dsp_sec, ts_sigma_sec_list: list[int]):
     return df
 
 # 这个是为了绘图编写的 DSP 函数的配置方案。
-def dsp_file_2_plot(spot: str, date: str, strike_sigma: float):
+def dsp_file_2_plot(spot: str, suffix: str, strike_sigma: float, wide: bool):
     # 这个时间滤波窗口的大小根据做不同波段的因果验证可以有不同的调整。
-    df = pd.read_csv(f'{DATA_DIR}/dsp_input/strike_oi_diff_{spot}_{date}.csv')
+    df = pd.read_csv(f'{DATA_DIR}/dsp_input/strike_oi_diff_{spot}_{suffix}.csv')
     df['dt'] = pd.to_datetime(df['dt'])
-
+    df = remove_dup_cut(df, wide=wide)
     df_res = smooth_oi_csv(df, dsp_sec=120, ts_sigma_sec=1200, strike_sigma_price=strike_sigma)
-    df_res.to_csv(f'{DATA_DIR}/dsp_plot/strike_oi_smooth_{spot}_{date}.csv')
-
+    df_res.to_csv(f'{DATA_DIR}/dsp_plot/strike_oi_smooth_{spot}_{suffix}{gen_wide_suffix(wide)}.csv')
     df_spot = smooth_spot_df(df, dsp_sec=120, ts_sigma_sec_list=[300])
-    df_spot.to_csv(f'{DATA_DIR}/dsp_plot/spot_{spot}_{date}.csv')
+    df_spot.to_csv(f'{DATA_DIR}/dsp_plot/spot_{spot}_{suffix}{gen_wide_suffix(wide)}.csv')
 
 
 # 这个是为了计算不同长度的相关关系做的 dsp
-def dsp_file_2_intersect(spot: str, suffix: str, ts_sigma_list: list[int], strike_sigma_list: list[float]):
+def dsp_file_2_intersect(spot: str, suffix: str,
+                        ts_sigma_list: list[int], strike_sigma_list: list[float],
+                        wide: bool):
     df = pd.read_csv(f'{DATA_DIR}/dsp_input/strike_oi_diff_{spot}_{suffix}.csv')
     df['dt'] = pd.to_datetime(df['dt'])
+    df = remove_dup_cut(df, wide=wide)
     for ts_sigma in ts_sigma_list:
         for strike_sigma in strike_sigma_list:
             df_res = smooth_oi_csv(df, dsp_sec=60, ts_sigma_sec=ts_sigma, strike_sigma_price=strike_sigma)
-            df_res.to_csv(f'{DATA_DIR}/dsp_conv/strike_oi_smooth_{spot}_{suffix}_{ts_sigma}_{strike_sigma}.csv')
+            df_res.to_csv(f'{DATA_DIR}/dsp_conv/strike_oi_smooth_{spot}_{suffix}{gen_wide_suffix(wide)}_{ts_sigma}_{strike_sigma}.csv')
     df_spot = smooth_spot_df(df, dsp_sec=60, ts_sigma_sec_list=ts_sigma_list)
-    df_spot.to_csv(f'{DATA_DIR}/dsp_conv/spot_{spot}_{suffix}.csv')
+    df_spot.to_csv(f'{DATA_DIR}/dsp_conv/spot_{spot}_{suffix}{gen_wide_suffix(wide)}.csv')
     
-def main(spot: str, suffix: str):
+def main(spot: str, suffix: str, wide: bool):
     spot_config = get_spot_config(spot)
+    strike_sigmas = spot_config.get_strike_sigmas(wide)
     dsp_file_2_plot(spot, suffix,
-            strike_sigma=spot_config.oi_strike_gaussian_sigmas[1])
+            strike_sigma=strike_sigmas[1],
+            wide=wide)
     dsp_file_2_intersect(spot, suffix,
             spot_config.oi_ts_gaussian_sigmas,
-            spot_config.oi_strike_gaussian_sigmas,
+            strike_sigmas,
+            wide=wide,
     )
 
 @click.command()
 @click.option('-s', '--spot', type=str, help="spot code: 159915 510050")
 @click.option('-d', '--suffix', type=str, help="csv file name suffix.")
-def click_main(spot: str, suffix: str):
-    main(spot, suffix)
+@click.option('--wide', type=bool, default=False, help="use wide strike sigma")
+def click_main(spot: str, suffix: str, wide: bool):
+    main(spot, suffix, wide=wide)
 
 if __name__ == '__main__':
     click_main()

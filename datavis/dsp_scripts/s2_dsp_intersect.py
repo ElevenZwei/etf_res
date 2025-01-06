@@ -8,7 +8,7 @@ import pandas as pd
 import pathlib
 import glob
 
-from dsp_config import DATA_DIR
+from dsp_config import DATA_DIR, gen_wide_suffix
 
 def intersect_lines(spot_df: pd.DataFrame, oi_df: pd.DataFrame):
     spot_df['dt'] = pd.to_datetime(spot_df['dt'])
@@ -23,7 +23,9 @@ def intersect_lines(spot_df: pd.DataFrame, oi_df: pd.DataFrame):
     merged_df = pd.merge_asof(spot_df, oi_df, on='price', by='dt', direction='nearest')
     return merged_df
 
-def intersect_merge_files(spot: str, suffix: str):
+def intersect_merge_files(spot: str, suffix: str, wide: bool):
+    wide_suffix = gen_wide_suffix(wide)
+    suffix = f'{suffix}{wide_suffix}'
     spot_df = pd.read_csv(f'{DATA_DIR}/dsp_conv/spot_{spot}_{suffix}.csv')
     oi_fs = glob.glob(f'{DATA_DIR}/dsp_conv/strike_oi_smooth_{spot}_{suffix}_*.csv')
     inter_dfs = []
@@ -50,8 +52,9 @@ def intersect_merge_files(spot: str, suffix: str):
 @click.command()
 @click.option('-s', '--spot', type=str, help="spot code: 159915 510050")
 @click.option('-d', '--suffix', type=str, help="csv file name suffix.")
-def click_main(spot: str, suffix: str):
-    intersect_merge_files(spot, suffix)
+@click.option('--wide', type=bool, default=False, help="wide plot.")
+def click_main(spot: str, suffix: str, wide: bool):
+    intersect_merge_files(spot, suffix, wide=wide)
 
 if __name__ == '__main__':
     click_main()

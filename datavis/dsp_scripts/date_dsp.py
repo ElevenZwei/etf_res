@@ -39,24 +39,24 @@ def default_suffix(date: str, year: int = None, month: int = None):
 def download_data(spot: str, date: str, year: int, month: int):
     return s0.auto_dl(spot, year=year, month=month, md_date=date)
 
-def calc_data(spot: str, suffix: str):
-    s1.main(spot=spot, suffix=suffix)
-    s2.intersect_merge_files(spot, suffix=suffix)
+def calc_data(spot: str, suffix: str, wide: bool):
+    s1.main(spot=spot, suffix=suffix, wide=wide)
+    s2.intersect_merge_files(spot, suffix=suffix, wide=wide)
 
-def plot_data(spot: str, suffix: str, show: bool, save: bool):
-    s3.main(spot, suffix=suffix, show=show, save=save)
-    s4.main(spot, suffix=suffix, show=show, save=save)
+def plot_data(spot: str, suffix: str, show: bool, save: bool, wide: bool):
+    s3.main(spot, suffix=suffix, show=show, save=save, wide=wide)
+    s4.main(spot, suffix=suffix, show=show, save=save, wide=wide)
 
 def date_dsp(spot: str, date: str,
              refresh: bool, plot: bool,
              year: int, month: int,
-             show: bool, save: bool):
+             show: bool, save: bool, wide: bool):
     suffix = default_suffix(date, year, month)
     if not plot:
         if refresh:
             suffix = s0.auto_dl(spot, year=year, month=month, md_date=date)
-        calc_data(spot, suffix)
-    plot_data(spot, suffix, show=show, save=save)
+        calc_data(spot, suffix, wide=wide)
+    plot_data(spot, suffix, show=show, save=save, wide=wide)
 
 @click.command()
 @click.option('-s', '--spot', type=str, required=True, help="spot code: 159915 510050")
@@ -67,11 +67,15 @@ def date_dsp(spot: str, date: str,
 @click.option('-m', '--month', type=int)
 @click.option('--show', type=bool, default=True, help="show plot.")
 @click.option('--save', type=bool, default=True, help="save to html.")
-def click_main(spot: str, date: str, refresh: bool, plot: bool, year: int, month: int, show: bool, save: bool):
+@click.option('--wide', type=bool, default=False, help="use wide plot.")
+def click_main(spot: str, date: str,
+        refresh: bool, plot: bool,
+        year: int, month: int,
+        show: bool, save: bool, wide: bool):
     date_dsp(spot, date,
              refresh=refresh, plot=plot,
              year=year, month=month,
-             show=show, save=save)
+             show=show, save=save, wide=wide)
 
 if __name__ == '__main__':
     click_main()

@@ -7,7 +7,7 @@ from dateutil.relativedelta import relativedelta
 import sqlalchemy
 import pandas as pd
 
-from dsp_config import DATA_DIR
+from dsp_config import DATA_DIR, gen_suffix
 
 def get_engine():
     return sqlalchemy.create_engine('postgresql+psycopg2://option:option@localhost:15432/opt')
@@ -36,7 +36,8 @@ def dl_oi_data(spot: str, expiry_date: datetime.date, md_date: datetime.date):
     query = f"""
         set enable_nestloop=false;
         with OI as (
-            select *, oi - oi_open as oi_diff, log(oi) - log(oi_open) as oi_dlog
+            select *, oi - oi_open as oi_diff
+            -- , log(oi) - log(oi_open) as oi_dlog
             from (
                 select
                     dt, spotcode, expirydate, callput, strike, tradecode,
@@ -52,8 +53,8 @@ def dl_oi_data(spot: str, expiry_date: datetime.date, md_date: datetime.date):
                 oi1.dt, spotcode, expirydate, strike,
                 oi1.tradecode as oi1c, oi2.tradecode as oi2c,
                 oi1.oi_open as oi_open_c, oi2.oi_open as oi_open_p,
-                oi1.oi_diff as oi_diff_c, oi2.oi_diff as oi_diff_p,
-                oi1.oi_dlog as oi_dlog_c, oi2.oi_dlog as oi_dlog_p
+                oi1.oi_diff as oi_diff_c, oi2.oi_diff as oi_diff_p
+                -- , oi1.oi_dlog as oi_dlog_c, oi2.oi_dlog as oi_dlog_p
             from OI oi1 join OI oi2 using (dt, spotcode, expirydate, strike)
             where oi1.callput = 1 and oi2.callput = -1
         )
@@ -76,8 +77,11 @@ def dl_oi_data(spot: str, expiry_date: datetime.date, md_date: datetime.date):
     # print(df['dt'])
     # df.to_csv('test.csv', index=False)
     md_date_str = md_date.strftime('%Y%m%d')
-    df.to_csv(f'{DATA_DIR}/dsp_input/strike_oi_diff_{spot}_{md_date_str}.csv',
-            index=False)
+    expiry_date_str = expiry_date.strftime('%Y%m%d')
+    suffix = gen_suffix(expiry_date_str, md_date_str)
+    fname = f'strike_oi_diff_{spot}_{suffix}.csv'
+    df.to_csv(f'{DATA_DIR}/dsp_input/{fname}', index=False)
+    return suffix
 
 def get_nearest_expirydate(spot: str, dt: datetime.datetime):
     exp: Optional[datetime.date] = dl_expiry_date(spot, dt.year, dt.month)
@@ -97,7 +101,7 @@ def auto_dl(spot: str, md_date: str, year: Optional[int] = None, month: Optional
         exp = dl_expiry_date(spot, year, month)
     if exp is None:
         exit(1)
-    dl_oi_data(spot, exp, dt)
+    return dl_oi_data(spot, exp, dt)
 
 @click.command()
 @click.option('-s', '--spot', type=str)

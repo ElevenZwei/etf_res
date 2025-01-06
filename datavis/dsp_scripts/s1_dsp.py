@@ -114,7 +114,7 @@ def smooth_time_axis(df: pd.DataFrame, col_name: str, dsp_sec: int, ts_sigma_sec
     grid_1d = downsample_time(grid_1d, 30)
     se_ts = grid_1d.index.astype('int64') // 10**9
     ts_wsize, ts_sigma, ts_diff_med = calc_window(se_ts, ts_sigma_sec, 3.5)
-    print(f"dsp_sec={dsp_sec}, ts_diff_med={ts_diff_med}, ts_wsize={ts_wsize}, ts_sigma={ts_sigma}")
+    # print(f"ts_sigma_sec={ts_sigma_sec}, dsp_sec={dsp_sec}, ts_diff_med={ts_diff_med}, ts_wsize={ts_wsize}, ts_sigma={ts_sigma}")
     grid_1d = gaussian_every_column(grid_1d, ts_wsize, ts_sigma, use_left_gaussian=True)
     return grid_1d
 
@@ -124,7 +124,7 @@ def smooth_column_2d_grid(df: pd.DataFrame, col_name: str,
     grid_1d = interpolate_strike(grid_1d)
 
     strike_wsize, strike_sigma, strike_med = calc_window(grid_1d.columns, strike_sigma_price, 2.5)
-    print(f"strike_diff_med={strike_med}, strike_wsize={strike_wsize}, strike_sigma={strike_sigma}")
+    # print(f"strike_sigma_price={strike_sigma_price}, strike_diff_med={strike_med}, strike_wsize={strike_wsize}, strike_sigma={strike_sigma}")
     grid_2d = grid_1d.transpose()
     grid_2d = gaussian_every_column(grid_2d, strike_wsize, strike_sigma, use_left_gaussian=False)
     grid_2d = grid_2d.transpose()
@@ -159,6 +159,7 @@ def smooth_oi_csv(df: pd.DataFrame, dsp_sec, ts_sigma_sec, strike_sigma_price):
     # df['oi_diff_p'] = np.abs(df['oi_diff_p'])
     df = remove_dup_lines(df)
     df = cut_off_degenerate_gambler(df, 0.2)
+    print(f'smooth: ts_sigma_sec={ts_sigma_sec}, strike_sigma_price={strike_sigma_price}')
     oi_c_1d, oi_c_2d = smooth_column(
             df,
             input_name='oi_diff_c',
@@ -192,7 +193,7 @@ def smooth_spot_df(df: pd.DataFrame, dsp_sec, ts_sigma_sec_list: list[int]):
 
     for ts_sigma_sec in ts_sigma_sec_list:
         ts_wsize, ts_sigma, ts_diff_med = calc_window(se_ts, ts_sigma_sec, 3.5)
-        print(f"for ts_sigma_sec={ts_sigma_sec}, ts_diff_med={ts_diff_med}, ts_wsize={ts_wsize}, ts_sigma={ts_sigma}")
+        print(f"spot: ts_sigma_sec={ts_sigma_sec}, ts_diff_med={ts_diff_med}, ts_wsize={ts_wsize}, ts_sigma={ts_sigma}")
         df[f'spot_price_{ts_sigma_sec}'] = left_gaussian(df['spot_price'], ts_wsize, ts_sigma)
 
     df = df.set_index('dt')

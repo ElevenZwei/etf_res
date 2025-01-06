@@ -81,16 +81,20 @@ def plot_file(spot: str, suffix: str, save: bool, show: bool):
     if show:
         line_plot.show()
     if save:
-        pass
+        line_plot.write_html(f'{DATA_DIR}/html_oi/oi_intersect_{spot}_{suffix}.html')
+        line_plot.write_image(f'{DATA_DIR}/png_oi/oi_intersect_{spot}_{suffix}.png',
+                              width=1200, height=800)
 
-def main(spot: str, suffix: str):
-    plot_file(spot, suffix, save=True, show=True)
+def main(spot: str, suffix: str, save: bool, show: bool):
+    plot_file(spot, suffix, save=save, show=show)
 
 @click.command()
 @click.option('-s', '--spot', type=str, help="spot code: 159915 510050")
 @click.option('-d', '--suffix', type=str, help="csv file name suffix.")
-def click_main(spot: str, suffix: str):
-    main(spot, suffix)
+@click.option('--save', type=bool, default=True, help="save to html.")
+@click.option('--show', type=bool, default=True, help="show plot.")
+def click_main(spot: str, suffix: str, save: bool, show: bool):
+    main(spot, suffix, save, show)
 
 if __name__ == '__main__':
     click_main()

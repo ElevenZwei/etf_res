@@ -11,7 +11,12 @@ DATA_DIR = get_file_dir() / '..' / 'data'
 os.makedirs(f"{DATA_DIR}/dsp_input", exist_ok=True)
 os.makedirs(f"{DATA_DIR}/dsp_conv", exist_ok=True)
 os.makedirs(f"{DATA_DIR}/dsp_plot", exist_ok=True)
+os.makedirs(f"{DATA_DIR}/html_oi", exist_ok=True)
+os.makedirs(f"{DATA_DIR}/png_oi", exist_ok=True)
 os.makedirs(f"{DATA_DIR}/tmp", exist_ok=True)
+
+def gen_suffix(expiry_date: str, md_date: str):
+    return f'exp{expiry_date}_date{md_date}'
 
 @dataclass(frozen=True)
 class SpotConfig:

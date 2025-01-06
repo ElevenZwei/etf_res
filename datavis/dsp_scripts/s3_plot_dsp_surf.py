@@ -13,14 +13,14 @@ def plot_df(df: pd.DataFrame, title: str):
     x_uni = np.sort(df['dt'].unique())
     y_uni = np.sort(df['strike'].unique())
     x_grid, y_grid = np.meshgrid(x_uni, y_uni)
-    zero_grid = np.zeros_like(x_grid)
-    zero_surf = go.Surface(x=x_grid, y=y_grid, z=zero_grid,
-            opacity=0.2, showlegend=False, showscale=False, hoverinfo='none',
-            contours=go.surface.Contours(
-                    x=go.surface.contours.X(highlight=False),
-                    y=go.surface.contours.Y(highlight=False),
-                    z=go.surface.contours.Z(highlight=False),),
-    )
+    # zero_grid = np.zeros_like(x_grid)
+    # zero_surf = go.Surface(x=x_grid, y=y_grid, z=zero_grid,
+    #         opacity=0.2, showlegend=False, showscale=False, hoverinfo='none',
+    #         contours=go.surface.Contours(
+    #                 x=go.surface.contours.X(highlight=False),
+    #                 y=go.surface.contours.Y(highlight=False),
+    #                 z=go.surface.contours.Z(highlight=False),),
+    # )
 
     contours_no_z = go.surface.Contours(
         x=go.surface.contours.X(highlight=True),
@@ -28,11 +28,13 @@ def plot_df(df: pd.DataFrame, title: str):
         z=go.surface.contours.Z(highlight=False),
     )
 
+    # 这个是时间均值的曲面
     # cp_grid_ts = df.pivot(index='strike', columns='dt', values='oi_cp_gau_ts').values / 10
     # cp_surf_ts = go.Surface(x=x_grid, y=y_grid, z=cp_grid_ts,
     #         cmin=color_min, cmax=color_max,
     #         colorscale='Viridis', opacity=0.3, contours=contours_no_z)
 
+    # 这个是时间和行权价格均值的曲面
     c_grid_2d = df.pivot(index='strike', columns='dt', values='oi_c_gau_2d').values
     p_grid_2d = df.pivot(index='strike', columns='dt', values='oi_p_gau_2d').values
     cp_grid_2d = df.pivot(index='strike', columns='dt', values='oi_cp_gau_2d').values
@@ -68,27 +70,30 @@ def plot_df(df: pd.DataFrame, title: str):
     fig.add_trace(p_surf_2d)
     fig.add_trace(cp_surf_2d)
     # fig.add_trace(cp_surf_ts)
-    fig.show()
 
-def plot_file(spot: str, date: str):
+    return fig
+
+def plot_file(spot: str, date: str, show: bool, save: bool):
     df = pd.read_csv(f'{DATA_DIR}/dsp_plot/strike_oi_smooth_{spot}_{date}.csv')
-    plot_df(df, title=f"{spot} {date}")
+    figure = plot_df(df, title=f"{spot} {date}")
+    if show:
+        figure.show()
+    if save:
+        figure.write_html(f'{DATA_DIR}/html_oi/oi_smooth_{spot}_{date}.html')
+        figure.write_image(f'{DATA_DIR}/png_oi/oi_smooth_{spot}_{date}.png',
+                           width=1200, height=800)
 
-def main(spot: str, date: str):
-    plot_file(spot, date)
+def main(spot: str, suffix: str, show: bool = True, save: bool = True):
+    plot_file(spot, suffix, show=show, save=save)
 
 @click.command()
 @click.option('-s', '--spot', type=str, help="spot code: 159915 510050")
 @click.option('-d', '--suffix', type=str, help="csv file name suffix.")
-def click_main(spot: str, suffix: str):
-    main(spot, date=suffix)
+@click.option('--show', type=bool, default=True, help="show plot.")
+@click.option('--save', type=bool, default=True, help="save to html.")
+def click_main(spot: str, suffix: str, save: bool, show: bool):
+    main(spot, suffix=suffix, save=save, show=show)
 
 if __name__ == '__main__':
-    # plot_file('159915', '20241104')
-    # plot_file('159915', '20241108')
-    # plot_file('159915', '20241105')
-    # plot_file('159915', '20241106')
-    # plot_file('159915', '20241112')
-    # plot_file('510050', '20241114_am')
     click_main()
     pass

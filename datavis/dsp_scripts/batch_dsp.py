@@ -5,10 +5,9 @@ Dsp Batch
 import click
 import date_dsp as dd
 import pandas as pd
-from concurrent.futures import ThreadPoolExecutor
-import threading
+from multiprocessing import Pool, Lock
 
-dl_lock = threading.Lock()
+dl_lock = Lock()
 
 def process_date(dt, spot, refresh, plot, year, month):
     try:
@@ -23,7 +22,6 @@ def process_date(dt, spot, refresh, plot, year, month):
                     show=False, save=True)
     except Exception as e:
         print(f'{dt.date()} failed, error: {e}')
-        # raise e
 
 @click.command()
 @click.option('-s', '--spot', type=str, required=True, help="spot code: 159915 510050")
@@ -34,15 +32,10 @@ def process_date(dt, spot, refresh, plot, year, month):
 @click.option('-y', '--year', type=int)
 @click.option('-m', '--month', type=int)
 def click_main(spot: str, begin: str, end: str, refresh: bool, plot: bool, year: int, month: int):
-    with ThreadPoolExecutor() as executor:
-        futures = [executor.submit(process_date, dt, spot, refresh, plot, year, month)
-                for dt in pd.date_range(begin, end)]
-        for future in futures:
-            future.result()
-            # try:
-            #     future.result()
-            # except Exception as e:
-            #     print(f'error occurred on {future.result().date()}: {e}')
+    # Intel i9 也只能跑两个并发
+    max_concurrent_jobs = 2  # Set the maximum number of concurrent jobs
+    with Pool(processes=max_concurrent_jobs) as pool:
+        pool.starmap(process_date, [(dt, spot, refresh, plot, year, month) for dt in pd.date_range(begin, end)])
     
 if __name__ == '__main__':
     click_main()

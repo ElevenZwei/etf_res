@@ -142,14 +142,16 @@ def smooth_column(df: pd.DataFrame, input_name: str, out1_name: str, out2_name: 
 # 如果数据里面当日开盘的 ask < 0.0005 那么就把这个期权去掉。
 # 我发现这个会增加很多的数据传输量，我可以想一个更简单的办法，
 # 比如说只留下距离平值 20% 以内的。
-def cut_off_degenerate_gambler(df: pd.DataFrame, keep_percent: float=0.2):
+def cut_off_degenerate_gambler(df: pd.DataFrame, keep_percent: float):
     spot = df.loc[:, 'spot_price'].iloc[0]
     strikes_se = df.loc[:, 'strike']
     strikes = strikes_se.unique()
+    # print("before cut: ", strikes)
     strikes = [x for x in strikes if abs(x - spot) / spot <= keep_percent] 
+    # print("after cut: ", strikes)
     strike_max = max(strikes)
     strike_min = min(strikes)
-    df = df.loc[(strikes_se > strike_min) & (strikes_se < strike_max)].copy()
+    df = df.loc[(strikes_se >= strike_min) & (strikes_se <= strike_max)].copy()
     # print(df)
     return df
 

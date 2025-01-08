@@ -16,9 +16,9 @@ from dsp_config import DATA_DIR, get_spot_config
 def pivot_df(df: pd.DataFrame):
     return df.pivot(index='strike', columns='dt', values='oi_cp_gau_ts')
 
-def read_csv(spot: str, date: str):
+def read_csv(spot: str, suffix: str):
     conf = get_spot_config(spot)
     time_width = conf.oi_ts_gaussian_sigmas[1]
     strike_width = conf.oi_strike_gaussian_sigmas[1]
-    return pd.read_csv(f'strike_oi_smooth_{spot}_{date}_{time_width}_{strike_width}.csv')
+    return pd.read_csv(f'{DATA_DIR}/dsp_conv/strike_oi_smooth_{spot}_{suffix}_{time_width}_{strike_width}.csv')
 

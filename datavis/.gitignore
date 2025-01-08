@@ -1,8 +1,8 @@
 db/
 archive/
-dsp_conv/
-dsp_input/
-dsp_plot/
+dsp_conv*/
+dsp_input*/
+dsp_plot*/
 pcp_input/
 html_oi/
 png_oi/

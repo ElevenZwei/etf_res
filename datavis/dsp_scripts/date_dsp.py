@@ -41,12 +41,12 @@ def download_data(spot: str, date: str, year: int, month: int):
     return s0.auto_dl(spot, year=year, month=month, md_date=date)
 
 def calc_data(spot: str, suffix: str, wide: bool):
-    # s1.main(spot=spot, suffix=suffix, wide=wide)
+    s1.main(spot=spot, suffix=suffix, wide=wide)
     # s2.intersect_merge_files(spot, suffix=suffix, wide=wide)
     s5.calc_intersect(spot, suffix, wide=wide)
 
 def plot_data(spot: str, suffix: str, show: bool, save: bool, wide: bool):
-    # s3.main(spot, suffix=suffix, show=show, save=save, wide=wide)
+    s3.main(spot, suffix=suffix, show=show, save=save, wide=wide)
     s4.main(spot, suffix=suffix + '_s5', show=show, save=save, wide=wide)
 
 def date_dsp(spot: str, date: str,

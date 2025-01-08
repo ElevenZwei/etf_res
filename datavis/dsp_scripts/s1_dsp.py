@@ -194,6 +194,7 @@ def smooth_oi_csv(df: pd.DataFrame, dsp_sec, ts_sigma_sec, strike_sigma_price):
 
 def smooth_spot_df(df: pd.DataFrame, dsp_sec, ts_sigma_sec_list: list[int]):
     df = df.loc[:, ['dt', 'spotcode', 'spot_price']].drop_duplicates()
+    df = df.sort_values('dt')
     df['spotcode'] = df['spotcode'].astype('str')
     se_ts = df.loc[:, ['dt']].astype('int64').values // 10**9
 
@@ -238,11 +239,11 @@ def main(spot: str, suffix: str, wide: bool):
     dsp_file_2_plot(spot, suffix,
             strike_sigma=strike_sigmas[1],
             wide=wide)
-    dsp_file_2_intersect(spot, suffix,
-            spot_config.oi_ts_gaussian_sigmas,
-            strike_sigmas,
-            wide=wide,
-    )
+    # dsp_file_2_intersect(spot, suffix,
+    #         spot_config.oi_ts_gaussian_sigmas,
+    #         strike_sigmas,
+    #         wide=wide,
+    # )
 
 @click.command()
 @click.option('-s', '--spot', type=str, help="spot code: 159915 510050")

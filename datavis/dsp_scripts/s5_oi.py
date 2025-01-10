@@ -7,9 +7,11 @@ Simplified to the following steps:
 3. Use different gaussian sigmas alongside the spot price.
 """
 
+import click
 import pandas as pd
 import numpy as np
 import scipy.signal as ssig
+import scipy.interpolate as sitp
 
 from s1_dsp import remove_dup_cut, smooth_time_axis, smooth_spot_df, interpolate_strike, downsample_time, calc_window
 from dsp_config import DATA_DIR, get_spot_config, gen_wide_suffix
@@ -77,7 +79,7 @@ def gaussian_dot_column(df: pd.DataFrame, col_name: str, winsize: int, sigma: in
 def melt_intersect_dot(spot_df: pd.DataFrame, oi_df: pd.DataFrame, col_name: str,
         dsp_sec: int, ts_sigma: int, strike_sigma: float):
     grid_1d = smooth_column_time_grid(oi_df, col_name, dsp_sec, ts_sigma)
-    grid_1d.to_csv(f'{DATA_DIR}/tmp/grid_1d_{col_name}_{ts_sigma}_{strike_sigma}.csv')
+    # grid_1d.to_csv(f'{DATA_DIR}/tmp/grid_1d_{col_name}_{ts_sigma}_{strike_sigma}.csv')
     strikes = grid_1d.columns
     # print(strikes)
     win_size, sigma, med = calc_window(strikes, strike_sigma, 3.5)
@@ -85,7 +87,7 @@ def melt_intersect_dot(spot_df: pd.DataFrame, oi_df: pd.DataFrame, col_name: str
     win_size = min(len(strikes), win_size)
     melt_df = sliding_melt(grid_1d, win_size, col_name)
     intersect_df = spot_intersect(spot_df, melt_df)
-    intersect_df.to_csv(f'{DATA_DIR}/tmp/intersect_{col_name}_{ts_sigma}_{strike_sigma}.csv')
+    # intersect_df.to_csv(f'{DATA_DIR}/tmp/intersect_{col_name}_{ts_sigma}_{strike_sigma}.csv')
     # print(intersect_df)
     # print(win_size, sigma, med)
     intersect_df = gaussian_dot_column(intersect_df, col_name, win_size, sigma)
@@ -125,6 +127,43 @@ def cp_batch(spot_df: pd.DataFrame, oi_df: pd.DataFrame, dsp_sec: int,
     merged = pd.concat([spot_df, *cp_list], axis=1)
     return merged
 
+def batch_rename(batch_df: pd.DataFrame):
+    columns = batch_df.columns
+    cols_map = {}
+    for col in columns:
+        if col.startswith('oi_'):
+            cols_map[col] = col.split('_')[-1]
+    batch_df = batch_df.rename(columns=cols_map)[cols_map.values()]
+    return batch_df
+
+def interpolate_sigma(batch_df: pd.DataFrame):
+    # print(batch_df)
+    x_uni = batch_df.columns.values.astype(np.float64)
+    y_uni = batch_df.index.astype(np.int64) / 1e12 - 1.74e6
+    # print(x_uni)
+    # print(y_uni)
+    x_grid, y_grid = np.meshgrid(x_uni, y_uni)
+    x_flat = x_grid.flatten()
+    y_flat = y_grid.flatten()
+    z_flat = batch_df.values.flatten()
+    x_hres = np.linspace(np.min(x_uni), np.max(x_uni), 200)
+    x_hres_grid, y_hres_grid = np.meshgrid(x_hres, y_uni)
+    z_hres_grid = sitp.griddata(
+            (x_flat, y_flat), z_flat,
+            (x_hres_grid, y_hres_grid), method='cubic')
+    res = pd.DataFrame(z_hres_grid, columns=x_hres, index=batch_df.index)
+    return res
+
+def interpolate_melt(batch_df: pd.DataFrame, col_prefix: str):
+    cols = [x for x in batch_df.columns if x.startswith(col_prefix)]
+    print(cols)
+    res = interpolate_sigma(batch_rename(batch_df[cols]))
+    res = res.reset_index()
+    res = res.melt(id_vars='dt', var_name='sigma', value_name=col_prefix + 'mean')
+    res = res.set_index(['dt', 'sigma'])
+    # print(res)
+    return res
+
 def calc_intersect(spot: str, suffix: str, wide: bool):
     df = read_file(spot, suffix, wide)
     spot_config = get_spot_config(spot)
@@ -135,7 +174,34 @@ def calc_intersect(spot: str, suffix: str, wide: bool):
             only_cp=True)
     cp_df.to_csv(f'{DATA_DIR}/dsp_conv/merged_{spot}_{suffix}_s5{gen_wide_suffix(wide)}.csv')
 
+def calc_surface(spot: str, suffix: str):
+    df = read_file(spot, suffix, wide=True)
+    spot_config = get_spot_config(spot)
+    spot_df = smooth_spot_df(df, DSP_SEC, spot_config.oi_ts_gaussian_sigmas)
+    sigma_min = min(spot_config.get_strike_sigmas(wide=False))
+    sigma_max = max(spot_config.get_strike_sigmas(wide=True)) * 1.4
+    cp_df = cp_batch(spot_df, df, DSP_SEC,
+            spot_config.oi_ts_gaussian_sigmas[1:2],
+            np.around(np.arange(sigma_min, sigma_max, 0.05), decimals=2),
+            only_cp=False)
+    c_mean_df = interpolate_melt(cp_df, 'oi_c_')
+    p_mean_df = interpolate_melt(cp_df, 'oi_p_')
+    cp_mean_df = interpolate_melt(cp_df, 'oi_cp_')
+    merged_df = pd.concat([c_mean_df, p_mean_df, cp_mean_df], axis=1)
+    # print(merged_df)
+    merged_df.to_csv(f'{DATA_DIR}/dsp_conv/oi_surface_{spot}_{suffix}.csv')
+
+@click.command()
+@click.option('-s', '--spot', type=str, required=True, help="spot code: 159915 510050")
+@click.option('-d', '--suffix', type=str, help="csv file name suffix.")
+@click.option('-w', '--wide', is_flag=True, default=False, help="Use wide strike sigma.")
+def click_main(spot: str, suffix: str, wide: bool):
+    calc_surface(spot, suffix)
+    calc_intersect(spot, suffix, wide=wide)
+
 if __name__ == '__main__':
-    calc_intersect('159915', 'exp20250122_date20250108')
+    click_main()
+    # calc_surface('159915', 'exp20250122_date20250108')
+    # calc_intersect('159915', 'exp20250122_date20250108')
 
 

@@ -11,6 +11,7 @@ import s2_dsp_intersect as s2
 import s3_plot_dsp_surf as s3
 import s4_plot_dsp_inter as s4
 import s5_oi as s5
+import s6_plot_oi_surf as s6
 
 from dsp_config import gen_suffix
 
@@ -41,13 +42,21 @@ def download_data(spot: str, date: str, year: int, month: int):
     return s0.auto_dl(spot, year=year, month=month, md_date=date)
 
 def calc_data(spot: str, suffix: str, wide: bool):
-    s1.main(spot=spot, suffix=suffix, wide=wide)
-    # s2.intersect_merge_files(spot, suffix=suffix, wide=wide)
+    s1.calc_dsp_surface(spot=spot, suffix=suffix, wide=wide)
     s5.calc_intersect(spot, suffix, wide=wide)
+    s5.calc_surface(spot, suffix)
+
+    # old method
+    # s1.calc_dsp_intersects(spot=spot, suffix=suffix, wide=wide)
+    # s2.intersect_merge_files(spot, suffix=suffix, wide=wide)
 
 def plot_data(spot: str, suffix: str, show: bool, save: bool, wide: bool):
     s3.main(spot, suffix=suffix, show=show, save=save, wide=wide)
     s4.main(spot, suffix=suffix + '_s5', show=show, save=save, wide=wide)
+    s6.main(spot, suffix=suffix, show=show, save=save)
+
+    # old method
+    # s4.main(spot, suffix=suffix, show=show, save=save, wide=wide)
 
 def date_dsp(spot: str, date: str,
              refresh: bool, plot: bool,

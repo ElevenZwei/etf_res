@@ -64,8 +64,8 @@ def interpolate_strike(pivot_df: pd.DataFrame):
         print(na_lines)
         pivot_df.ffill(inplace=True)
     x_uni = pivot_df.columns.values   # strike type float64
-    y_uni = pivot_df.index.values     # dt type datetime64
-    y_uni = pivot_df.index.astype('int64') / 1e12 - 1.72947e6 # type float64
+    # y_uni = pivot_df.index.values     # dt type datetime64
+    y_uni = pivot_df.index.astype('int64') / 1e12 - 1.74e6 # type float64
     # 这一步生成长度相同的 x, y, z 数组
     x_grid, y_grid = np.meshgrid(x_uni, y_uni)
     x_flat = x_grid.flatten()
@@ -232,18 +232,26 @@ def dsp_file_2_intersect(spot: str, suffix: str,
             df_res.to_csv(f'{DATA_DIR}/dsp_conv/strike_oi_smooth_{spot}_{suffix}{gen_wide_suffix(wide)}_{ts_sigma}_{strike_sigma}.csv')
     df_spot = smooth_spot_df(df, dsp_sec=60, ts_sigma_sec_list=ts_sigma_list)
     df_spot.to_csv(f'{DATA_DIR}/dsp_conv/spot_{spot}_{suffix}{gen_wide_suffix(wide)}.csv')
-    
-def main(spot: str, suffix: str, wide: bool):
+
+def calc_dsp_surface(spot: str, suffix: str, wide: bool):
     spot_config = get_spot_config(spot)
     strike_sigmas = spot_config.get_strike_sigmas(wide)
     dsp_file_2_plot(spot, suffix,
             strike_sigma=strike_sigmas[1],
             wide=wide)
-    # dsp_file_2_intersect(spot, suffix,
-    #         spot_config.oi_ts_gaussian_sigmas,
-    #         strike_sigmas,
-    #         wide=wide,
-    # )
+
+def calc_dsp_intersects(spot: str, suffix: str, wide: bool):
+    spot_config = get_spot_config(spot)
+    strike_sigmas = spot_config.get_strike_sigmas(wide)
+    dsp_file_2_intersect(spot, suffix,
+            spot_config.oi_ts_gaussian_sigmas,
+            strike_sigmas,
+            wide=wide,
+    )
+    
+def main(spot: str, suffix: str, wide: bool):
+    calc_dsp_surface(spot, suffix, wide=wide)
+    calc_dsp_intersects(spot, suffix, wide=wide)
 
 @click.command()
 @click.option('-s', '--spot', type=str, help="spot code: 159915 510050")

@@ -45,13 +45,16 @@ def plot_df(df: pd.DataFrame, title: str):
     opac = 0.9
     c_surf_2d = go.Surface(x=x_grid, y=y_grid, z=c_grid_2d, name='c_2d',
             cmin=color_min, cmax=color_max,
-            colorscale='reds', opacity=opac, contours=contours_no_z)
+            colorscale='reds', colorbar=dict(x=1.1),
+            opacity=opac, contours=contours_no_z)
     p_surf_2d = go.Surface(x=x_grid, y=y_grid, z=p_grid_2d, name='p_2d',
             cmin=color_min, cmax=color_max,
-            colorscale='blues', opacity=opac, contours=contours_no_z)
+            colorscale='blues', colorbar=dict(x=1.2),
+            opacity=opac, contours=contours_no_z)
     cp_surf_2d = go.Surface(x=x_grid, y=y_grid, z=cp_grid_2d, name='cp_2d',
             # cmin=color_min, cmax=color_max,
-            colorscale='Viridis', opacity=opac, contours=contours_no_z)
+            colorscale='Viridis', colorbar=dict(x=1.3),
+            opacity=opac, contours=contours_no_z)
 
     layout = go.Layout(
         scene=go.layout.Scene(

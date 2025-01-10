@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from pathlib import Path
 import os
+import pandas as pd
 
 def get_file_dir():
     fpath = Path(__file__).resolve()
@@ -20,6 +21,10 @@ def gen_suffix(expiry_date: str, md_date: str):
 
 def gen_wide_suffix(wide: bool):
     return '_wide' if wide else ''
+
+def plot_dt_str(df: pd.DataFrame, col: str = 'dt'):
+    df[col] = pd.to_datetime(df[col]).apply(lambda x: x.strftime("%m-%d %H:%M:%S"))
+    return df
 
 @dataclass(frozen=True)
 class SpotConfig:

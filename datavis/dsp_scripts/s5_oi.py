@@ -20,6 +20,7 @@ DSP_SEC = 60
 
 def read_file(spot: str, suffix: str, wide: bool):
     df = pd.read_csv(f'{DATA_DIR}/dsp_input/strike_oi_diff_{spot}_{suffix}.csv')
+    df['spotcode'] = df['spotcode'].astype(str)
     df['dt'] = pd.to_datetime(df['dt'])
     df = remove_dup_cut(df, wide=wide)
     return df
@@ -178,6 +179,7 @@ def calc_surface(spot: str, suffix: str):
     df = read_file(spot, suffix, wide=True)
     spot_config = get_spot_config(spot)
     spot_df = smooth_spot_df(df, DSP_SEC, spot_config.oi_ts_gaussian_sigmas)
+    spot_df.to_csv(f'{DATA_DIR}/dsp_conv/spot_{spot}_{suffix}.csv')
     sigma_min = min(spot_config.get_strike_sigmas(wide=False))
     sigma_max = max(spot_config.get_strike_sigmas(wide=True)) * 1.4
     cp_df = cp_batch(spot_df, df, DSP_SEC,
@@ -188,7 +190,6 @@ def calc_surface(spot: str, suffix: str):
     p_mean_df = interpolate_melt(cp_df, 'oi_p_')
     cp_mean_df = interpolate_melt(cp_df, 'oi_cp_')
     merged_df = pd.concat([c_mean_df, p_mean_df, cp_mean_df], axis=1)
-    # print(merged_df)
     merged_df.to_csv(f'{DATA_DIR}/dsp_conv/oi_surface_{spot}_{suffix}.csv')
 
 @click.command()

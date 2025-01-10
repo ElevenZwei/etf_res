@@ -3,10 +3,12 @@ import plotly.graph_objects as go
 import numpy as np
 import pandas as pd
 
-from dsp_config import DATA_DIR, gen_wide_suffix
+from dsp_config import DATA_DIR, get_spot_config, gen_wide_suffix, plot_dt_str
+from s4_plot_dsp_inter import standard_oi_diff, standard_prices
 
-def plot_df(df: pd.DataFrame, title: str):
-    df['dt'] = pd.to_datetime(df['dt']).apply(lambda x: x.strftime('%m-%d %H:%M:%S'))
+def plot_df(df: pd.DataFrame, spot_df: pd.DataFrame, title: str,
+        spot_ts: int, zoom: int, cp_only: bool):
+    df = plot_dt_str(df)
     x_uni = np.sort(df['dt'].unique())
     y_uni = np.sort(df['sigma'].unique())
     x_grid, y_grid = np.meshgrid(x_uni, y_uni)
@@ -29,27 +31,55 @@ def plot_df(df: pd.DataFrame, title: str):
     )
 
     # put - call
-    c_grid_2d = df.pivot(index='sigma', columns='dt', values='oi_c_mean').values
-    p_grid_2d = df.pivot(index='sigma', columns='dt', values='oi_p_mean').values
-    cp_grid_2d = -1 * df.pivot(index='sigma', columns='dt', values='oi_cp_mean').values
-    z_max = np.max([np.max(c_grid_2d), np.max(p_grid_2d)])
-    z_min = np.min([np.min(c_grid_2d), np.min(p_grid_2d)])
+    if not cp_only:
+        c_grid_2d = df.pivot(index='sigma', columns='dt', values='oi_c_mean').values
+        c_grid_2d = standard_oi_diff(c_grid_2d.transpose(), zoom).transpose()
+        p_grid_2d = df.pivot(index='sigma', columns='dt', values='oi_p_mean').values
+        p_grid_2d = standard_oi_diff(p_grid_2d.transpose(), zoom).transpose()
+        z_max = np.max([np.max(c_grid_2d), np.max(p_grid_2d)])
+        z_min = np.min([np.min(c_grid_2d), np.min(p_grid_2d)])
+        color_min, color_max=[z_min, z_max]
+        opac = 0.6
+        c_surf_2d = go.Surface(x=x_grid, y=y_grid, z=c_grid_2d, name='c_2d',
+                cmin=color_min, cmax=color_max,
+                colorscale='Sunset', colorbar=dict(x=1.1),
+                opacity=opac, contours=coutours_set)
+        p_surf_2d = go.Surface(x=x_grid, y=y_grid, z=p_grid_2d, name='p_2d',
+                cmin=color_min, cmax=color_max,
+                colorscale='Emrld', colorbar=dict(x=1.2),
+                opacity=opac, contours=coutours_set)
 
-    color_min, color_max=[z_min, z_max]
-    opac = 0.6
-    c_surf_2d = go.Surface(x=x_grid, y=y_grid, z=c_grid_2d, name='c_2d',
-            cmin=color_min, cmax=color_max,
-            colorscale='Sunset', colorbar=dict(x=1.1),
-            opacity=opac, contours=coutours_set)
-    p_surf_2d = go.Surface(x=x_grid, y=y_grid, z=p_grid_2d, name='p_2d',
-            cmin=color_min, cmax=color_max,
-            colorscale='Emrld', colorbar=dict(x=1.2),
-            opacity=opac, contours=coutours_set)
+    cp_grid_2d = -1 * df.pivot(index='sigma', columns='dt', values='oi_cp_mean').values
+    cp_grid_2d = standard_oi_diff(cp_grid_2d.transpose(), zoom).transpose()
     cp_surf_2d = go.Surface(x=x_grid, y=y_grid, z=cp_grid_2d, name='cp_2d',
             # cmin=color_min, cmax=color_max,
             colorscale='Jet', colorbar=dict(x=1.3),
             opacity=1, contours=coutours_set)
     
+    spot_df = plot_dt_str(spot_df)
+    spot_x_uni = spot_df['dt']
+    spot_z_uni = standard_prices(spot_df[f'spot_price_{spot_ts}'].values)
+    y_line = np.full_like(spot_x_uni, fill_value=y_uni[0])
+    spot_curve = go.Scatter3d(x=spot_x_uni, y=y_line, z=spot_z_uni,
+            mode='lines', line=dict(color='black', width=5),
+            name=f'spot_curve_{spot_ts}',
+            opacity=0.8,
+    )
+    spot_x_grid, spot_y_grid = np.meshgrid(spot_x_uni, y_uni)
+    spot_z_grid = np.tile(spot_z_uni, (len(y_uni), 1))
+    spot_surf = go.Surface(x=spot_x_grid, y=spot_y_grid, z=spot_z_grid,
+            name=f'spot_surf_{spot_ts}',
+            opacity=0.2, colorscale='Plasma', colorbar=dict(x=1.4),
+            contours=go.surface.Contours(
+                    x=go.surface.contours.X(highlight=False),
+                    y=go.surface.contours.Y(highlight=True),
+                    z=go.surface.contours.Z(highlight=False),),
+    )
+
+    camera_rotate = np.pi * -0.65
+    camera_eye = dict(x=1.25 * np.cos(camera_rotate) - 1.25 * np.sin(camera_rotate),
+                      y=1.25 * np.sin(camera_rotate) + 1.25 * np.cos(camera_rotate),
+                      z=0.3)
     layout = go.Layout(
         scene=go.layout.Scene(
             xaxis_title='Time',
@@ -59,7 +89,7 @@ def plot_df(df: pd.DataFrame, title: str):
             xaxis = go.layout.scene.XAxis(showspikes=False),
             yaxis = go.layout.scene.YAxis(showspikes=False),
             zaxis = go.layout.scene.ZAxis(showspikes=False),
-            camera = go.layout.scene.Camera(eye=dict(x=1.25, y=-1.25, z=0.5)),
+            camera = go.layout.scene.Camera(eye=camera_eye),
         ),
         title=f'{title} Oi Mean Surface',
     )
@@ -67,14 +97,22 @@ def plot_df(df: pd.DataFrame, title: str):
     fig = go.Figure(data=[
         zero_surf,
         # c_surf_2d, p_surf_2d,
-        cp_surf_2d
+        cp_surf_2d,
+        spot_curve,
+        spot_surf,
     ], layout=layout)
 
     return fig
 
 def plot_file(spot: str, suffix: str, show: bool, save: bool):
-    df = pd.read_csv(f'{DATA_DIR}/dsp_conv/oi_surface_{spot}_{suffix}.csv')
-    figure = plot_df(df, f'{spot} {suffix}')
+    oi_df = pd.read_csv(f'{DATA_DIR}/dsp_conv/oi_surface_{spot}_{suffix}.csv')
+    spot_df = pd.read_csv(f'{DATA_DIR}/dsp_conv/spot_{spot}_{suffix}.csv')
+    spot_config = get_spot_config(spot)
+    figure = plot_df(oi_df, spot_df,
+            title=f'{spot} {suffix}',
+            spot_ts=spot_config.oi_ts_gaussian_sigmas[1],
+            zoom=spot_config.oi_plot_intersect_zoom,
+            cp_only=True)
     if show:
         figure.show()
     if save:

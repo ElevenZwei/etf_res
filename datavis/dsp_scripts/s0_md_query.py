@@ -73,9 +73,10 @@ def dl_oi_data(spot: str, expiry_date: datetime.date, md_date: datetime.date):
 
     df['dt'] = df['dt'].dt.tz_convert('Asia/Shanghai')
     df['dt'] = df['dt'].dt.strftime('%Y-%m-%dT%H:%M:%S%z')
-    # print(df)
-    # print(df['dt'])
-    # df.to_csv('test.csv', index=False)
+    return df
+
+def dl_save_date_oi(spot: str, expiry_date: datetime.date, md_date: datetime.date):
+    df = dl_oi_data(spot, expiry_date, md_date)
     md_date_str = md_date.strftime('%Y%m%d')
     expiry_date_str = expiry_date.strftime('%Y%m%d')
     suffix = gen_suffix(expiry_date_str, md_date_str)
@@ -101,7 +102,7 @@ def auto_dl(spot: str, md_date: str, year: Optional[int] = None, month: Optional
         exp = dl_expiry_date(spot, year, month)
     if exp is None:
         exit(1)
-    return dl_oi_data(spot, exp, dt)
+    return dl_save_date_oi(spot, exp, dt)
 
 @click.command()
 @click.option('-s', '--spot', type=str)

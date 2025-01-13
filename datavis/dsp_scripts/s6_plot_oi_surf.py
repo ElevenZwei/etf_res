@@ -96,11 +96,14 @@ def plot_df(df: pd.DataFrame, spot_df: pd.DataFrame, title: str,
 
     fig = go.Figure(data=[
         zero_surf,
-        # c_surf_2d, p_surf_2d,
         cp_surf_2d,
         spot_curve,
         spot_surf,
     ], layout=layout)
+
+    if not cp_only:
+        fig.add_trace(c_surf_2d)
+        fig.add_trace(p_surf_2d)
 
     return fig
 
@@ -112,7 +115,7 @@ def plot_file(spot: str, suffix: str, show: bool, save: bool):
             title=f'{spot} {suffix}',
             spot_ts=spot_config.oi_ts_gaussian_sigmas[1],
             zoom=spot_config.oi_plot_intersect_zoom,
-            cp_only=True)
+            cp_only=False)
     if show:
         figure.show()
     if save:

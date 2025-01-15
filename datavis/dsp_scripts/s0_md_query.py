@@ -28,9 +28,10 @@ def dl_expiry_date(spot: str, year: int, month: int) -> Optional[datetime.date]:
         return None
     return df['expirydate'].iloc[0]
 
-def dl_oi_data(spot: str, expiry_date: datetime.date, md_date: datetime.date):
+def dl_oi_data(spot: str, expiry_date: datetime.date, bg_date: datetime.date, ed_date: datetime.date):
     expiry_date_str = expiry_date.strftime('%Y-%m-%d')
-    md_str = md_date.strftime('%Y-%m-%d')
+    bg_date_str = bg_date.strftime('%Y-%m-%d')
+    ed_date_str = ed_date.strftime('%Y-%m-%d')
     bg_time = '09:30:00'
     ed_time = '15:30:00'
     query = f"""
@@ -44,7 +45,8 @@ def dl_oi_data(spot: str, expiry_date: datetime.date, md_date: datetime.date):
                     open_interest as oi,
                     first_value(open_interest) over (partition by code order by dt) as oi_open
                 from market_data_tick mdt join contract_info ci using(code)
-                where dt >= '{f"{md_str} {bg_time}"}' and dt <= '{f"{md_str} {ed_time}"}'
+                where dt >= '{f"{bg_date_str} {bg_time}"}' and dt <= '{f"{ed_date_str} {ed_time}"}'
+                and dt::time >= '09:30:00' and dt::time <= '15:00:00'
                 and spotcode = '{spot}' and expirydate = '{expiry_date_str}'
             ) as T
         ),
@@ -60,7 +62,7 @@ def dl_oi_data(spot: str, expiry_date: datetime.date, md_date: datetime.date):
         )
         select od.*, mdt.last_price as spot_price
         from OD join market_data_tick mdt using (dt)
-        where dt >= '{f"{md_str} {bg_time}"}' and dt <= '{f"{md_str} {ed_time}"}'
+        where dt >= '{f"{bg_date_str} {bg_time}"}' and dt <= '{f"{ed_date_str} {ed_time}"}'
         and mdt.code = od.spotcode
         order by dt asc;
     """
@@ -75,11 +77,13 @@ def dl_oi_data(spot: str, expiry_date: datetime.date, md_date: datetime.date):
     df['dt'] = df['dt'].dt.strftime('%Y-%m-%dT%H:%M:%S%z')
     return df
 
-def dl_save_date_oi(spot: str, expiry_date: datetime.date, md_date: datetime.date):
-    df = dl_oi_data(spot, expiry_date, md_date)
-    md_date_str = md_date.strftime('%Y%m%d')
+def dl_save_range_oi(spot: str, expiry_date: datetime.date, bg_date: datetime.date, ed_date: datetime.date):
+    df = dl_oi_data(spot, expiry_date, bg_date, ed_date)
+    bg_date_str = bg_date.strftime('%Y%m%d')
+    ed_date_str = ed_date.strftime('%Y%m%d')
     expiry_date_str = expiry_date.strftime('%Y%m%d')
-    suffix = gen_suffix(expiry_date_str, md_date_str)
+    date_suffix = bg_date.date() if bg_date == ed_date else f'{bg_date.date()}_{ed_date.date()}'
+    suffix = gen_suffix(expiry_date_str, date_suffix)
     fname = f'strike_oi_diff_{spot}_{suffix}.csv'
     df.to_csv(f'{DATA_DIR}/dsp_input/{fname}', index=False)
     return suffix
@@ -94,15 +98,17 @@ def get_nearest_expirydate(spot: str, dt: datetime.datetime):
         exp = dl_expiry_date(spot, dt.year, dt.month)
     return exp
 
-def auto_dl(spot: str, md_date: str, year: Optional[int] = None, month: Optional[int] = None):
-    dt = datetime.datetime.strptime(md_date, '%Y%m%d')
+def auto_dl(spot: str, bg_str: str, ed_str: str,
+        year: Optional[int] = None, month: Optional[int] = None):
+    bg_dt = datetime.datetime.strptime(bg_str, '%Y%m%d')
+    ed_dt = datetime.datetime.strptime(ed_str, '%Y%m%d')
     if year is None or month is None:
-        exp = get_nearest_expirydate(spot, dt)
+        exp = get_nearest_expirydate(spot, ed_dt)
     else:
         exp = dl_expiry_date(spot, year, month)
     if exp is None:
         exit(1)
-    return dl_save_date_oi(spot, exp, dt)
+    return dl_save_range_oi(spot, exp, bg_date=bg_dt, ed_date=ed_dt)
 
 @click.command()
 @click.option('-s', '--spot', type=str)
@@ -110,7 +116,7 @@ def auto_dl(spot: str, md_date: str, year: Optional[int] = None, month: Optional
 @click.option('-m', '--month', type=int)
 @click.option('-d', '--date', type=str, help="format is %Y%m%d")
 def click_main(spot: str, year: int, month: int, date: str):
-    auto_dl(spot=spot, md_date=date, year=year, month=month)
+    auto_dl(spot=spot, bg_date=date, ed_date=date, year=year, month=month)
 
 if __name__ == '__main__':
     click_main()

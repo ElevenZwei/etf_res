@@ -22,24 +22,22 @@ def fourth_wednesday(year: int, month: int) -> date:
         return date(year, month, wednesdays[3])
     return None
 
-def default_suffix(date: str, year: int = None, month: int = None):
+def default_suffix(bg_str: str, ed_str: str, year: int = None, month: int = None):
     # default expiry date is the fourth wednesday of the month.
     if year is None or month is None:
-        year = int(date[:4])
-        month = int(date[4:6])
+        year = int(ed_str[:4])
+        month = int(ed_str[4:6])
     exp = fourth_wednesday(year, month)
-    if exp < datetime.strptime(date, '%Y%m%d').date():
+    if exp < datetime.strptime(ed_str, '%Y%m%d').date():
         if month == 12:
             year += 1
             month = 1
         else:
             month += 1
         exp = fourth_wednesday(year, month)
-    suffix = gen_suffix(exp.strftime('%Y%m%d'), date)
+    date_suffix = bg_str if bg_str == ed_str else f'{bg_str}_{ed_str}'
+    suffix = gen_suffix(exp.strftime('%Y%m%d'), date_suffix)
     return suffix
-
-def download_data(spot: str, date: str, year: int, month: int):
-    return s0.auto_dl(spot, year=year, month=month, md_date=date)
 
 def calc_data(spot: str, suffix: str, wide: bool):
     s1.calc_dsp_surface(spot=spot, suffix=suffix, wide=wide)
@@ -58,20 +56,22 @@ def plot_data(spot: str, suffix: str, show: bool, save: bool, wide: bool):
     # old method
     # s4.main(spot, suffix=suffix, show=show, save=save, wide=wide)
 
-def date_dsp(spot: str, date: str,
+def date_dsp(spot: str,
+             bg_str: str, ed_str: str,
              refresh: bool, plot: bool,
              year: int, month: int,
              show: bool, save: bool, wide: bool):
-    suffix = default_suffix(date, year, month)
+    suffix = default_suffix(bg_str=bg_str, ed_str=ed_str, year=year, month=month)
     if not plot:
         if refresh:
-            suffix = s0.auto_dl(spot, year=year, month=month, md_date=date)
+            suffix = s0.auto_dl(spot, year=year, month=month, bg_str=bg_str, ed_str=ed_str)
         calc_data(spot, suffix, wide=wide)
     plot_data(spot, suffix, show=show, save=save, wide=wide)
 
 @click.command()
 @click.option('-s', '--spot', type=str, required=True, help="spot code: 159915 510050")
 @click.option('-d', '--date', type=str, help="format is %Y%m%d")
+@click.option('-e', '--end-date', type=str, help="format is %Y%m%d")
 @click.option('-r', '--refresh', is_flag=True, default=False, help="Download new data from database.")
 @click.option('-p', '--plot', is_flag=True, default=False, help="Plot only, use existing data.")
 @click.option('-y', '--year', type=int)
@@ -79,11 +79,13 @@ def date_dsp(spot: str, date: str,
 @click.option('--show', type=bool, default=True, help="show plot.")
 @click.option('--save', type=bool, default=True, help="save to html.")
 @click.option('--wide', type=bool, default=False, help="use wide plot.")
-def click_main(spot: str, date: str,
+def click_main(spot: str, date: str, end_date: str,
         refresh: bool, plot: bool,
         year: int, month: int,
         show: bool, save: bool, wide: bool):
-    date_dsp(spot, date,
+    if end_date is None:
+        end_date = date
+    date_dsp(spot, bg_str=date, ed_str=end_date,
              refresh=refresh, plot=plot,
              year=year, month=month,
              show=show, save=save, wide=wide)

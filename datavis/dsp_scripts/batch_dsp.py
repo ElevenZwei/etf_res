@@ -16,7 +16,10 @@ def process_date(dt, spot, refresh, plot, year, month, wide: bool):
                 print(f'downloading {dt.date()}')
                 dd.download_data(spot, dt.strftime('%Y%m%d'), year, month)
         print(f'calculating {dt.date()}')
-        dd.date_dsp(spot, dt.strftime('%Y%m%d'),
+        dt_str = dt.strftime('%Y%m%d')
+        dd.date_dsp(spot,
+                    bg_date=dt_str,
+                    ed_date=dt_str,
                     refresh=False, plot=plot,
                     year=year, month=month,
                     show=False, save=True, wide=wide)

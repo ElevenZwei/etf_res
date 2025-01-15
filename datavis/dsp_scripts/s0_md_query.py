@@ -82,7 +82,7 @@ def dl_save_range_oi(spot: str, expiry_date: datetime.date, bg_date: datetime.da
     bg_date_str = bg_date.strftime('%Y%m%d')
     ed_date_str = ed_date.strftime('%Y%m%d')
     expiry_date_str = expiry_date.strftime('%Y%m%d')
-    date_suffix = bg_date.date() if bg_date == ed_date else f'{bg_date.date()}_{ed_date.date()}'
+    date_suffix = bg_date_str if bg_date == ed_date else f'{bg_date_str}_{ed_date_str}'
     suffix = gen_suffix(expiry_date_str, date_suffix)
     fname = f'strike_oi_diff_{spot}_{suffix}.csv'
     df.to_csv(f'{DATA_DIR}/dsp_input/{fname}', index=False)

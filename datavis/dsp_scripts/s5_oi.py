@@ -22,6 +22,7 @@ def read_file(spot: str, suffix: str, wide: bool):
     df = pd.read_csv(f'{DATA_DIR}/dsp_input/strike_oi_diff_{spot}_{suffix}.csv')
     df['spotcode'] = df['spotcode'].astype(str)
     df['dt'] = pd.to_datetime(df['dt'])
+    # 在很多天的连续记录里面不能使用裁剪，只能计算 wide=True 的规律。
     df = remove_dup_cut(df, wide=wide)
     return df
 
@@ -36,7 +37,7 @@ def smooth_column_time_grid(
 def sliding_window_with_padding(df, winsize):
     """让每一列的元素变成左右 N 列元素的数组"""
     result = []
-    pad_size = (winsize - 1) // 2
+    pad_size = (winsize - winsize % 2) // 2
     # 这里先转置 DataFrame，然后对每一列进行填充
     df_t = df.transpose()
     for colname in df_t.columns:
@@ -70,11 +71,23 @@ def spot_intersect(spot_df: pd.DataFrame, oi_df: pd.DataFrame):
     merged_df = merged_df.set_index('dt').sort_index()
     return merged_df
 
+# 我这里设计一个每一列的数值就是列的编号的 Pivot Grid，然后用这个 Grid 做 spot intersect
+# 再用这个编号去 df 里面切片对应的窗口，得到窗口之后再算点积
+def strike_pivot_id_grid(strike_grid: pd.DataFrame):
+    """对于一个 strike grid，生成一个编号的 pivot grid"""
+    pivot_grid = pd.DataFrame(
+            np.tile(np.arange(len(strike_grid.columns)), (len(strike_grid), 1)),
+            columns=strike_grid.columns, index=strike_grid.index)
+    return pivot_grid
+
 def gaussian_dot_column(df: pd.DataFrame, col_name: str, winsize: int, sigma: int):
     """对于某一列的数据，进行高斯处理"""
     gau = ssig.windows.gaussian(winsize, sigma)
     gau = gau / gau.sum()
+    # print(df)
+    # print(f'gau shape={gau.shape}, col shape={df[col_name].iloc[0].shape}, winsize={winsize}, sigma={sigma}')
     df[col_name] = df[col_name].map(lambda x: np.dot(x, gau))
+    df[col_name] = df[col_name].map(lambda x: np.nan if np.isnan(x).any() else x)
     return df
 
 def melt_intersect_dot(spot_df: pd.DataFrame, oi_df: pd.DataFrame, col_name: str,
@@ -84,7 +97,7 @@ def melt_intersect_dot(spot_df: pd.DataFrame, oi_df: pd.DataFrame, col_name: str
     strikes = grid_1d.columns
     # print(strikes)
     win_size, sigma, med = calc_window(strikes, strike_sigma, 3.5)
-    # 这一步防止过度 padding 这是 s5 和 s1 脚本最大的区别
+    # 这一步防止过度 padding 这是 s5 和 s1 相比一开始遗漏的一步
     win_size = min(len(strikes), win_size)
     melt_df = sliding_melt(grid_1d, win_size, col_name)
     intersect_df = spot_intersect(spot_df, melt_df)
@@ -93,6 +106,15 @@ def melt_intersect_dot(spot_df: pd.DataFrame, oi_df: pd.DataFrame, col_name: str
     # print(win_size, sigma, med)
     intersect_df = gaussian_dot_column(intersect_df, col_name, win_size, sigma)
     return intersect_df
+
+def melt_intersect_dot_2(spot_df: pd.DataFrame, oi_df: pd.DataFrame, col_name: str,
+        dsp_sec: int, ts_sigma: int, strike_sigma: float):
+    grid_1d = smooth_column_time_grid(oi_df, col_name, dsp_sec, ts_sigma)
+    index_grid = strike_pivot_id_grid(grid_1d)
+    # print(index_grid)
+    intersect_df = spot_intersect(spot_df, index_grid)
+    # print(intersect_df)
+    
 
 def cp_dot(spot_df: pd.DataFrame, oi_df: pd.DataFrame,
         dsp_sec: int, ts_sigma: int, strike_sigma: float,

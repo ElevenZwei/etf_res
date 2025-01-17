@@ -15,7 +15,7 @@ columns = df.columns
 # 定义填充函数，填充每行的两侧并滑动窗口
 def sliding_window_with_padding(df, winsize):
     result = []
-    pad_size = (winsize - 1) // 2
+    pad_size = (winsize - winsize % 2) // 2
     # 这里先转置 DataFrame，然后对每一列进行填充
     df_t = df.transpose()
     for colname in df_t.columns:
@@ -26,8 +26,17 @@ def sliding_window_with_padding(df, winsize):
         result.append([padded_row[i:i+winsize] for i in range(len(col))])
     return pd.DataFrame(result, columns=df.columns)
 
+def strike_pivot_id_grid(strike_grid: pd.DataFrame):
+    """对于一个 strike grid，生成一个编号的 pivot grid"""
+    pivot_grid = pd.DataFrame(
+            np.tile(np.arange(len(strike_grid.columns)), (len(strike_grid), 1)),
+            columns=strike_grid.columns, index=strike_grid.index)
+    return pivot_grid
+
 # 调用函数处理 DataFrame
-result = sliding_window_with_padding(df, winsize=5)
+result = sliding_window_with_padding(df, winsize=3)
 
 # 打印结果
 print(result)
+print(result.iloc[0, 3].shape)
+print(strike_pivot_id_grid(result))

@@ -61,7 +61,7 @@ SPOT_CONFIGS = {
     ),
     '510500': SpotConfig(
         oi_ts_gaussian_sigmas=SPOT_DEFAULT_TS_SIGMAS,
-        oi_strike_gaussian_sigmas=[0.4, 0.5, 0.6, 0.8],
+        oi_strike_gaussian_sigmas=[0.3, 0.4, 0.5, 0.6],
         oi_plot_intersect_zoom=3000,
     ),
     '588000': SpotConfig(

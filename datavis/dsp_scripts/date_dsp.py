@@ -56,6 +56,9 @@ def plot_data(spot: str, suffix: str, show: bool, save: bool, wide: bool):
     # old method
     # s4.main(spot, suffix=suffix, show=show, save=save, wide=wide)
 
+def download_data(spot: str, bg_str: str, ed_str: str, year: int, month: int):
+    s0.auto_dl(spot, year=year, month=month, bg_str=bg_str, ed_str=ed_str)
+
 def date_dsp(spot: str,
              bg_str: str, ed_str: str,
              refresh: bool, plot: bool,

@@ -54,3 +54,19 @@ def count_valid_arrangements(person, boys):
 
 # print(count_arrangements(20, 10))
 # print(count_valid_arrangements(10, 5))
+
+
+# 把 N 个元素的集合划分成 K 的集合的划分方法。
+def stirling_number_dp(n, k):
+    # 初始化 dp 表
+    dp = [[0] * (k + 1) for _ in range(n + 1)]
+    dp[0][0] = 1  # S(0, 0) = 1
+    
+    for i in range(1, n + 1):
+        for j in range(1, k + 1):
+            dp[i][j] = j * dp[i - 1][j] + dp[i - 1][j - 1]
+    
+    return dp[n][k]
+
+print(stirling_number_dp(3, 3))
+

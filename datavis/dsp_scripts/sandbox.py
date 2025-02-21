@@ -34,9 +34,19 @@ def strike_pivot_id_grid(strike_grid: pd.DataFrame):
     return pivot_grid
 
 # 调用函数处理 DataFrame
-result = sliding_window_with_padding(df, winsize=3)
+# result = sliding_window_with_padding(df, winsize=3)
 
 # 打印结果
-print(result)
-print(result.iloc[0, 3].shape)
-print(strike_pivot_id_grid(result))
+# print(result)
+# print(result.iloc[0, 3].shape)
+# print(strike_pivot_id_grid(result))
+
+from scipy import stats
+def spearmanrho():
+    a = np.array([0.5, 0.2, 0.4, 0.1])
+    # b = np.arange(len(a))
+    b = np.sort(a)
+    rho, pval = stats.spearmanr(a, b)
+    print(rho, pval)
+
+spearmanrho()

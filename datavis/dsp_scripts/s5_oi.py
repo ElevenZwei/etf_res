@@ -113,6 +113,14 @@ def gaussian_dot_column(df: pd.DataFrame, col_name: str, winsize: int, sigma: in
     df[col_name] = df[col_name].map(lambda x: np.nan if np.isnan(x).any() else x)
     return df
 
+def sigmoid_dot_column(df: pd.DataFrame, col_name: str, winsize: int):
+    """ 从 1/(1+Exp(-x)) 这个函数的 -4 到 4 范围里面取 winsize 个点，然后做点积 """
+    sigmoid = 1 / (1 + np.exp(-np.linspace(-4, 4, winsize)))
+    sigmoid = sigmoid / sigmoid.sum()
+    df[col_name] = df[col_name].map(lambda x: np.dot(x, sigmoid))
+    df[col_name] = df[col_name].map(lambda x: np.nan if np.isnan(x).any() else x)
+    return df
+
 def melt_intersect_dot(spot_df: pd.DataFrame, oi_df: pd.DataFrame, col_name: str,
         dsp_sec: int, ts_sigma: int, strike_sigma: float):
     grid_1d = smooth_column_time_grid(oi_df, col_name, dsp_sec, ts_sigma)
@@ -146,6 +154,7 @@ def melt_intersect_dot_2(spot_df: pd.DataFrame, oi_df: pd.DataFrame, col_name: s
     # print("win_size", win_size)
     select_df = window_select(intersect_df, col_name, grid_1d, win_size)
     select_df = gaussian_dot_column(select_df, col_name, win_size, sigma)
+    # select_df = sigmoid_dot_column(select_df, col_name, win_size)
     return select_df
 
 def cp_dot(spot_df: pd.DataFrame, oi_df: pd.DataFrame,

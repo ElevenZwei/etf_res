@@ -15,6 +15,7 @@ import numpy as np
 from scipy import stats
 
 from dsp_config import DATA_DIR
+from helpers import OpenCloseHelper
 
 def calc_spearman(df: pd.DataFrame, cols: list[str], res_col: str):
     """
@@ -67,6 +68,7 @@ def calc_stats(df: pd.DataFrame):
     1. 通过 columns 提取信息
     2. 把现在的 columns 分成几组计算
     """
+    df['dt'] = pd.to_datetime(df['dt'])
     col_infos = extract_column_info(df)
     ts_list = np.unique([x.ts for x in col_infos])
     sigma_list = np.unique([x.sigma for x in col_infos])
@@ -75,15 +77,53 @@ def calc_stats(df: pd.DataFrame):
         ts_cols = [x.name for x in col_infos if x.ts == ts]
         df = calc_spearman(df, ts_cols, f'oi_cp_spearman_ts_{ts}')
         df = calc_stdev(df, ts_cols, f'oi_cp_stdev_ts_{ts}')
+        df[f'oi_cp_dirstd_ts_{ts}'] = df[f'oi_cp_spearman_ts_{ts}'] * df[f'oi_cp_stdev_ts_{ts}']
     for sigma in sigma_list:
         sigma_cols = [x.name for x in col_infos if x.sigma == sigma]
         df = calc_spearman(df, sigma_cols, f'oi_cp_spearman_sigma_{sigma}')
         df = calc_stdev(df, sigma_cols, f'oi_cp_stdev_sigma_{sigma}')
+        df[f'oi_cp_dirstd_sigma_{sigma}'] = df[f'oi_cp_spearman_sigma_{sigma}'] * df[f'oi_cp_stdev_sigma_{sigma}']
     return df
+
+def calc_long_short_signal(df: pd.DataFrame):
+    """
+    计算 long short signal
+    """
+    ts_long_open = 400
+    ts_long_close = 100
+    ts_short_open = -400
+    ts_short_close = -100
+    ts_helper = OpenCloseHelper(ts_long_open, ts_long_close, ts_short_open, ts_short_close)
+    sigma_long_open = 220
+    sigma_long_close = 10
+    sigma_short_open = -220
+    sigma_short_close = -10
+    sigma_helper = OpenCloseHelper(sigma_long_open, sigma_long_close, sigma_short_open, sigma_short_close)
+    ts_signals = []
+    sigma_signals = []
+    for idx, row in df.iterrows():
+        if (row['dt'].hour == 9
+                or row['dt'].hour == 10 and row['dt'].minute < 10
+                or row['dt'].hour == 14 and row['dt'].minute > 47):
+            ts_signals.append(0)
+            sigma_signals.append(0)
+            continue
+        ts_signals.append(ts_helper.next(row['oi_cp_dirstd_ts_600']))
+        sigma_signals.append(sigma_helper.next(row['oi_cp_dirstd_sigma_0.15']))
+    df['ts_signal'] = ts_signals
+    df['sigma_signal'] = sigma_signals
+    return df
+
+#  Ts 的参数现在还是一个重点调整对象。
+#  除非是那种长牛趋势的日子，看起来现在的平仓信号只会太晚不会太早。
+#  所以需要加入其他的平仓规则，例如说盘整就止盈，例如 PCP 止盈。
+#  两个指标分开计算盈利然后加权也是一种做法。
+#  或者平仓的时候两个指标分开平仓。
 
 def calc_stats_csv(spot: str, suffix: str):
     df = pd.read_csv(DATA_DIR / 'dsp_conv' / f'merged_{spot}_{suffix}.csv')
     df = calc_stats(df)
+    df = calc_long_short_signal(df)
     df.to_csv(DATA_DIR / 'dsp_conv' / f'stats_{spot}_{suffix}.csv', index=False)
 
 @click.command()

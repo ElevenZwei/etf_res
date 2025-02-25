@@ -12,6 +12,8 @@ import s3_plot_dsp_surf as s3
 import s4_plot_dsp_inter as s4
 import s5_oi as s5
 import s6_plot_oi_surf as s6
+import s7_oi_stats as s7
+import s8_plot_oi_stats as s8
 
 from dsp_config import gen_suffix
 
@@ -43,6 +45,7 @@ def calc_data(spot: str, suffix: str, wide: bool):
     s1.calc_dsp_surface(spot=spot, suffix=suffix, wide=wide)
     s5.calc_intersect(spot, suffix, wide=wide)
     s5.calc_surface(spot, suffix)
+    s7.calc_stats_csv(spot, suffix + '_s5')
 
     # old method
     # s1.calc_dsp_intersects(spot=spot, suffix=suffix, wide=wide)
@@ -52,6 +55,7 @@ def plot_data(spot: str, suffix: str, show: bool, save: bool, wide: bool):
     s3.main(spot, suffix=suffix, show=show, save=save, wide=wide)
     s4.main(spot, suffix=suffix + '_s5', show=show, save=save, wide=wide)
     s6.main(spot, suffix=suffix, show=show, save=save)
+    s8.main(spot, suffix=suffix + '_s5', show=show, save=save)
 
     # old method
     # s4.main(spot, suffix=suffix, show=show, save=save, wide=wide)

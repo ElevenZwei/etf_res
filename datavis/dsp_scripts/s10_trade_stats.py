@@ -46,11 +46,13 @@ def calc_stats_one_day(df: pd.DataFrame, trades_per_day: int):
     sigma_trades = calc_daily_stats(df, 'sigma_signal', trades_per_day)
     ts_sigma_trades = calc_daily_stats(df, 'ts_sigma_signal', trades_per_day)
     toss_trades = calc_daily_stats(df, 'toss_signal', trades_per_day)
+    totp_trades = calc_daily_stats(df, 'totp_signal', trades_per_day)
     return {
         'ts': ts_trades,
         'sigma': sigma_trades,
         'ts_sigma': ts_sigma_trades,
         'toss': toss_trades,
+        'totp': totp_trades,
     }
 
 def calc_stats_days(dfs: list[pd.DataFrame], trades_per_day: int):

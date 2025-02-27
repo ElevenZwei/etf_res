@@ -58,8 +58,11 @@ class TsOpenTakeProfitHelper:
         self.spot_max = -100000
     
     def next(self, ts, spot_price):
-        self.spot_min = min(self.spot_min, spot_price)
-        self.spot_max = max(self.spot_max, spot_price)
+        # 这个 if 让它开仓之后在选择记录最高点和最低点（这一点带来的影响不太清楚）。
+        # 就是说如果没有这个 if ，当前面已经有非常高的高峰，那么这个开仓信号就会被忽略。
+        if self.state != 0:
+            self.spot_min = min(self.spot_min, spot_price)
+            self.spot_max = max(self.spot_max, spot_price)
         if self.state == 0:
             if self.ts_state == 0 and ts > self.ts_open:
                 self.ts_state = 1
@@ -80,6 +83,11 @@ class TsOpenTakeProfitHelper:
             elif spot_price / self.spot_min > 1 + self.stop_loss:
                 self.state = 0
         return self.state
+
+# 单纯的 stop loss 给出了和 ts 差不多的成绩，但是亏损可控了。
+# 这里可以再深入加强一下，改成抗单 1% 但是如果盈利超过 1% 那么在回落 0.3% 的时候止盈。
+# 是否可以在盈利超过一定程度的时候接受来自 sigma 的平仓信号，否则选择抗 1% 的止损。
+
 
 def calc_long_short_pos(df: pd.DataFrame):
     """

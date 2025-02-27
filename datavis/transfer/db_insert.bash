@@ -38,8 +38,8 @@ function import_mdtfs {
 # import_mdtfs 510500 20241118
 # import_mdtfs 588000 20241118
 
-# import_mdtfs 159915 20241230
-import_mdtfs 510050 20241230
-import_mdtfs 510300 20241230
-import_mdtfs 510500 20241230
-import_mdtfs 588000 20241230
+# import_mdtfs 159915 20250217
+# import_mdtfs 510050 20241230
+# import_mdtfs 510300 20241230
+import_mdtfs 510500 20250217
+# import_mdtfs 588000 20241230

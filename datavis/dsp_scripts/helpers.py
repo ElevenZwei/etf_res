@@ -22,7 +22,18 @@ class OpenCloseHelper:
             self.state = 0
         return self.state
     
-    def value(self):
+    def last(self):
         return self.state
 
+class DiffHelper:
+    def __init__(self):
+        self.state = 0
+        self.last = 0
     
+    def next(self, value):
+        self.last = value - self.state
+        self.state = value
+        return self.last
+    
+    def last(self):
+        return self.last

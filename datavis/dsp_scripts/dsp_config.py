@@ -11,6 +11,7 @@ DATA_DIR = get_file_dir() / '..' / 'data'
 
 os.makedirs(f"{DATA_DIR}/dsp_input", exist_ok=True)
 os.makedirs(f"{DATA_DIR}/dsp_conv", exist_ok=True)
+os.makedirs(f"{DATA_DIR}/dsp_stats", exist_ok=True)
 os.makedirs(f"{DATA_DIR}/dsp_plot", exist_ok=True)
 os.makedirs(f"{DATA_DIR}/html_oi", exist_ok=True)
 os.makedirs(f"{DATA_DIR}/png_oi", exist_ok=True)

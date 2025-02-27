@@ -14,8 +14,9 @@ import s5_oi as s5
 import s6_plot_oi_surf as s6
 import s7_oi_stats as s7
 import s8_plot_oi_stats as s8
+import s9_trade_signal as s9
 
-from dsp_config import gen_suffix
+from dsp_config import gen_suffix, gen_wide_suffix
 
 def fourth_wednesday(year: int, month: int) -> date:
     month_calendar = calendar.monthcalendar(year, month)
@@ -45,7 +46,7 @@ def calc_data(spot: str, suffix: str, wide: bool):
     s1.calc_dsp_surface(spot=spot, suffix=suffix, wide=wide)
     s5.calc_intersect(spot, suffix, wide=wide)
     s5.calc_surface(spot, suffix)
-    s7.calc_stats_csv(spot, suffix + '_s5')
+    s7.calc_stats_csv(spot, suffix + '_s5', wide=wide)
 
     # old method
     # s1.calc_dsp_intersects(spot=spot, suffix=suffix, wide=wide)
@@ -55,25 +56,30 @@ def plot_data(spot: str, suffix: str, show: bool, save: bool, wide: bool):
     s3.main(spot, suffix=suffix, show=show, save=save, wide=wide)
     s4.main(spot, suffix=suffix + '_s5', show=show, save=save, wide=wide)
     s6.main(spot, suffix=suffix, show=show, save=save)
-    s8.main(spot, suffix=suffix + '_s5', show=show, save=save)
+    s8.main(spot, suffix=suffix + '_s5', show=show, save=save, wide=wide)
 
     # old method
     # s4.main(spot, suffix=suffix, show=show, save=save, wide=wide)
+
+def calc_signal(spot: str, suffix: str, wide: bool):
+    s9.calc_signal_csv(spot, suffix + '_s5', wide=wide)
 
 def download_data(spot: str, bg_str: str, ed_str: str, year: int, month: int):
     s0.auto_dl(spot, year=year, month=month, bg_str=bg_str, ed_str=ed_str)
 
 def date_dsp(spot: str,
              bg_str: str, ed_str: str,
-             refresh: bool, plot: bool,
+             refresh: bool, plot: bool, signal: bool,
              year: int, month: int,
              show: bool, save: bool, wide: bool):
     suffix = default_suffix(bg_str=bg_str, ed_str=ed_str, year=year, month=month)
-    if not plot:
-        if refresh:
-            suffix = s0.auto_dl(spot, year=year, month=month, bg_str=bg_str, ed_str=ed_str)
-        calc_data(spot, suffix, wide=wide)
-    plot_data(spot, suffix, show=show, save=save, wide=wide)
+    if not signal:
+        if not plot:
+            if refresh:
+                suffix = s0.auto_dl(spot, year=year, month=month, bg_str=bg_str, ed_str=ed_str)
+            calc_data(spot, suffix, wide=wide)
+        plot_data(spot, suffix, show=show, save=save, wide=wide)
+    calc_signal(spot, suffix, wide=wide)
 
 @click.command()
 @click.option('-s', '--spot', type=str, required=True, help="spot code: 159915 510050")
@@ -81,19 +87,20 @@ def date_dsp(spot: str,
 @click.option('-e', '--end-date', type=str, help="format is %Y%m%d")
 @click.option('-r', '--refresh', is_flag=True, default=False, help="Download new data from database.")
 @click.option('-p', '--plot', is_flag=True, default=False, help="Plot only, use existing data.")
+@click.option('-g', '--signal', is_flag=True, default=False, help="Generate signal only, use existing data.")
 @click.option('-y', '--year', type=int)
 @click.option('-m', '--month', type=int)
 @click.option('--show', type=bool, default=True, help="show plot.")
 @click.option('--save', type=bool, default=True, help="save to html.")
 @click.option('--wide', type=bool, default=False, help="use wide plot.")
 def click_main(spot: str, date: str, end_date: str,
-        refresh: bool, plot: bool,
+        refresh: bool, plot: bool, signal: bool,
         year: int, month: int,
         show: bool, save: bool, wide: bool):
     if end_date is None:
         end_date = date
     date_dsp(spot, bg_str=date, ed_str=end_date,
-             refresh=refresh, plot=plot,
+             refresh=refresh, plot=plot, signal=signal,
              year=year, month=month,
              show=show, save=save, wide=wide)
 

@@ -1,7 +1,7 @@
 """
 这个脚本的作用是对 s5 计算出的 OI Intersect 数据计算统计信息。
 它的统计信息的需求是对曲线的聚合和升降情况进行定量描述，
-从而这些描述可以用在量化交易的 signal 设计中。
+从而这些描述可以用在量化交易的 pos 设计中。
 计算出的数据首先保存在 csv 文件中，然后通过 plotly 绘制出来，
 人工检验这些统计信息是否符合预期。
 
@@ -14,7 +14,7 @@ import pandas as pd
 import numpy as np
 from scipy import stats
 
-from dsp_config import DATA_DIR
+from dsp_config import DATA_DIR, gen_wide_suffix
 from helpers import OpenCloseHelper
 
 def calc_spearman(df: pd.DataFrame, cols: list[str], res_col: str):
@@ -85,9 +85,9 @@ def calc_stats(df: pd.DataFrame):
         df[f'oi_cp_dirstd_sigma_{sigma}'] = df[f'oi_cp_spearman_sigma_{sigma}'] * df[f'oi_cp_stdev_sigma_{sigma}']
     return df
 
-def calc_long_short_signal(df: pd.DataFrame):
+def calc_long_short_pos(df: pd.DataFrame):
     """
-    计算 long short signal
+    计算 long short pos
     """
     ts_long_open = 400
     ts_long_close = 100
@@ -99,19 +99,19 @@ def calc_long_short_signal(df: pd.DataFrame):
     sigma_short_open = -220
     sigma_short_close = -10
     sigma_helper = OpenCloseHelper(sigma_long_open, sigma_long_close, sigma_short_open, sigma_short_close)
-    ts_signals = []
-    sigma_signals = []
+    ts_pos = []
+    sigma_pos = []
     for idx, row in df.iterrows():
         if (row['dt'].hour == 9
                 or row['dt'].hour == 10 and row['dt'].minute < 10
                 or row['dt'].hour == 14 and row['dt'].minute > 47):
-            ts_signals.append(0)
-            sigma_signals.append(0)
+            ts_pos.append(0)
+            sigma_pos.append(0)
             continue
-        ts_signals.append(ts_helper.next(row['oi_cp_dirstd_ts_600']))
-        sigma_signals.append(sigma_helper.next(row['oi_cp_dirstd_sigma_0.15']))
-    df['ts_signal'] = ts_signals
-    df['sigma_signal'] = sigma_signals
+        ts_pos.append(ts_helper.next(row['oi_cp_dirstd_ts_600']))
+        sigma_pos.append(sigma_helper.next(row['oi_cp_dirstd_sigma_0.15']))
+    df['ts_pos'] = ts_pos
+    df['sigma_pos'] = sigma_pos
     return df
 
 #  Ts 的参数现在还是一个重点调整对象。
@@ -120,17 +120,19 @@ def calc_long_short_signal(df: pd.DataFrame):
 #  两个指标分开计算盈利然后加权也是一种做法。
 #  或者平仓的时候两个指标分开平仓。
 
-def calc_stats_csv(spot: str, suffix: str):
+def calc_stats_csv(spot: str, suffix: str, wide: bool):
+    suffix += gen_wide_suffix(wide)
     df = pd.read_csv(DATA_DIR / 'dsp_conv' / f'merged_{spot}_{suffix}.csv')
     df = calc_stats(df)
-    df = calc_long_short_signal(df)
+    df = calc_long_short_pos(df)
     df.to_csv(DATA_DIR / 'dsp_conv' / f'stats_{spot}_{suffix}.csv', index=False)
 
 @click.command()
 @click.option('-s', '--spot', type=str, required=True, help="spot code: 159915 510050")
 @click.option('-d', '--suffix', type=str, required=True, help="csv file name suffix.")
-def click_main(spot: str, suffix: str):
-    calc_stats_csv(spot, suffix)
+@click.option('--wide', type=bool, default=False, help="wide or not.")
+def click_main(spot: str, suffix: str, wide: bool):
+    calc_stats_csv(spot, suffix, wide=wide)
 
 if __name__ == '__main__':
     click_main()

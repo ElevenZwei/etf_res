@@ -13,7 +13,7 @@ import plotly.graph_objects as go
 import plotly.colors as pc
 import plotly.subplots as subplots
 
-from dsp_config import DATA_DIR, get_spot_config, plot_dt_str
+from dsp_config import DATA_DIR, get_spot_config, plot_dt_str, gen_wide_suffix
 
 PLOT_CONFIG = {
     'spot_color_seq': pc.sequential.tempo,
@@ -171,16 +171,16 @@ def plot_price(df: pd.DataFrame, fig, row, col):
             row=row, col=col)
     return fig
 
-def plot_trade_signal(df: pd.DataFrame, fig, row, col):
+def plot_trade_pos(df: pd.DataFrame, fig, row, col):
     x_ts_uni = df['dt']
-    y_ts_signal = df['ts_signal']
-    y_sigma_signal = df['sigma_signal']
+    y_ts_pos = df['ts_pos']
+    y_sigma_pos = df['sigma_pos']
     fig.add_trace(
-            go.Scatter(x=x_ts_uni, y=y_ts_signal, mode='lines', name='ts signal',
+            go.Scatter(x=x_ts_uni, y=y_ts_pos, mode='lines', name='ts pos',
                     line={'color': PLOT_CONFIG['spot_color_seq'][3]}),
             row=row, col=col)
     fig.add_trace(
-            go.Scatter(x=x_ts_uni, y=y_sigma_signal, mode='lines', name='sigma signal',
+            go.Scatter(x=x_ts_uni, y=y_sigma_pos, mode='lines', name='sigma pos',
                     line={'color': PLOT_CONFIG['spot_color_seq'][4]}),
             row=row, col=col)
     return fig
@@ -192,7 +192,7 @@ def plot_stats(df: pd.DataFrame):
         vertical_spacing=0.04,
         subplot_titles=[
             'OI CP',
-            'Trade Signal',
+            'Trade Pos',
             'OI CP Ts DirStd',
             'OI CP Sigma DirStd',
             'OI CP Ts Spearman',
@@ -213,7 +213,7 @@ def plot_stats(df: pd.DataFrame):
     # fig.update_traces(xaxis='x1')
     df = plot_dt_str(df, 'dt')
     fig = plot_oi(df, '159915', False, fig, 1, 1)
-    fig = plot_trade_signal(df, fig, 2, 1)
+    fig = plot_trade_pos(df, fig, 2, 1)
     fig = plot_price(df, fig, 2, 1)
     fig = plot_ts_dirstd(df, '159915', fig, 3, 1)
     fig = plot_sigma_dirstd(df, '159915', fig, 4, 1)
@@ -223,7 +223,8 @@ def plot_stats(df: pd.DataFrame):
     fig = plot_sigma_stdev(df, '159915', fig, 8, 1)
     return fig
 
-def plot_file(spot: str, suffix: str, save: bool, show: bool):
+def plot_file(spot: str, suffix: str, save: bool, show: bool, wide: bool):
+    suffix = suffix + gen_wide_suffix(wide)
     df = pd.read_csv(DATA_DIR / 'dsp_conv' / f'stats_{spot}_{suffix}.csv')
     fig = plot_stats(df)
     if show:
@@ -232,16 +233,17 @@ def plot_file(spot: str, suffix: str, save: bool, show: bool):
         fig.write_html(DATA_DIR / 'html_oi' / f'oi_stats_{spot}_{suffix}.html')
         fig.write_image(DATA_DIR / 'png_oi' / f'oi_stats_{spot}_{suffix}.png')
 
-def main(spot: str, suffix: str, show: bool, save: bool):
-    plot_file(spot, suffix, save=save, show=show)
+def main(spot: str, suffix: str, show: bool, save: bool, wide: bool):
+    plot_file(spot, suffix, save=save, show=show, wide=wide)
 
 @click.command()
 @click.option('-s', '--spot', type=str, required=True, help="spot code: 159915 510050")
 @click.option('-d', '--suffix', type=str, required=True, help="csv file name suffix.")
 @click.option('--save', type=bool, default=True, help="save to html.")
 @click.option('--show', type=bool, default=True, help="show plot.")
-def click_main(spot: str, suffix: str, show: bool, save: bool):
-    plot_file(spot, suffix, save=save, show=show)
+@click.option('--wide', type=bool, default=False, help="wide plot.")
+def click_main(spot: str, suffix: str, show: bool, save: bool, wide: bool):
+    plot_file(spot, suffix, save=save, show=show, wide=wide)
 
 if __name__ == '__main__':
     click_main()

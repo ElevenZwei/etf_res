@@ -15,11 +15,20 @@ import numpy as np
 
 from dsp_config import DATA_DIR, gen_wide_suffix
 
+def calc_pos_price_maxmin(df: pd.DataFrame, buysell_signal_col: str):
+    """计算每一个仓位状态里的最大最小值。"""
+    price_df = df.groupby('pos_state_id')['spot_price'].agg(['max', 'min'])
+    price_df.columns = ['spot_price_max', 'spot_price_min']
+    return price_df
+
 def calc_daily_stats(df: pd.DataFrame, buysell_signal_col: str, trades_per_day: int):
+    df['pos_state_id'] = df[buysell_signal_col].ne(0).cumsum()
+    price_df = calc_pos_price_maxmin(df, buysell_signal_col)
     df = df[df[buysell_signal_col] != 0].copy()
     if len(df) % 2 != 0:
         print('Error: the number of signals is not even, date:', df.iloc[0]['dt'])
         df = df.iloc[:-1]
+
     # 对于只有一层仓位的交易信号，可以用 shift 找到开平对应的数据行。
     df['close_dt'] = df['dt'].shift(-1)
     df['open_dt'] = df['dt']
@@ -27,17 +36,22 @@ def calc_daily_stats(df: pd.DataFrame, buysell_signal_col: str, trades_per_day: 
     df['open_spot_price'] = df['spot_price']
     df['close_signal'] = df[buysell_signal_col].shift(-1)
     df['open_signal'] = df[buysell_signal_col]
+    
     # keep only odd number lines.
     df = df[::2]
+    df = df.join(price_df, on='pos_state_id')
     df['long_short'] = np.where(df['open_signal'] > 0, 1, -1)
     df['pnl'] = (df['close_spot_price'] - df['open_spot_price']) * df['long_short']
     df['hold_time'] = df['close_dt'] - df['open_dt']
     df['intraday_reopen_diff'] = df['open_dt'] - df['close_dt'].shift(1)
+    df['pnl_max'] = np.where(df['long_short'] == 1, df['spot_price_max'] - df['open_spot_price'], df['open_spot_price'] - df['spot_price_min'])
+    df['pnl_min'] = -1 * np.where(df['long_short'] == 1, df['open_spot_price'] - df['spot_price_min'], df['spot_price_max'] - df['open_spot_price'])
     df = df[['open_dt', 'close_dt', 'hold_time',
             'intraday_reopen_diff',
             'open_spot_price', 'close_spot_price',
-            'open_signal', 'close_signal',
-            'long_short', 'pnl']]
+            'spot_price_max', 'spot_price_min',
+            'long_short',
+            'pnl_max', 'pnl_min', 'pnl']]
     df = df[:trades_per_day]
     return df
 
@@ -46,12 +60,14 @@ def calc_stats_one_day(df: pd.DataFrame, trades_per_day: int):
     sigma_trades = calc_daily_stats(df, 'sigma_signal', trades_per_day)
     ts_sigma_trades = calc_daily_stats(df, 'ts_sigma_signal', trades_per_day)
     toss_trades = calc_daily_stats(df, 'toss_signal', trades_per_day)
+    tosr_trades = calc_daily_stats(df, 'tosr_signal', trades_per_day)
     totp_trades = calc_daily_stats(df, 'totp_signal', trades_per_day)
     return {
         'ts': ts_trades,
         'sigma': sigma_trades,
         'ts_sigma': ts_sigma_trades,
         'toss': toss_trades,
+        'tosr': tosr_trades,
         'totp': totp_trades,
     }
 

@@ -30,6 +30,13 @@ class TsOpenSigmaCloseHelper:
             elif self.ts_state == 0 and ts < -1 * self.ts_open:
                 self.ts_state = -1
                 self.state = -1
+            elif self.ts_state == 1 and ts < self.ts_close:
+                # print('ts reset from 1')
+                self.ts_state = 0
+            elif self.ts_state == -1 and ts > -1 * self.ts_close:
+                # print('ts reset from -1')
+                self.ts_state = 0
+
         elif self.state == 1:
             if ts < self.ts_close:
                 self.ts_state = 0
@@ -42,7 +49,36 @@ class TsOpenSigmaCloseHelper:
                 self.state = 0
             elif sigma > -1 * self.sigma_close:
                 self.state = 0
+        
         return self.state
+
+class TsOpenSigmaReopenHelper:
+    """ 这个的灵感是来自于发现 Sigma Close 之后根据 Sigma 的反弹还会有不错的盈利机会得到。"""
+    def __init__(self, ts_open, ts_close, sigma_open, sigma_close):
+        self.ts_open = ts_open
+        self.ts_close = ts_close
+        self.sigma_open = sigma_open
+        self.sigma_close = sigma_close
+        self.state = 0
+    
+    def next(self, ts, sigma):
+        if self.state == 0:
+            if ts > self.ts_open and sigma > self.sigma_open:
+                self.state = 1
+            elif ts < -1 * self.ts_open and sigma < -1 * self.sigma_open:
+                self.state = -1
+        elif self.state == 1:
+            if ts < self.ts_close:
+                self.state = 0
+            elif sigma < self.sigma_close:
+                self.state = 0
+        elif self.state == -1:
+            if ts > -1 * self.ts_close:
+                self.state = 0
+            elif sigma > -1 * self.sigma_close:
+                self.state = 0
+        return self.state
+
 
 class TsOpenTakeProfitHelper:
     """
@@ -60,7 +96,10 @@ class TsOpenTakeProfitHelper:
     def next(self, ts, spot_price):
         # 这个 if 让它开仓之后在选择记录最高点和最低点（这一点带来的影响不太清楚）。
         # 就是说如果没有这个 if ，当前面已经有非常高的高峰，那么这个开仓信号就会被忽略。
-        if self.state != 0:
+        if self.state == 0:
+            self.spot_min = 100000
+            self.spot_max = -100000
+        else:
             self.spot_min = min(self.spot_min, spot_price)
             self.spot_max = max(self.spot_max, spot_price)
         if self.state == 0:
@@ -85,8 +124,13 @@ class TsOpenTakeProfitHelper:
         return self.state
 
 # 单纯的 stop loss 给出了和 ts 差不多的成绩，但是亏损可控了。
-# 这里可以再深入加强一下，改成抗单 1% 但是如果盈利超过 1% 那么在回落 0.3% 的时候止盈。
-# 是否可以在盈利超过一定程度的时候接受来自 sigma 的平仓信号，否则选择抗 1% 的止损。
+# 这里可以再深入加强一下，改成抗单 1% 但是如果盈利超过 1% 那么在回落 0.3% 的时候止盈
+# 可能这个回落 0.3 也有点太少了。
+# 是否可以在盈利超过一定程度的时候接受来自 sigma 的平仓信号，否则选择回落 1% 的止盈。
+# Sigma 平仓信号目测的损失还不如回落止盈。
+
+# 更加科学的统计方法是绘制一个，每一笔开仓过程里最大盈利和最大亏损和平仓受益的相关性点阵图。
+# 这个应该用 signal + count not zero 的方法，然后标记出每一个仓位状态下的编号，然后再用 group by 聚合。
 
 
 def calc_long_short_pos(df: pd.DataFrame):
@@ -107,9 +151,15 @@ def calc_long_short_pos(df: pd.DataFrame):
     sigma_helper = OpenCloseHelper(sigma_long_open, sigma_long_close, sigma_short_open, sigma_short_close)
     # ts open sigma close
     toss_helper = TsOpenSigmaCloseHelper(
-            ts_open=450,
+            ts_open=400,
             ts_close=100, 
-            sigma_close=-50)
+            sigma_close=-150)
+    # ts open sigma reopen
+    tosr_helper = TsOpenSigmaReopenHelper(
+            ts_open=400,
+            ts_close=100,
+            sigma_open=-50,
+            sigma_close=-150)
     # ts open take profit
     totp_helper = TsOpenTakeProfitHelper(
             ts_open=400,
@@ -120,6 +170,7 @@ def calc_long_short_pos(df: pd.DataFrame):
         'ts_pos': { 'pos': [], 'helper': ts_helper },
         'sigma_pos': { 'pos': [], 'helper': sigma_helper },
         'toss_pos': { 'pos': [], 'helper': toss_helper },
+        'tosr_pos': { 'pos': [], 'helper': tosr_helper },
         'totp_pos': { 'pos': [], 'helper': totp_helper },
     }
     for idx, row in df.iterrows():
@@ -136,6 +187,8 @@ def calc_long_short_pos(df: pd.DataFrame):
                 sigma_helper.next(row['oi_cp_dirstd_sigma_0.15']))
         pos_dict['toss_pos']['pos'].append(
                 toss_helper.next(row['oi_cp_dirstd_ts_600'], row['oi_cp_dirstd_sigma_0.15']))
+        pos_dict['tosr_pos']['pos'].append(
+                tosr_helper.next(row['oi_cp_dirstd_ts_600'], row['oi_cp_dirstd_sigma_0.15']))
         pos_dict['totp_pos']['pos'].append(
                 totp_helper.next(row['oi_cp_dirstd_ts_600'], row['spot_price']))
     for key in pos_dict:
@@ -166,14 +219,13 @@ def calc_csv(df: pd.DataFrame):
     signal_cols = [x for x in df.columns if '_signal' in x]
     df = df[['dt', 'spot_price', *signal_cols]]
     # keep rows where signal cols is not zero only.
-    df = df.loc[(df[signal_cols] != 0).any(axis=1)]    
+    print(df.loc[(df[signal_cols] != 0).any(axis=1)])
     return df
 
 def calc_signal_csv(spot: str, suffix: str, wide: bool):
     suffix += gen_wide_suffix(wide)
     df = pd.read_csv(DATA_DIR / 'dsp_conv' / f'stats_{spot}_{suffix}.csv')
     df = calc_csv(df)
-    print(df)
     df.to_csv(DATA_DIR / 'dsp_conv' / f'signal_{spot}_{suffix}.csv', index=False)
 
 @click.command()

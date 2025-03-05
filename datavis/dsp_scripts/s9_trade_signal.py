@@ -6,10 +6,39 @@
 import click
 import pandas as pd
 import numpy as np
-from scipy import stats
 
 from dsp_config import DATA_DIR, gen_wide_suffix
 from helpers import OpenCloseHelper, DiffHelper
+
+def getTradeCols(wide: bool):
+    if wide:
+        return {
+            'ts_col': 'oi_cp_dirstd_ts_600',
+            'sigma_col': 'oi_cp_dirstd_sigma_0.4',
+            'spot_col': 'spot_price',
+        }
+    else:
+        return {
+            'ts_col': 'oi_cp_dirstd_ts_600',
+            'sigma_col': 'oi_cp_dirstd_sigma_0.15',
+            'spot_col': 'spot_price',
+        }
+
+class TsOpenHelper:
+    def __init__(self, ts_open, ts_close):
+        self.helper = OpenCloseHelper(ts_open, ts_close, -ts_open, -ts_close)
+    
+    def next(self, ts, sigma, spot):
+        return self.helper.next(ts)
+
+
+class SigmaOpenHelper:
+    def __init__(self, sigma_open, sigma_close):
+        self.helper = OpenCloseHelper(sigma_open, sigma_close, -sigma_open, -sigma_close)
+    
+    def next(self, ts, sigma, spot):
+        return self.helper.next(sigma)
+
 
 class TsOpenSigmaCloseHelper:
     """
@@ -22,7 +51,7 @@ class TsOpenSigmaCloseHelper:
         self.ts_state = 0
         self.state = 0
     
-    def next(self, ts, sigma):
+    def next(self, ts, sigma, spot):
         if self.state == 0:
             if self.ts_state == 0 and ts > self.ts_open:
                 self.ts_state = 1
@@ -61,7 +90,7 @@ class TsOpenSigmaReopenHelper:
         self.sigma_close = sigma_close
         self.state = 0
     
-    def next(self, ts, sigma):
+    def next(self, ts, sigma, spot):
         if self.state == 0:
             if ts > self.ts_open and sigma > self.sigma_open:
                 self.state = 1
@@ -93,7 +122,7 @@ class TsOpenTakeProfitHelper:
         self.spot_min = 100000
         self.spot_max = -100000
     
-    def next(self, ts, spot_price):
+    def next(self, ts, sigma, spot_price):
         # 这个 if 让它开仓之后在选择记录最高点和最低点（这一点带来的影响不太清楚）。
         # 就是说如果没有这个 if ，当前面已经有非常高的高峰，那么这个开仓信号就会被忽略。
         if self.state == 0:
@@ -133,22 +162,14 @@ class TsOpenTakeProfitHelper:
 # 这个应该用 signal + count not zero 的方法，然后标记出每一个仓位状态下的编号，然后再用 group by 聚合。
 
 
-def calc_long_short_pos(df: pd.DataFrame):
+def calc_long_short_pos(df: pd.DataFrame, wide: bool):
     """
     计算 long short pos
     """
     # ts signal 是一个均线策略
-    ts_long_open = 400
-    ts_long_close = 100
-    ts_short_open = -400
-    ts_short_close = -100
-    ts_helper = OpenCloseHelper(ts_long_open, ts_long_close, ts_short_open, ts_short_close)
+    ts_helper = TsOpenHelper(ts_open=400, ts_close=100)
     # sigma signal 是一个震荡器策略
-    sigma_long_open = 220
-    sigma_long_close = 10
-    sigma_short_open = -220
-    sigma_short_close = -10
-    sigma_helper = OpenCloseHelper(sigma_long_open, sigma_long_close, sigma_short_open, sigma_short_close)
+    sigma_helper = SigmaOpenHelper(sigma_open=220, sigma_close=10)
     # ts open sigma close
     toss_helper = TsOpenSigmaCloseHelper(
             ts_open=400,
@@ -181,16 +202,14 @@ def calc_long_short_pos(df: pd.DataFrame):
             for key in pos_dict:
                 pos_dict[key]['pos'].append(0)
             continue
-        pos_dict['ts_pos']['pos'].append(
-                ts_helper.next(row['oi_cp_dirstd_ts_600']))
-        pos_dict['sigma_pos']['pos'].append(
-                sigma_helper.next(row['oi_cp_dirstd_sigma_0.15']))
-        pos_dict['toss_pos']['pos'].append(
-                toss_helper.next(row['oi_cp_dirstd_ts_600'], row['oi_cp_dirstd_sigma_0.15']))
-        pos_dict['tosr_pos']['pos'].append(
-                tosr_helper.next(row['oi_cp_dirstd_ts_600'], row['oi_cp_dirstd_sigma_0.15']))
-        pos_dict['totp_pos']['pos'].append(
-                totp_helper.next(row['oi_cp_dirstd_ts_600'], row['spot_price']))
+        cols = getTradeCols(wide=wide)
+        input = [
+            row[cols['ts_col']],
+            row[cols['sigma_col']],
+            row[cols['spot_col']]
+        ]
+        for key in pos_dict:
+            pos_dict[key]['pos'].append(pos_dict[key]['helper'].next(*input))
     for key in pos_dict:
         df[key] = pos_dict[key]['pos']
     return df
@@ -212,9 +231,9 @@ def calc_buy_sell_signal(df: pd.DataFrame):
         df = pos2signal(df, col, col.replace('_pos', '_signal'))
     return df
 
-def calc_csv(df: pd.DataFrame):
+def calc_csv(df: pd.DataFrame, wide: bool):
     df['dt'] = pd.to_datetime(df['dt'])
-    df = calc_long_short_pos(df)
+    df = calc_long_short_pos(df, wide=wide)
     df = calc_buy_sell_signal(df)
     signal_cols = [x for x in df.columns if '_signal' in x]
     df = df[['dt', 'spot_price', *signal_cols]]
@@ -225,7 +244,7 @@ def calc_csv(df: pd.DataFrame):
 def calc_signal_csv(spot: str, suffix: str, wide: bool):
     suffix += gen_wide_suffix(wide)
     df = pd.read_csv(DATA_DIR / 'dsp_conv' / f'stats_{spot}_{suffix}.csv')
-    df = calc_csv(df)
+    df = calc_csv(df, wide=wide)
     df.to_csv(DATA_DIR / 'dsp_conv' / f'signal_{spot}_{suffix}.csv', index=False)
 
 @click.command()

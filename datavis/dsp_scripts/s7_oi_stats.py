@@ -104,7 +104,8 @@ def calc_long_short_pos(df: pd.DataFrame):
     for idx, row in df.iterrows():
         if (row['dt'].hour == 9
                 or row['dt'].hour == 10 and row['dt'].minute < 10
-                or row['dt'].hour == 14 and row['dt'].minute > 47):
+                or row['dt'].hour == 14 and row['dt'].minute > 47
+                or row['dt'].hour == 15):
             ts_pos.append(0)
             sigma_pos.append(0)
             continue

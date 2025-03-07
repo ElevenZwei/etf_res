@@ -50,13 +50,14 @@ class TsOpenSigmaCloseHelper:
         self.sigma_close = sigma_close
         self.ts_state = 0
         self.state = 0
+        self.sigma_open = sigma_close + 80
     
     def next(self, ts, sigma, spot):
         if self.state == 0:
-            if self.ts_state == 0 and ts > self.ts_open:
+            if self.ts_state == 0 and ts > self.ts_open and sigma > self.sigma_open:
                 self.ts_state = 1
                 self.state = 1
-            elif self.ts_state == 0 and ts < -1 * self.ts_open:
+            elif self.ts_state == 0 and ts < -1 * self.ts_open and sigma < -1 * self.sigma_open:
                 self.ts_state = -1
                 self.state = -1
             elif self.ts_state == 1 and ts < self.ts_close:
@@ -80,6 +81,17 @@ class TsOpenSigmaCloseHelper:
                 self.state = 0
         
         return self.state
+
+
+class TsOpenSigmaCloseTwoStepHelper:
+    """根据 TS 点阵图里面的分布特性，
+    发现在一轮收益达到 1% 以上的时候可以适当放宽止损的条件，在收益小的时候需要尽快止盈止损。
+    我需要在每天的行情里可以区分慢牛和突刺，
+    但是这个操作和突刺收益平仓的操作正好完全相反，为了解释这个问题，
+    我们可以在点阵图上分割出一轮收益 1% 以上然后出现下潜的对象有多少可能再次上升到 1% """
+    def __init__(self, ts_open, ts_close, sigma_close_1, sigma_close_2, step_size):
+        pass
+
 
 class TsOpenSigmaReopenHelper:
     """ 这个的灵感是来自于发现 Sigma Close 之后根据 Sigma 的反弹还会有不错的盈利机会得到。"""
@@ -175,12 +187,20 @@ def calc_long_short_pos(df: pd.DataFrame, wide: bool):
             ts_open=400,
             ts_close=100, 
             sigma_close=-150)
+    toss2_helper = TsOpenSigmaCloseHelper(
+            ts_open=350,
+            ts_close=100,
+            sigma_close=-20)
+    toss3_helper = TsOpenSigmaCloseHelper(
+            ts_open=300,
+            ts_close=100,
+            sigma_close=20)
     # ts open sigma reopen
     tosr_helper = TsOpenSigmaReopenHelper(
-            ts_open=400,
+            ts_open=300,
             ts_close=100,
-            sigma_open=-50,
-            sigma_close=-150)
+            sigma_open=150,
+            sigma_close=20)
     # ts open take profit
     totp_helper = TsOpenTakeProfitHelper(
             ts_open=400,
@@ -191,12 +211,13 @@ def calc_long_short_pos(df: pd.DataFrame, wide: bool):
         'ts_pos': { 'pos': [], 'helper': ts_helper },
         'sigma_pos': { 'pos': [], 'helper': sigma_helper },
         'toss_pos': { 'pos': [], 'helper': toss_helper },
+        'toss2_pos': { 'pos': [], 'helper': toss2_helper },
+        'toss3_pos': { 'pos': [], 'helper': toss3_helper },
         'tosr_pos': { 'pos': [], 'helper': tosr_helper },
         'totp_pos': { 'pos': [], 'helper': totp_helper },
     }
     for idx, row in df.iterrows():
-        if (row['dt'].hour == 9
-                or row['dt'].hour == 10 and row['dt'].minute < 10
+        if (row['dt'].hour == 9 and row['dt'].minute < 55
                 or row['dt'].hour == 14 and row['dt'].minute > 47
                 or row['dt'].hour == 15):
             for key in pos_dict:
@@ -237,7 +258,7 @@ def calc_csv(df: pd.DataFrame, wide: bool):
     df = calc_buy_sell_signal(df)
     signal_cols = [x for x in df.columns if '_signal' in x]
     df = df[['dt', 'spot_price', *signal_cols]]
-    # keep rows where signal cols is not zero only.
+    # print rows where signal cols is not zero only.
     print(df.loc[(df[signal_cols] != 0).any(axis=1)])
     return df
 
@@ -275,5 +296,18 @@ ts sigma trades 容易抓不住长期趋势。
 12 月使用 1 月的规则会亏爆 我当时用的是 wide 参数。
 12 月 10 日是 wide 参数最突显作用的一天。
 12 月 10 日是 ts trades 亏损最大的一天。
+
+2024-09-30 这一天没有不同 Sigma 之间的差异，需要用非常 wide 的参数才有用。
+好像今年的这些参数在 2024 年 9 月除了月底的趋势，几乎不赚钱，看起来日内做方向可以赚钱是一种错觉吗？
+我感到非常挫败。样本大一点做什么都没用，相关性可以完全被挫败，所有的个案修正只能用于个案。
+
+====
+我发现了一些事情。
+高回落止盈和纯抗单止损可以分开做成两个阈值。
+toss3 可以用 0.5% 的纯抗单止损，因为再往下的收益都是负数。
+totp 可以分成两个参数，一个是高回落参数，一个是纯抗单参数。
+现在的情况是怎样的高回落可以有再次出发的可能性这一点很难预计。
+我应该用 max drawdown 算法计算出每一次 ts 平仓之前的 Drawdown ，这个放在新的。
+
 """
 

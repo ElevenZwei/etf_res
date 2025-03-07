@@ -9,7 +9,7 @@ from multiprocessing import Pool, Lock
 
 dl_lock = Lock()
 
-def process_date(dt, spot, refresh, plot, signal, year, month, wide: bool):
+def process_date(dt, spot, refresh, plot, signal, year, month, wide: bool, minute_bar: bool):
     try:
         dt_str = dt.strftime('%Y%m%d')
         if refresh:
@@ -17,13 +17,13 @@ def process_date(dt, spot, refresh, plot, signal, year, month, wide: bool):
                 print(f'downloading {dt.date()}')
                 dd.download_data(spot,
                         bg_str=dt_str, ed_str=dt_str,
-                        year=year, month=month)
+                        year=year, month=month, minute_bar=minute_bar)
         print(f'calculating {dt.date()}')
         dd.date_dsp(spot,
                     bg_str=dt_str,
                     ed_str=dt_str,
                     refresh=False, plot=plot, signal=signal,
-                    year=year, month=month,
+                    year=year, month=month, minute_bar=minute_bar,
                     show=False, save=True, wide=wide)
     except Exception as e:
         print(f'{dt.date()} failed, error: {e}')
@@ -37,15 +37,16 @@ def process_date(dt, spot, refresh, plot, signal, year, month, wide: bool):
 @click.option('-g', '--signal', is_flag=True, default=False, help="Generate signal only, use existing data.")
 @click.option('-y', '--year', type=int)
 @click.option('-m', '--month', type=int)
+@click.option('--bar', '--minute-bar', is_flag=True, help="download from minute bar table.")
 @click.option('--wide', type=bool, default=False, help="use wide plot.")
 def click_main(spot: str, begin: str, end: str,
                refresh: bool, plot: bool, signal: bool,
                year: int, month: int,
-               wide: bool):
+               wide: bool, bar: bool):
     # Intel i9 也只能跑两个并发
     max_concurrent_jobs = 1  # Set the maximum number of concurrent jobs
     with Pool(processes=max_concurrent_jobs) as pool:
-        pool.starmap(process_date, [(dt, spot, refresh, plot, signal, year, month, wide)
+        pool.starmap(process_date, [(dt, spot, refresh, plot, signal, year, month, wide, bar)
                                     for dt in pd.date_range(begin, end)])
     
 if __name__ == '__main__':

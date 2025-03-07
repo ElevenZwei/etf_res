@@ -54,7 +54,7 @@ def calc_data(spot: str, suffix: str, wide: bool):
 
 def plot_data(spot: str, suffix: str, show: bool, save: bool, wide: bool):
     s3.main(spot, suffix=suffix, show=show, save=save, wide=wide)
-    s4.main(spot, suffix=suffix + '_s5', show=show, save=save, wide=wide)
+    # s4.main(spot, suffix=suffix + '_s5', show=show, save=save, wide=wide)
     s6.main(spot, suffix=suffix, show=show, save=save)
     s8.main(spot, suffix=suffix + '_s5', show=show, save=save, wide=wide)
 
@@ -64,19 +64,20 @@ def plot_data(spot: str, suffix: str, show: bool, save: bool, wide: bool):
 def calc_signal(spot: str, suffix: str, wide: bool):
     s9.calc_signal_csv(spot, suffix + '_s5', wide=wide)
 
-def download_data(spot: str, bg_str: str, ed_str: str, year: int, month: int):
-    s0.auto_dl(spot, year=year, month=month, bg_str=bg_str, ed_str=ed_str)
+def download_data(spot: str, bg_str: str, ed_str: str, year: int, month: int, minute_bar: bool):
+    return s0.auto_dl(spot, year=year, month=month, bg_str=bg_str, ed_str=ed_str, minute_bar=minute_bar)
 
 def date_dsp(spot: str,
              bg_str: str, ed_str: str,
              refresh: bool, plot: bool, signal: bool,
-             year: int, month: int,
+             year: int, month: int, minute_bar: bool,
              show: bool, save: bool, wide: bool):
     suffix = default_suffix(bg_str=bg_str, ed_str=ed_str, year=year, month=month)
     if not signal:
         if not plot:
             if refresh:
-                suffix = s0.auto_dl(spot, year=year, month=month, bg_str=bg_str, ed_str=ed_str)
+                suffix = download_data(spot, year=year, month=month,
+                        bg_str=bg_str, ed_str=ed_str, minute_bar=minute_bar)
             calc_data(spot, suffix, wide=wide)
         plot_data(spot, suffix, show=show, save=save, wide=wide)
     calc_signal(spot, suffix, wide=wide)
@@ -90,18 +91,19 @@ def date_dsp(spot: str,
 @click.option('-g', '--signal', is_flag=True, default=False, help="Generate signal only, use existing data.")
 @click.option('-y', '--year', type=int)
 @click.option('-m', '--month', type=int)
+@click.option('--bar', '--minute-bar', is_flag=True, help="download from minute bar table.")
 @click.option('--show', type=bool, default=True, help="show plot.")
 @click.option('--save', type=bool, default=True, help="save to html.")
 @click.option('--wide', type=bool, default=False, help="use wide plot.")
 def click_main(spot: str, date: str, end_date: str,
         refresh: bool, plot: bool, signal: bool,
-        year: int, month: int,
+        year: int, month: int, bar: bool,
         show: bool, save: bool, wide: bool):
     if end_date is None:
         end_date = date
     date_dsp(spot, bg_str=date, ed_str=end_date,
              refresh=refresh, plot=plot, signal=signal,
-             year=year, month=month,
+             year=year, month=month, minute_bar=bar,
              show=show, save=save, wide=wide)
 
 if __name__ == '__main__':

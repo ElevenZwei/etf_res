@@ -7,6 +7,7 @@
 
 from collections import defaultdict
 import datetime
+import glob
 import os
 
 import click
@@ -14,16 +15,32 @@ import pandas as pd
 import numpy as np
 
 from dsp_config import DATA_DIR, gen_wide_suffix
+import re
 
 def calc_pos_price_maxmin(df: pd.DataFrame, buysell_signal_col: str):
     """计算每一个仓位状态里的最大最小值。"""
     price_df = df.groupby('pos_state_id')['spot_price'].agg(['max', 'min'])
     price_df.columns = ['spot_price_max', 'spot_price_min']
+
+    # 正向持仓的时候的最大回撤
+    df['pos_state_spot_drawdown'] = df['spot_price'] - df.groupby('pos_state_id')['spot_price'].cummax() 
+    drawdown_df = df.groupby('pos_state_id')['pos_state_spot_drawdown'].agg(['min'])
+    drawdown_df.columns=['spot_price_max_drawdown']
+    # 反向持仓的时候的最大回撤
+    df['pos_state_spot_drawup'] = df['spot_price'] - df.groupby('pos_state_id')['spot_price'].cummin()
+    drawup_df = df.groupby('pos_state_id')['pos_state_spot_drawup'].agg(['max'])
+    drawup_df.columns=['spot_price_max_drawup']
+
+    price_df = pd.concat([price_df, drawdown_df, drawup_df], axis=1)
+    # print(price_df)
     return price_df
 
 def calc_daily_stats(df: pd.DataFrame, buysell_signal_col: str, trades_per_day: int):
+    df = df.sort_values(['dt'])
     df['pos_state_id'] = df[buysell_signal_col].ne(0).cumsum()
     price_df = calc_pos_price_maxmin(df, buysell_signal_col)
+    # 假设它要到下个价格才能触发，防止买入上一个价格的东西。
+    df['trade_price'] = df['spot_price'].shift(-1)
     df = df[df[buysell_signal_col] != 0].copy()
     if len(df) % 2 != 0:
         print('Error: the number of signals is not even, date:', df.iloc[0]['dt'])
@@ -32,8 +49,10 @@ def calc_daily_stats(df: pd.DataFrame, buysell_signal_col: str, trades_per_day: 
     # 对于只有一层仓位的交易信号，可以用 shift 找到开平对应的数据行。
     df['close_dt'] = df['dt'].shift(-1)
     df['open_dt'] = df['dt']
-    df['close_spot_price'] = df['spot_price'].shift(-1)
-    df['open_spot_price'] = df['spot_price']
+    # df['close_spot_price'] = df['spot_price'].shift(-1)
+    # df['open_spot_price'] = df['spot_price']
+    df['close_spot_price'] = df['trade_price'].shift(-1)
+    df['open_spot_price'] = df['trade_price']
     df['close_signal'] = df[buysell_signal_col].shift(-1)
     df['open_signal'] = df[buysell_signal_col]
     
@@ -46,30 +65,39 @@ def calc_daily_stats(df: pd.DataFrame, buysell_signal_col: str, trades_per_day: 
     df['intraday_reopen_diff'] = df['open_dt'] - df['close_dt'].shift(1)
     df['pnl_max'] = np.where(df['long_short'] == 1, df['spot_price_max'] - df['open_spot_price'], df['open_spot_price'] - df['spot_price_min'])
     df['pnl_min'] = -1 * np.where(df['long_short'] == 1, df['open_spot_price'] - df['spot_price_min'], df['spot_price_max'] - df['open_spot_price'])
-    df = df[['open_dt', 'close_dt', 'hold_time',
-            'intraday_reopen_diff',
+    # peak to peak loss and profit
+    df['pnl_p2p_loss'] = np.where(df['long_short'] == 1, df['spot_price_max_drawdown'], -1 * df['spot_price_max_drawup'])
+    df['pnl_p2p_profit'] = np.where(df['long_short'] == 1, df['spot_price_max_drawup'], -1 * df['spot_price_max_drawdown'])
+    df = df[['open_dt', 'close_dt', 'long_short',
+            'pnl', 'pnl_max', 'pnl_min',
+            'pnl_p2p_profit', 'pnl_p2p_loss',
             'open_spot_price', 'close_spot_price',
             'spot_price_max', 'spot_price_min',
-            'long_short',
-            'pnl_max', 'pnl_min', 'pnl']]
+            'hold_time', 'intraday_reopen_diff',
+            ]]
     df = df[:trades_per_day]
     return df
 
 def calc_stats_one_day(df: pd.DataFrame, trades_per_day: int):
-    ts_trades = calc_daily_stats(df, 'ts_signal', trades_per_day)
-    sigma_trades = calc_daily_stats(df, 'sigma_signal', trades_per_day)
-    ts_sigma_trades = calc_daily_stats(df, 'ts_sigma_signal', trades_per_day)
-    toss_trades = calc_daily_stats(df, 'toss_signal', trades_per_day)
-    tosr_trades = calc_daily_stats(df, 'tosr_signal', trades_per_day)
-    totp_trades = calc_daily_stats(df, 'totp_signal', trades_per_day)
-    return {
-        'ts': ts_trades,
-        'sigma': sigma_trades,
-        'ts_sigma': ts_sigma_trades,
-        'toss': toss_trades,
-        'tosr': tosr_trades,
-        'totp': totp_trades,
-    }
+    signal_cols = [x for x in df.columns if x.endswith('_signal')]
+    res = {}
+    for col in signal_cols:
+        res[col.replace('_signal', '')] = calc_daily_stats(df, col, trades_per_day)
+    return res
+    # ts_trades = calc_daily_stats(df, 'ts_signal', trades_per_day)
+    # sigma_trades = calc_daily_stats(df, 'sigma_signal', trades_per_day)
+    # ts_sigma_trades = calc_daily_stats(df, 'ts_sigma_signal', trades_per_day)
+    # toss_trades = calc_daily_stats(df, 'toss_signal', trades_per_day)
+    # tosr_trades = calc_daily_stats(df, 'tosr_signal', trades_per_day)
+    # totp_trades = calc_daily_stats(df, 'totp_signal', trades_per_day)
+    # return {
+    #     'ts': ts_trades,
+    #     'sigma': sigma_trades,
+    #     'ts_sigma': ts_sigma_trades,
+    #     'toss': toss_trades,
+    #     'tosr': tosr_trades,
+    #     'totp': totp_trades,
+    # }
 
 def calc_stats_days(dfs: list[pd.DataFrame], trades_per_day: int):
     trades_dict = defaultdict(lambda: [])
@@ -80,8 +108,15 @@ def calc_stats_days(dfs: list[pd.DataFrame], trades_per_day: int):
     for key in trades_dict:
         # print(trades_dict[key])
         # exit(1)
-        trades_dict[key] = pd.concat(trades_dict[key])
-        trades_dict[key]['acc_pnl'] = trades_dict[key]['pnl'].cumsum()
+        df_arr = trades_dict[key]
+        df = pd.concat(df_arr)
+        df['pnl_acc'] = df['pnl'].cumsum()
+        df['hold_time_acc'] = df['hold_time'].cumsum()
+        # move acc_pnl into position 2
+        cols = df.columns.tolist()
+        cols.insert(2, cols.pop(cols.index('pnl_acc')))
+        df = df[cols]
+        trades_dict[key] = df
     return trades_dict
 
 def calc_stats_csv(spot: str, exp_date: datetime.date,
@@ -107,11 +142,76 @@ def calc_stats_csv(spot: str, exp_date: datetime.date,
         trades_dict[key].to_csv(DATA_DIR / 'dsp_stats'
                 / f'{spot}_{key}_trades_{save_suffix}.csv', index=False,
                 float_format='%.3f')
+    return trades_dict
+
+def calc_stats_all_csvs(
+        spot: str, trades_per_day:int, wide:bool,
+        bg_date: datetime.date, ed_date: datetime.date):
+    dfs = []
+    fs = glob.glob(f'{DATA_DIR}/dsp_conv/signal_{spot}_*_s5{gen_wide_suffix(wide)}.csv')
+
+    # remove duplicated days with different expiry date
+    date_pattern = re.compile(r'_exp(\d{8})_date(\d{8})_')
+    unique_dates = {}
+    for filepath in fs:
+        match = date_pattern.search(filepath)
+        if match:
+            exp_str = match.group(1)
+            date_str = match.group(2)
+            dt = datetime.datetime.strptime(date_str, '%Y%m%d').date()
+            if bg_date is not None and dt < bg_date:
+                continue
+            if ed_date is not None and dt > ed_date:
+                continue
+            if date_str not in unique_dates or exp_str < unique_dates[date_str]:
+                unique_dates[date_str] = exp_str
+    keep_fs = []
+    for filepath in fs:
+        match = date_pattern.search(filepath)
+        if match:
+            exp_str = match.group(1)
+            date_str = match.group(2)
+            if date_str in unique_dates and unique_dates[date_str] == exp_str:
+                keep_fs.append(filepath)
+
+    dfs = [pd.read_csv(filepath) for filepath in keep_fs]
+    for x in dfs:
+        x['dt'] = pd.to_datetime(x['dt'])
+    trades_dict = calc_stats_days(dfs, trades_per_day)
+    save_suffix = f'all{gen_wide_suffix(wide)}'
+    for key in trades_dict:
+        trades_dict[key].to_csv(DATA_DIR / 'dsp_stats' 
+                / f'{spot}_{key}_trades_{save_suffix}.csv', index=False,
+                float_format='%.3f')
+    return trades_dict
 
 def main(spot: str, exp_date: datetime.date,
         bg_date: datetime.date, ed_date: datetime.date, trades_per_day: int,
         wide: bool):
     calc_stats_csv(spot, exp_date, bg_date, ed_date, trades_per_day, wide)
+
+def stat_batch(spot: str, trades_per_day: int, wide: bool):
+    main(spot,
+            bg_date=datetime.datetime(2024, 12, 1),
+            ed_date=datetime.datetime(2024, 12, 25),
+            exp_date=datetime.datetime(2024, 12, 25),
+            trades_per_day=trades_per_day, wide=wide)
+    main(spot,
+            bg_date=datetime.datetime(2024, 12, 26),
+            ed_date=datetime.datetime(2025, 1, 22),
+            exp_date=datetime.datetime(2025, 1, 22),
+            trades_per_day=trades_per_day, wide=wide)
+    main(spot,
+            bg_date=datetime.datetime(2025, 1, 23),
+            ed_date=datetime.datetime(2025, 2, 26),
+            exp_date=datetime.datetime(2025, 2, 26),
+            trades_per_day=trades_per_day, wide=wide)
+    main(spot,
+            bg_date=datetime.datetime(2025, 2, 27),
+            ed_date=datetime.datetime(2025, 3, 26),
+            exp_date=datetime.datetime(2025, 3, 26),
+            trades_per_day=trades_per_day, wide=wide)
+
 
 @click.command()
 @click.option('-s', '--spot', type=str, help="spot code: 159915 510050")
@@ -119,14 +219,22 @@ def main(spot: str, exp_date: datetime.date,
 @click.option('-b', '--bg_date', type=str, help="begin date.")
 @click.option('-e', '--ed_date', type=str, help="end date.")
 @click.option('-t', '--trades_per_day', type=int, default=2, help="trades per day.")
-@click.option('--wide', type=bool, default=False, help="use wide data.")
+@click.option('--wide', is_flag=True, type=bool, default=False, help="use wide data.")
+@click.option('-a', '--stat-all', is_flag=True, type=bool, default=False, help="write into _all.csv file.")
 def click_main(spot: str, exp_date: str,
         bg_date: str, ed_date: str, trades_per_day: int,
-        wide: bool):
-    exp_date = datetime.datetime.strptime(exp_date, '%Y%m%d').date()
-    bg_date = datetime.datetime.strptime(bg_date, '%Y%m%d').date()
-    ed_date = datetime.datetime.strptime(ed_date, '%Y%m%d').date()
-    main(spot, exp_date, bg_date, ed_date, trades_per_day, wide=wide)
+        wide: bool, stat_all: bool):
+    if bg_date is not None:
+        bg_date = datetime.datetime.strptime(bg_date, '%Y%m%d').date()
+    if ed_date is not None:
+        ed_date = datetime.datetime.strptime(ed_date, '%Y%m%d').date()
+    if stat_all:
+        calc_stats_all_csvs(spot, trades_per_day,
+                wide=wide, bg_date=bg_date, ed_date=ed_date)
+        # stat_batch(spot, trades_per_day, wide=wide)
+    else:
+        exp_date = datetime.datetime.strptime(exp_date, '%Y%m%d').date()
+        main(spot, exp_date, bg_date, ed_date, trades_per_day, wide=wide)
 
 if __name__ == '__main__':
     click_main()

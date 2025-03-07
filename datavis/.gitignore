@@ -3,7 +3,8 @@ archive/
 dsp_conv*/
 dsp_input*/
 dsp_plot*/
+html_oi*/
+png_oi*/
 pcp_input/
-html_oi/
-png_oi/
+dsp_stats/
 tmp/

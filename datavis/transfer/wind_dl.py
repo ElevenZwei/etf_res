@@ -28,10 +28,8 @@ def wind2df(wddata):
         df['name'] = wddata.Codes[0]
     return df
 
-def dl_data(spotcode: str, dtstr: str):
-    dt = datetime.datetime.strptime(dtstr, '%Y-%m-%d')
+def dl_opt_names(spotcode: str, dtstr: str):
     print(f"get opt names on spot {spotcode} date {dtstr}")
-
     max_attempts = 3
     attempts = 0
     while attempts < max_attempts:
@@ -43,7 +41,12 @@ def dl_data(spotcode: str, dtstr: str):
             attempts += 1
             if attempts == max_attempts:
                 raise we
-        
+    return opt_names
+
+def dl_data(spotcode: str, dtstr: str):
+    opt_names = dl_opt_names(spotcode, dtstr)
+    dt = datetime.datetime.strptime(dtstr, '%Y-%m-%d')
+    max_attempts = 3
     for opt_code in [spotcode, *opt_names['option_code']]:
         print(f"get opt data, spot {spotcode} date {dtstr} opt {opt_code}")
         
@@ -60,17 +63,43 @@ def dl_data(spotcode: str, dtstr: str):
                     raise we
 
         opt_data = windtodb.convert_mdt_df(opt_data)
-        opt_data.to_csv(f'../db/mdt_{spotcode}_{opt_code}_{dt.strftime("%Y%m%d")}.csv', index=False)
+        opt_data.to_csv(f'../db/tick/mdt_{spotcode}_{opt_code}_{dt.strftime("%Y%m%d")}.csv', index=False)
 
-def main(spots: list[str], dates: list[str]):
+def dl_data_bar(spotcode: str, dtstr: str):
+    opt_names = dl_opt_names(spotcode, dtstr)
+    dt = datetime.datetime.strptime(dtstr, '%Y-%m-%d')
+    max_attempts = 3
+    for opt_code in [spotcode, *opt_names['option_code']]:
+        print(f"get opt bar, spot {spotcode} date {dtstr} opt {opt_code}")
+        attempts = 0
+        while attempts < max_attempts:
+            try:
+                opt_data = w.wsd(opt_code,
+                        "open, high, low, close, volume, oi",
+                        dtstr, dtstr,
+                        f"BarSize=1")
+                opt_data = wind2df(opt_data)
+                break
+            except WindException as we:
+                attempts += 1
+                if attempts == max_attempts:
+                    raise we
+        opt_data = windtodb.convert_bar_df(opt_data)
+        opt_data.to_csv(f'../db/bar/bar_{spotcode}_{opt_code}_{dt.strftime("%Y%m%d")}.csv', index=False)
+
+def main(spots: list[str], dates: list[str], bar: bool):
     for spot in spots:
         for date in dates:
-            dl_data(spot, date)
+            if bar:
+                dl_data_bar(spot, date)
+            else:
+                dl_data(spot, date)
 
 @click.command()
 @click.option('-s', '--spot', type=str)
 @click.option('-d', '--date', type=str)
-def click_main(spot: str, date: str):
+@click.option('--bar', is_flag=True)
+def click_main(spot: str, date: str, bar: bool):
     if ',' in spot:
         spots = spot.split(',')
     else:
@@ -79,7 +108,7 @@ def click_main(spot: str, date: str):
         dates = date.split(',')
     else:
         dates = [date]
-    main(spots, dates)
+    main(spots, dates, bar=bar)
 
 if __name__ == '__main__':
     click_main()

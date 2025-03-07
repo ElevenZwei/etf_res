@@ -2,6 +2,7 @@
 这个脚本绘制一下 trade stats 的上下震荡和分布情况。
 """
 
+import datetime
 import glob
 import click
 import pandas as pd
@@ -11,6 +12,16 @@ import plotly.colors as pc
 import plotly.subplots as subplots
 
 from dsp_config import DATA_DIR
+
+# 把 10:15 之前开仓的取出来再画一画。
+# 计算一下不同时间开仓的收益情况。
+# 计算一下平仓的收益分位数。
+# 对于突刺的情况可以做针对性的优化，因为插针在均线后的指标上反映太慢了，所以用瞬间止盈的做法更好。
+# 例如如果在 20 分钟以内达到 x% 的收益那么立刻平仓。这是对于三月这样的消息面行情的一种把握方法。
+# 在点阵图上的先验后验关系就是 30minute_max 和 close 。
+
+# 另外昨天说到对于 OI 的突刺现象需要人工干预平仓，或者说太强烈的突刺需要另外的信号传送，这个我不太清楚怎么量化，我需要统计这个现象出现的历史时间。
+# Good!
 
 def plot_xy(df: pd.DataFrame, x_col: str, y_col: str, hover_col: str, fig, row, col):
     x_uni = df[x_col]
@@ -29,6 +40,7 @@ def plot_df(df: pd.DataFrame, wildcard: str):
         subplot_titles=[
             'Max Close',
             'Min Close',
+            'Max Close Early Open',
             'Max Min',
         ])
     fig.update_layout(
@@ -37,9 +49,11 @@ def plot_df(df: pd.DataFrame, wildcard: str):
         title_text=f'Trade Stats For {wildcard}',
         margin=dict(t=80, b=80),
     )
+    df_early = df[df['open_dt'].dt.time <= datetime.time(10, 0)]
     fig = plot_xy(df, 'pnl_max', 'pnl', 'label', fig, 1, 1)
+    fig = plot_xy(df_early, 'pnl_max', 'pnl', 'label', fig, 2, 1)
     fig = plot_xy(df, 'pnl_min', 'pnl', 'label', fig, 1, 2)
-    fig = plot_xy(df, 'pnl_max', 'pnl_min', 'label', fig, 2, 1)
+    fig = plot_xy(df, 'pnl_max', 'pnl_min', 'label', fig, 2, 2)
     return fig
     
 def read_df(wildcard: str):
@@ -47,6 +61,7 @@ def read_df(wildcard: str):
     dfs = [pd.read_csv(f) for f in fs]
     df = pd.concat(dfs)
     df['label'] = df['open_dt'] + '_' + df['close_dt']
+    df['open_dt'] = pd.to_datetime(df['open_dt'])
     return df
 
 def main(wildcard: str):

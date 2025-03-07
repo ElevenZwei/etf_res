@@ -108,6 +108,7 @@ def remove_dup_lines(df: pd.DataFrame):
     return df
 
 def smooth_time_axis(df: pd.DataFrame, col_name: str, dsp_sec: int, ts_sigma_sec: int):
+    # 如果有不常交易的期权漏掉一段时间的数据通过 pivot 和 ffill 都能补齐。
     grid_1d = df.pivot(index='dt', columns='strike', values=col_name)
     grid_1d.ffill(inplace=True)
     grid_1d.fillna(0, inplace=True)

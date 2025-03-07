@@ -41,12 +41,24 @@ def strike_pivot_id_grid(strike_grid: pd.DataFrame):
 # print(result.iloc[0, 3].shape)
 # print(strike_pivot_id_grid(result))
 
-from scipy import stats
-def spearmanrho():
-    a = np.array([0.5, 0.2, 0.4, 0.1])
-    # b = np.arange(len(a))
-    b = np.sort(a)
-    rho, pval = stats.spearmanr(a, b)
-    print(rho, pval)
 
-spearmanrho()
+# from scipy import stats
+# def spearmanrho():
+#     a = np.array([0.5, 0.2, 0.4, 0.1])
+#     # b = np.arange(len(a))
+#     b = np.sort(a)
+#     rho, pval = stats.spearmanr(a, b)
+#     print(rho, pval)
+
+# spearmanrho()
+
+## 测试一下之前数据的填充和均匀问题
+
+def mdt_count(df: pd.DataFrame):
+    count = df.groupby('dt').count()
+    count = count[['strike']]
+    count['cnt_avg'] = count['strike'].expanding().mean()
+    print(count)
+
+# mdt_count(pd.read_csv('..\data\dsp_input\strike_oi_diff_159915_exp20241127_date20241125.csv'))
+mdt_count(pd.read_csv('..\data\dsp_input\strike_oi_diff_159915_exp20250122_date20250120.csv'))

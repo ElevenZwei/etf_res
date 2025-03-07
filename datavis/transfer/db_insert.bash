@@ -12,7 +12,7 @@ shopt -s nullglob
 function import_mdtfs {
     spot="$1"
     date="$2"
-    mdfs=("../db/mdt_$1"*"_$2"*".csv")
+    mdfs=("../db/tick/mdt_$1"*"_$2"*".csv")
     echo "first: ${mdfs[0]}, last: ${mdfs[-1]}, count=${#mdfs[@]}"
     # mdfs=("${mdfs[@]: -1}")
     # echo "first: ${mdfs[0]}, last: ${mdfs[-1]}, count=${#mdfs[@]}"

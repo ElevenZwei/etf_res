@@ -32,3 +32,21 @@ def convert_mdt_df(df: pd.DataFrame):
             'last_price', 'open_interest', 'volume', 'tick_num'
     ]]
     return df
+
+def convert_mdt_bar(df: pd.DataFrame):
+    df = df.rename(columns={
+        'time': 'dt',
+        'name': 'code',
+        'open': 'openp',
+        'high': 'highp',
+        'low': 'lowp',
+        'close': 'closep',
+        'oi': 'openinterest',
+    })
+    df['volume'] = df['volume'].astype('Int64')
+    df['openinterest'] = df['openinterest'].astype('Int64')
+    df = df[['dt', 'code',
+            'openp', 'highp', 'lowp', 'closep',
+            'volume', 'openinterest',
+    ]]
+    return df

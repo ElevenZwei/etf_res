@@ -137,7 +137,7 @@ def calc_stats_csv(spot: str, exp_date: datetime.date,
         df['dt'] = pd.to_datetime(df['dt'])
         dfs.append(df)
     trades_dict = calc_stats_days(dfs, trades_per_day)
-    save_suffix = f'{bg_date.strftime('%Y%m%d')}_{ed_date.strftime('%Y%m%d')}{gen_wide_suffix(wide)}'
+    save_suffix = f"{bg_date.strftime('%Y%m%d')}_{ed_date.strftime('%Y%m%d')}{gen_wide_suffix(wide)}"
     for key in trades_dict:
         trades_dict[key].to_csv(DATA_DIR / 'dsp_stats'
                 / f'{spot}_{key}_trades_{save_suffix}.csv', index=False,

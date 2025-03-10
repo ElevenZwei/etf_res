@@ -40,7 +40,8 @@ def plot_df(df: pd.DataFrame, wildcard: str):
         subplot_titles=[
             'Max Close',
             'Min Close',
-            'Max Close Early Open',
+            # 'Max Close Early Open',
+            'P2P_Max P2P_Min',
             'Max Min',
         ])
     fig.update_layout(
@@ -49,9 +50,10 @@ def plot_df(df: pd.DataFrame, wildcard: str):
         title_text=f'Trade Stats For {wildcard}',
         margin=dict(t=80, b=80),
     )
-    df_early = df[df['open_dt'].dt.time <= datetime.time(10, 0)]
     fig = plot_xy(df, 'pnl_max', 'pnl', 'label', fig, 1, 1)
-    fig = plot_xy(df_early, 'pnl_max', 'pnl', 'label', fig, 2, 1)
+    # df_early = df[df['open_dt'].dt.time <= datetime.time(10, 0)]
+    # fig = plot_xy(df_early, 'pnl_max', 'pnl', 'label', fig, 2, 1)
+    fig = plot_xy(df, 'pnl_p2p_profit', 'pnl_p2p_loss', 'label', fig, 2, 1)
     fig = plot_xy(df, 'pnl_min', 'pnl', 'label', fig, 1, 2)
     fig = plot_xy(df, 'pnl_max', 'pnl_min', 'label', fig, 2, 2)
     return fig

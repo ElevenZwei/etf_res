@@ -22,6 +22,16 @@ def calc_pos_price_maxmin(df: pd.DataFrame, buysell_signal_col: str):
     price_df = df.groupby('pos_state_id')['spot_price'].agg(['max', 'min'])
     price_df.columns = ['spot_price_max', 'spot_price_min']
 
+    """
+    过滤交易点位需要区分先亏后赚还是先赚后亏。
+    或者从先验后验的角度上说 Peak to Peak 的 Max Min 顺序不同的情况应该分开画成两张图。
+    或者说各种事件到底可以给我们怎样的预期锁定的效果？在我的所有度量里面，如何根据一个一个呈现的信息确定现在在哪个区块里面？
+
+    我们是否可以做一个 Peak to Peak 的序列分布统计？这个事情结合 OI 指标是否可以呈现一定程度上的规律？
+    Peak to Peak 的序列的关键是找到哪些点是区域性的极值，值得被记录的极值，我可以用半小时尺度来刻画。
+
+    PCP Series, P2P Series, Interval Series 这些都是一种尝试锁定分区的方法。
+    """
     # 正向持仓的时候的最大回撤
     df['pos_state_spot_drawdown'] = df['spot_price'] - df.groupby('pos_state_id')['spot_price'].cummax() 
     drawdown_df = df.groupby('pos_state_id')['pos_state_spot_drawdown'].agg(['min'])

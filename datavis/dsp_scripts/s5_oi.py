@@ -13,7 +13,7 @@ import numpy as np
 import scipy.signal as ssig
 import scipy.interpolate as sitp
 
-from s1_dsp import remove_dup_cut, smooth_time_axis, smooth_spot_df, interpolate_strike, downsample_time, calc_window
+from s1_dsp import remove_dup_cut, smooth_time_axis, smooth_spot_df, interpolate_strike_2, downsample_time, calc_window
 from dsp_config import DATA_DIR, get_spot_config, gen_wide_suffix
 
 DSP_SEC = 60
@@ -31,7 +31,7 @@ def smooth_column_time_grid(
         dsp_sec: int, ts_sigma_sec: int):
     """对于某一列的数据，进行时间轴的平滑处理"""
     grid_1d = smooth_time_axis(opt_df, col_name, dsp_sec, ts_sigma_sec)
-    grid_1d = interpolate_strike(grid_1d)
+    grid_1d = interpolate_strike_2(grid_1d)
     return grid_1d
 
 def sliding_window_with_padding(df, winsize):
@@ -200,28 +200,9 @@ def batch_rename(batch_df: pd.DataFrame):
     batch_df = batch_df.rename(columns=cols_map)[cols_map.values()]
     return batch_df
 
-def interpolate_sigma(batch_df: pd.DataFrame):
-    # print(batch_df)
-    x_uni = batch_df.columns.values.astype(np.float64)
-    y_uni = batch_df.index.astype(np.int64) / 1e12 - 1.74e6
-    # print(x_uni)
-    # print(y_uni)
-    x_grid, y_grid = np.meshgrid(x_uni, y_uni)
-    x_flat = x_grid.flatten()
-    y_flat = y_grid.flatten()
-    z_flat = batch_df.values.flatten()
-    x_hres = np.linspace(np.min(x_uni), np.max(x_uni), 200)
-    x_hres_grid, y_hres_grid = np.meshgrid(x_hres, y_uni)
-    z_hres_grid = sitp.griddata(
-            (x_flat, y_flat), z_flat,
-            (x_hres_grid, y_hres_grid), method='cubic')
-    res = pd.DataFrame(z_hres_grid, columns=x_hres, index=batch_df.index)
-    return res
-
 def interpolate_melt(batch_df: pd.DataFrame, col_prefix: str):
     cols = [x for x in batch_df.columns if x.startswith(col_prefix)]
-    print(cols)
-    res = interpolate_sigma(batch_rename(batch_df[cols]))
+    res = interpolate_strike_2(batch_rename(batch_df[cols]))
     res = res.reset_index()
     res = res.melt(id_vars='dt', var_name='sigma', value_name=col_prefix + 'mean')
     res = res.set_index(['dt', 'sigma'])

@@ -22,6 +22,7 @@ zero_grid = np.zeros_like(x_grid)
 
 # 插值采样
 # 这个东西的数据点太多了，我们需要先做一个 EMA 归一化。
+# 这个函数后来发现有未来函数通过插值影响过去数据的问题，所以后来改成了一维插值。
 x_uni_epoch = pd.to_datetime(x_uni).astype('int64') / 1e12 - 1.72e6
 print(x_uni_epoch)
 y_high_res_lin = np.linspace(y_uni[0], y_uni[-1], 200)

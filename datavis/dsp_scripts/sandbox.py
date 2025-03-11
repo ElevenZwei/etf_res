@@ -54,11 +54,42 @@ def strike_pivot_id_grid(strike_grid: pd.DataFrame):
 
 ## 测试一下之前数据的填充和均匀问题
 
-def mdt_count(df: pd.DataFrame):
-    count = df.groupby('dt').count()
-    count = count[['strike']]
-    count['cnt_avg'] = count['strike'].expanding().mean()
-    print(count)
+# def mdt_count(df: pd.DataFrame):
+#     count = df.groupby('dt').count()
+#     count = count[['strike']]
+#     count['cnt_avg'] = count['strike'].expanding().mean()
+#     print(count)
 
 # mdt_count(pd.read_csv('..\data\dsp_input\strike_oi_diff_159915_exp20241127_date20241125.csv'))
-mdt_count(pd.read_csv('..\data\dsp_input\strike_oi_diff_159915_exp20250122_date20250120.csv'))
+# mdt_count(pd.read_csv('..\data\dsp_input\strike_oi_diff_159915_exp20250122_date20250120.csv'))
+
+import numpy as np
+import pandas as pd
+import scipy.interpolate as spi
+
+# 示例 DataFrame，每一行是一个需要插值的序列
+df = pd.DataFrame({
+    'A': [0, 1, 4, 9, 16, 25],
+    'B': [0, 2, 8, 18, 32, 50],
+    'C': [1, 3, 6, 10, 15, 21]
+})
+
+# 目标插值后的长度
+factor = 3  # 增加 3 倍密度
+new_len = df.shape[1] * factor
+
+def cubic_spline_interpolation(row):
+    """对 DataFrame 的一行数据进行 Cubic Spline 插值"""
+    x = np.linspace(0, len(row) - 1, len(row))  # 原始 x 轴索引
+    x_new = np.linspace(0, len(row) - 1, new_len)  # 新 x 轴索引
+    cs = spi.CubicSpline(x, row)  # 计算三次样条插值
+    return cs(x_new)  # 计算新 y 值
+
+print(df)
+
+print(df.apply(cubic_spline_interpolation, axis=1))
+# 对 DataFrame 每一行进行插值，并转换为新的 DataFrame
+df_interpolated = pd.DataFrame(np.vstack(df.apply(cubic_spline_interpolation, axis=1)))
+
+# 打印结果
+print(df_interpolated)

@@ -55,34 +55,25 @@ def downsample_time(df: pd.DataFrame, interval_sec: int):
     df = df.loc[~df.isna().all(axis=1)]
     return df
 
-def interpolate_strike(pivot_df: pd.DataFrame):
-    """ Input pivoted df with time index and strike columns. """
+def interpolate_strike_2(pivot_df: pd.DataFrame):
     na_lines = pivot_df[pivot_df.isna().any(axis=1)]
     if (na_lines.shape[0] > 0):
         # NaN 在插值的时候会有大幅传染
         print("interpolate input has nan lines:")
         print(na_lines)
         pivot_df.ffill(inplace=True)
-    x_uni = pivot_df.columns.values   # strike type float64
-    # y_uni = pivot_df.index.values     # dt type datetime64
-    y_uni = pivot_df.index.astype('int64') / 1e12 - 1.74e6 # type float64
-    # 这一步生成长度相同的 x, y, z 数组
-    x_grid, y_grid = np.meshgrid(x_uni, y_uni)
-    x_flat = x_grid.flatten()
-    y_flat = y_grid.flatten()
-    z_flat = pivot_df.values.flatten()
 
+    x_uni = pivot_df.columns.values.astype(np.float64)  # strike price array: type float64
     x_hres = np.linspace(np.min(x_uni), np.max(x_uni), 200)
-    x_hres_grid, y_hres_grid = np.meshgrid(x_hres, y_uni)
-    z_hres_grid = sitp.griddata(
-        (x_flat, y_flat), z_flat,
-        (x_hres_grid, y_hres_grid),
-        method='cubic'
-    )
-    res = pd.DataFrame(z_hres_grid, index=pivot_df.index, columns=x_hres)
-    # print(pivot_df)
-    # print(res)
-    return res
+    
+    def cubic_spline(row):
+        cs = sitp.CubicSpline(x_uni, row)
+        return cs(x_hres)
+    
+    df = pd.DataFrame(np.vstack(pivot_df.apply(cubic_spline, axis=1)),
+            index=pivot_df.index, columns=x_hres)
+    # print(df)
+    return df
 
 def calc_window(series, sigma, multi):
     diff = series[1:] - series[:-1]
@@ -122,7 +113,7 @@ def smooth_time_axis(df: pd.DataFrame, col_name: str, dsp_sec: int, ts_sigma_sec
 def smooth_column_2d_grid(df: pd.DataFrame, col_name: str,
                           dsp_sec: int, ts_sigma_sec, strike_sigma_price):
     grid_1d = smooth_time_axis(df, col_name, dsp_sec, ts_sigma_sec)
-    grid_1d = interpolate_strike(grid_1d)
+    grid_1d = interpolate_strike_2(grid_1d)
 
     strike_wsize, strike_sigma, strike_med = calc_window(grid_1d.columns, strike_sigma_price, 2.5)
     # print(f"strike_sigma_price={strike_sigma_price}, strike_diff_med={strike_med}, strike_wsize={strike_wsize}, strike_sigma={strike_sigma}")

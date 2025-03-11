@@ -28,11 +28,15 @@ def calc_spearman(df: pd.DataFrame, cols: list[str], res_col: str):
     b = np.arange(len(cols))
     for idx, row in df.iterrows():
         a = np.array(row[cols])
-        rho, pval = stats.spearmanr(a, b)
-        if rho < -0.99:
-            rho = -1
-        if rho > 0.99:
-            rho = 1
+        # filter all constant situation
+        if np.all(a == a[0]):
+            rho = 0
+        else:
+            rho, pval = stats.spearmanr(a, b)
+            if rho < -0.99:
+                rho = -1
+            if rho > 0.99:
+                rho = 1
         rho_list.append(rho)
     df[res_col] = rho_list
     return df

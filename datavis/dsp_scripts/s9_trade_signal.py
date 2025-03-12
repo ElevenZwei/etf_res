@@ -4,12 +4,14 @@
 """
 
 import click
+import datetime
 import pandas as pd
 import numpy as np
 
 from dsp_config import DATA_DIR, gen_wide_suffix
 from helpers import OpenCloseHelper, DiffHelper, TsOpenHelper, SigmaOpenHelper
 from helpers import TsOpenSigmaCloseHelper, TsOpenSigmaReopenHelper, TsOpenTakeProfitHelper
+from st_runner import StrategyArgs, StrategyRunner
 
 def getTradeCols(wide: bool):
     if wide:
@@ -31,33 +33,61 @@ def calc_long_short_pos(df: pd.DataFrame, wide: bool):
     计算 long short pos
     """
     # ts signal 是一个均线策略
-    ts_helper = TsOpenHelper(ts_open=400, ts_close=100)
+    ts_helper = TsOpenHelper()
+    ts_helper.config({
+        'ts_open': 400,
+        'ts_close': 100,
+    })
     # sigma signal 是一个震荡器策略
-    sigma_helper = SigmaOpenHelper(sigma_open=220, sigma_close=10)
+    sigma_helper = SigmaOpenHelper()
+    sigma_helper.config({
+        'sigma_open': 220,
+        'sigma_close': 10,
+    })
     # ts open sigma close
-    toss_helper = TsOpenSigmaCloseHelper(
-            ts_open=400,
-            ts_close=100, 
-            sigma_close=-150)
-    toss2_helper = TsOpenSigmaCloseHelper(
-            ts_open=350,
-            ts_close=100,
-            sigma_close=-20)
-    toss3_helper = TsOpenSigmaCloseHelper(
-            ts_open=300,
-            ts_close=100,
-            sigma_close=20)
+    toss_helper = TsOpenSigmaCloseHelper()
+    toss_helper.config({
+        'ts_open': 400,
+        'ts_close': 100,
+        'sigma_close': -150,
+        'p2p_stop_loss': 0.03,
+    })
+    toss2_helper = TsOpenSigmaCloseHelper()
+    toss2_helper.config({
+        'ts_open': 350,
+        'ts_close': 100,
+        'sigma_close': -20,
+        'p2p_stop_loss': 0.03,
+    })
+    toss3_helper = TsOpenSigmaCloseHelper()
+    toss3_helper.config({
+        'ts_open': 300,
+        'ts_close': 100,
+        'sigma_close': -20,
+        'p2p_stop_loss': 0.03,
+    })
+    toss4_helper = TsOpenSigmaCloseHelper()
+    toss4_helper.config({
+        'ts_open': 300,
+        'ts_close': 100,
+        'sigma_close': -20,
+        'p2p_stop_loss': 0.01,
+    })
     # ts open sigma reopen
-    tosr_helper = TsOpenSigmaReopenHelper(
-            ts_open=300,
-            ts_close=100,
-            sigma_open=150,
-            sigma_close=20)
+    tosr_helper = TsOpenSigmaReopenHelper()
+    tosr_helper.config({
+        'ts_open': 300,
+        'ts_close': 100,
+        'sigma_open': 150,
+        'sigma_close': 20,
+    })
     # ts open take profit
-    totp_helper = TsOpenTakeProfitHelper(
-            ts_open=400,
-            ts_close=100,
-            stop_loss=0.01)
+    totp_helper = TsOpenTakeProfitHelper()
+    totp_helper.config({
+        'ts_open': 400,
+        'ts_close': 100,
+        'stop_loss': 0.01,
+    })
 
     pos_dict = {
         'ts_pos': { 'pos': [], 'helper': ts_helper },
@@ -65,6 +95,7 @@ def calc_long_short_pos(df: pd.DataFrame, wide: bool):
         'toss_pos': { 'pos': [], 'helper': toss_helper },
         'toss2_pos': { 'pos': [], 'helper': toss2_helper },
         'toss3_pos': { 'pos': [], 'helper': toss3_helper },
+        'toss4_pos': { 'pos': [], 'helper': toss4_helper },
         'tosr_pos': { 'pos': [], 'helper': tosr_helper },
         'totp_pos': { 'pos': [], 'helper': totp_helper },
     }
@@ -81,6 +112,8 @@ def calc_long_short_pos(df: pd.DataFrame, wide: bool):
             row[cols['sigma_col']],
             row[cols['spot_col']]
         ]
+        if input[2] == 0:
+            print(f'spot is zero at {row}')
         for key in pos_dict:
             pos_dict[key]['pos'].append(pos_dict[key]['helper'].next(*input))
     for key in pos_dict:
@@ -104,10 +137,72 @@ def calc_buy_sell_signal(df: pd.DataFrame):
         df = pos2signal(df, col, col.replace('_pos', '_signal'))
     return df
 
+def calc_signals(df: pd.DataFrame, wide: bool):
+    runner = StrategyRunner()
+    st_args = StrategyArgs(
+            time_begin=datetime.time(9, 55),
+            time_end=datetime.time(14, 47),
+            dirstd_ts_len=600,
+            dirstd_sigma_width=(0.4 if wide else 0.15))
+    runner.addStrategy('ts1', 'ts', st_args.clone().config({
+        'ts_open': 400,
+        'ts_close': 100,
+    }))
+    runner.addStrategy('sigma1', 'sigma', st_args.clone().config({
+        'sigma_open': 220,
+        'sigma_close': 10,
+    }))
+    runner.addStrategy('toss1', 'toss', st_args.clone().config({
+        'ts_open': 400,
+        'ts_close': 100,
+        'sigma_close': -150,
+        'p2p_stop_loss': 0.03,
+    }))
+    runner.addStrategy('toss2', 'toss', st_args.clone().config({
+        'ts_open': 350,
+        'ts_close': 100,
+        'sigma_close': -20,
+        'p2p_stop_loss': 0.03,
+    }))
+    runner.addStrategy('toss3', 'toss', st_args.clone().config({
+        'ts_open': 300,
+        'ts_close': 100,
+        'sigma_close': -20,
+        'p2p_stop_loss': 0.03,
+    }))
+    runner.addStrategy('toss4', 'toss', st_args.clone().config({
+        'ts_open': 300,
+        'ts_close': 100,
+        'sigma_close': -20,
+        'p2p_stop_loss': 0.01,
+    }))
+    runner.addStrategy('tosr1', 'tosr', st_args.clone().config({
+        'ts_open': 300,
+        'ts_close': 100,
+        'sigma_open': 150,
+        'sigma_close': 20,
+    }))
+    runner.addStrategy('totp1', 'totp', st_args.clone().config({
+        'ts_open': 400,
+        'ts_close': 100,
+        'stop_loss': 0.01,
+    }))
+    runner.addStrategy('totp2', 'totp', st_args.clone().config({
+        'ts_open': 350,
+        'ts_close': 100,
+        'stop_loss': 0.01,
+    }))
+
+    runner.addData(df)
+    sig = pd.DataFrame(runner.readSignal())
+    df = pd.concat([df, sig], axis=1)
+    return df
+
 def calc_csv(df: pd.DataFrame, wide: bool):
     df['dt'] = pd.to_datetime(df['dt'])
-    df = calc_long_short_pos(df, wide=wide)
-    df = calc_buy_sell_signal(df)
+    # df = calc_long_short_pos(df, wide=wide)
+    # df = calc_buy_sell_signal(df)
+    df = calc_signals(df, wide=wide)
     signal_cols = [x for x in df.columns if '_signal' in x]
     df = df[['dt', 'spot_price', *signal_cols]]
     # print rows where signal cols is not zero only.

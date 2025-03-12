@@ -41,32 +41,72 @@ class DiffHelper:
 
 
 class TsOpenHelper:
-    def __init__(self, ts_open, ts_close):
-        self.helper = OpenCloseHelper(ts_open, ts_close, -ts_open, -ts_close)
+    def __init__(self):
+        pass
+
+    def config(self, conf):
+        self.helper = OpenCloseHelper(
+            conf['ts_open'], conf['ts_close'],
+            -conf['ts_open'], -conf['ts_close'],
+        )
     
     def next(self, ts, sigma, spot):
         return self.helper.next(ts)
 
 
 class SigmaOpenHelper:
-    def __init__(self, sigma_open, sigma_close):
-        self.helper = OpenCloseHelper(sigma_open, sigma_close, -sigma_open, -sigma_close)
+    def __init__(self):
+        pass
+
+    def config(self, conf):
+        self.helper = OpenCloseHelper(
+            conf['sigma_open'], conf['sigma_close'],
+            -conf['sigma_open'], -conf['sigma_close'],
+        )
     
     def next(self, ts, sigma, spot):
         return self.helper.next(sigma)
+
+class TsSigmaOpenHelper:
+    def __init__(self):
+        pass
+
+    def config(self, conf):
+        self.ts_helper = OpenCloseHelper(
+            conf['ts_open'], conf['ts_close'],
+            -conf['ts_open'], -conf['ts_close'],
+        )
+        self.sigma_helper = OpenCloseHelper(
+            conf['sigma_open'], conf['sigma_close'],
+            -conf['sigma_open'], -conf['sigma_close'],
+        )
+    
+    def next(self, ts, sigma, spot):
+        ts_pos = self.ts_helper.next(ts)
+        sigma_pos = self.sigma_helper.next(sigma)
+        if ts_pos == 1 and sigma_pos == 1:
+            return 1
+        else:
+            return 0
 
 
 class TsOpenSigmaCloseHelper:
     """
     组合一下 Ts Open 的快速开仓和 Sigma Close 在躲避大反弹的时候平仓。
     """
-    def __init__(self, ts_open, ts_close, sigma_close):
-        self.ts_open = ts_open
-        self.ts_close = ts_close
-        self.sigma_close = sigma_close
+    def __init__(self):
+        # state
         self.ts_state = 0
         self.state = 0
-        self.sigma_open = sigma_close + 80
+        self.spot_max = -10000
+        self.spot_min = 10000
+    
+    def config(self, conf):
+        self.ts_open = conf['ts_open']
+        self.ts_close = conf['ts_close']
+        self.sigma_close = conf['sigma_close']
+        self.sigma_open = self.sigma_close + 80
+        self.stop_loss = conf['p2p_stop_loss']
     
     def next(self, ts, sigma, spot):
         if self.state == 0:
@@ -95,6 +135,20 @@ class TsOpenSigmaCloseHelper:
                 self.state = 0
             elif sigma > -1 * self.sigma_close:
                 self.state = 0
+
+        if self.state != 0:
+            self.spot_max = max(self.spot_max, spot)
+            self.spot_min = min(self.spot_min, spot)
+            if self.spot_max > 0 and self.spot_min > 0:
+                if (self.state == 1
+                        and spot / self.spot_max - 1 < -1 * self.stop_loss):
+                    self.state = 0
+                elif (self.state == -1
+                        and spot / self.spot_min - 1 > self.stop_loss):
+                    self.state = 0
+        else:
+            self.spot_max = -10000
+            self.spot_min = 10000
         
         return self.state
 
@@ -111,12 +165,14 @@ class TsOpenSigmaCloseTwoStepHelper:
 
 class TsOpenSigmaReopenHelper:
     """ 这个的灵感是来自于发现 Sigma Close 之后根据 Sigma 的反弹还会有不错的盈利机会得到。"""
-    def __init__(self, ts_open, ts_close, sigma_open, sigma_close):
-        self.ts_open = ts_open
-        self.ts_close = ts_close
-        self.sigma_open = sigma_open
-        self.sigma_close = sigma_close
+    def __init__(self):
         self.state = 0
+    
+    def config(self, conf):
+        self.ts_open = conf['ts_open']
+        self.ts_close = conf['ts_close']
+        self.sigma_open = conf['sigma_open']
+        self.sigma_close = conf['sigma_close']
     
     def next(self, ts, sigma, spot):
         if self.state == 0:
@@ -141,14 +197,16 @@ class TsOpenTakeProfitHelper:
     """
     Ts Open 的快速开仓和 Take Profit 在高点回落的时候及时止盈平仓。
     """
-    def __init__(self, ts_open, ts_close, stop_loss):
-        self.ts_open = ts_open
-        self.ts_close = ts_close
-        self.stop_loss = stop_loss
+    def __init__(self):
         self.ts_state = 0
         self.state = 0
         self.spot_min = 100000
         self.spot_max = -100000
+    
+    def config(self, conf):
+        self.ts_open = conf['ts_open']
+        self.ts_close = conf['ts_close']
+        self.stop_loss = conf['stop_loss']
     
     def next(self, ts, sigma, spot_price):
         # 这个 if 让它开仓之后在选择记录最高点和最低点（这一点带来的影响不太清楚）。

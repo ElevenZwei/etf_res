@@ -84,8 +84,8 @@ class TsSigmaOpenHelper:
     def next(self, ts, sigma, spot):
         ts_pos = self.ts_helper.next(ts)
         sigma_pos = self.sigma_helper.next(sigma)
-        if ts_pos == 1 and sigma_pos == 1:
-            return 1
+        if ts_pos == sigma_pos:
+            return ts_pos
         else:
             return 0
 

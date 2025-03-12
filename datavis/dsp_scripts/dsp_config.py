@@ -28,6 +28,23 @@ def plot_dt_str(df: pd.DataFrame, col: str = 'dt'):
     return df
 
 @dataclass(frozen=True)
+class PgConfig:
+    user: str = None
+    pw: str = None
+    host: str = None
+    port: int = None
+    db: str = None
+
+PG_DB_CONF = PgConfig(
+        user='option',
+        pw='option',
+        host='localhost',
+        port=15432,
+        db='opt',
+)
+ENABLE_PG_DB_UPLOAD=True
+
+@dataclass(frozen=True)
 class SpotConfig:
     oi_ts_gaussian_sigmas: list[float] = field(default_factory=list)
     oi_strike_gaussian_sigmas: list[float] = field(default_factory=list)

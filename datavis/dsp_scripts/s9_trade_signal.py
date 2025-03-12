@@ -8,7 +8,7 @@ import datetime
 import pandas as pd
 import numpy as np
 
-from dsp_config import DATA_DIR, gen_wide_suffix
+from dsp_config import DATA_DIR, ENABLE_PG_DB_UPLOAD, gen_wide_suffix
 from helpers import OpenCloseHelper, DiffHelper, TsOpenHelper, SigmaOpenHelper
 from helpers import TsOpenSigmaCloseHelper, TsOpenSigmaReopenHelper, TsOpenTakeProfitHelper
 from st_runner import StrategyArgs, StrategyRunner
@@ -26,6 +26,12 @@ def calc_signals(df: pd.DataFrame, wide: bool):
     }))
     runner.addStrategy('sigma1', 'sigma', st_args.clone().config({
         'sigma_open': 220,
+        'sigma_close': 10,
+    }))
+    runner.addStrategy('ts_sigma1', 'ts_sigma', st_args.clone().config({
+        'ts_open': 400,
+        'ts_close': 100,
+        'sigma_open': 180,
         'sigma_close': 10,
     }))
     runner.addStrategy('toss1', 'toss', st_args.clone().config({
@@ -72,6 +78,13 @@ def calc_signals(df: pd.DataFrame, wide: bool):
     runner.addData(df)
     sig = pd.DataFrame(runner.readSignal())
     df = pd.concat([df, sig], axis=1)
+
+    if ENABLE_PG_DB_UPLOAD:
+        runner.initSql()
+        runner.uploadStrategy()
+        runner.uploadFrame()
+        runner.uploadSignal()
+
     return df
 
 def calc_csv(df: pd.DataFrame, wide: bool):

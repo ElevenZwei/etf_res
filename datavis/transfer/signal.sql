@@ -1,22 +1,22 @@
 -- ddl part
 
 create table trade_strategy(
-    name text primary key,
+    st_name text primary key,
     code text,
-    description text
+    st_desc text
 );
 
 create table trade_strategy_args(
-    arg_id int generated always as identity primary key,
-    name text references trade_strategy(name) on update cascade on delete cascade,
-    args jsonb
+    arg_desc text not null unique,
+    st_name text references trade_strategy(st_name) on update cascade on delete cascade,
+    arg jsonb
 );
 
 create table trade_signal(
-    arg_id int references trade_strategy_args(arg_id) on update cascade on delete cascade,
+    arg_desc text references trade_strategy_args(arg_desc) on update cascade on delete cascade,
     dt timestamptz not null,
     act int not null,
-    constraint pk_trade_signal primary key(arg_id, dt)
+    constraint pk_trade_signal primary key(arg_desc, dt)
 );
 
 -- oi 中间分析用表

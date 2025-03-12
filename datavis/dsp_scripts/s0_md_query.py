@@ -7,10 +7,17 @@ from dateutil.relativedelta import relativedelta
 import sqlalchemy
 import pandas as pd
 
-from dsp_config import DATA_DIR, gen_suffix
+from dsp_config import DATA_DIR, PG_DB_CONF, gen_suffix
 
 def get_engine():
-    return sqlalchemy.create_engine('postgresql+psycopg2://option:option@localhost:15432/opt')
+    return sqlalchemy.create_engine(sqlalchemy.URL.create(
+        'postgresql+psycopg2',
+        username=PG_DB_CONF.user,
+        password=PG_DB_CONF.pw,
+        host=PG_DB_CONF.host,
+        port=PG_DB_CONF.port,
+        database=PG_DB_CONF.db,
+    ))
 
 def dl_expiry_date(spot: str, year: int, month: int) -> Optional[datetime.date]:
     d_from = datetime.datetime(year, month, 1)

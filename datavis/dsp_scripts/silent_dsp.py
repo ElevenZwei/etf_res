@@ -2,7 +2,9 @@
 这个在服务器上面定期运行然后把交易点位储存到数据库里面。
 """
 
+import click
 import datetime
+from typing import Optional
 
 import s0_md_query as s0
 import s5_oi as s5
@@ -24,5 +26,13 @@ def main():
     dt_str = dt.strftime('%Y%m%d')
     func('159915', dt_str, year=None, month=None)
 
+@click.command()
+@click.option('-d', '--date', type=str, default=None)
+def click_main(date: Optional[str]):
+    if date is None:
+        main()
+    else:
+        func('159915', date, year=None, month=None)
+
 if __name__ == '__main__':
-    main()
+    click_main()

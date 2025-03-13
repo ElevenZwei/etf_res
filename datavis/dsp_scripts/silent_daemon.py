@@ -5,6 +5,9 @@ from datetime import datetime, timedelta
 import silent_dsp as dsp
 
 class FinalSakanaScheduler:
+    """
+    这个是 AI 生成的类似于 crontab 的定时器类型，里面的 bug 我改了好多。
+    """
     def __init__(self,
                  interval_minutes: int = 3,
                  timezone_str: str = 'Asia/Shanghai',
@@ -31,12 +34,23 @@ class FinalSakanaScheduler:
     def _next_execution(self) -> datetime:
         now = datetime.now(self.tz)
 
-        if not self._is_working_time(now):
-            delay = self._next_workday_start(now)
-        else:
-            delay = self._next_interval(now)
+        # Case 1: 今日が営業日かつ開始前
+        if (now.weekday() in self.work_days
+            and now.time() < self.start_time):
+            return self.tz.localize(
+                datetime.combine(now.date(), self.start_time)
+            )
 
-        return delay if delay.time() < self.end_time else self._next_workday_start(delay)
+        # Case 2: 営業時間中
+        if self._is_working_time(now):
+            next_exec = self._next_interval(now)
+            if next_exec.time() < self.end_time:
+                return next_exec
+            else:
+                return self._next_workday_start(now)
+
+        # Case 3: 営業時間外
+        return self._next_workday_start(now)
 
     def _next_workday_start(self, dt: datetime) -> datetime:
         next_day = dt + timedelta(days=1)

@@ -76,6 +76,8 @@ def calc_signals(df: pd.DataFrame, wide: bool):
     }))
 
     runner.addData(df)
+    last_line = runner.readLastInput()
+    print(f"last_input: (ts, sigma, spot)={last_line['ts1']}, time={df['dt'].iloc[-1]}")
     sig = pd.DataFrame(runner.readSignal())
     df = pd.concat([df, sig], axis=1)
 

@@ -51,6 +51,7 @@ class StrategyRecord():
         self.args = args
         self.ts_col = f'oi_cp_dirstd_ts_{args.ts_len}'
         self.sigma_col = f'oi_cp_dirstd_sigma_{args.sigma_width}'
+        self.last_input = None
     
     def next(self, row):
         self.dt.append(row['dt'])
@@ -63,7 +64,8 @@ class StrategyRecord():
         ts = row[self.ts_col]
         sigma = row[self.sigma_col]
         spot = row['spot_price']
-        next_pos = self.helper.next(ts, sigma, spot)
+        self.last_input=(ts, sigma, spot)
+        next_pos = self.helper.next(*self.last_input)
         self.pos.append(next_pos)
         self.act.append(self.diff.next(next_pos))
 
@@ -113,6 +115,9 @@ class StrategyRunner():
     def runDataRow(self, name, row):
         frame = self.run[name]
         frame.next(row)
+
+    def readLastInput(self):
+        return {name: self.run[name].last_input for name in self.run}
     
     def readSignal(self):
         return {f'{name}_signal': self.run[name].act

@@ -90,7 +90,7 @@ class FinalSakanaScheduler:
 
 if __name__ == "__main__":
     scheduler = FinalSakanaScheduler(
-        interval_minutes=3,
+        interval_minutes=2,
         timezone_str='Asia/Shanghai',
         work_hours=('09:30', '15:00'),
         work_days={0,1,2,3,4}

@@ -76,7 +76,7 @@ def calc_stats(df: pd.DataFrame):
     col_infos = extract_column_info(df)
     ts_list = np.unique([x.ts for x in col_infos])
     sigma_list = np.unique([x.sigma for x in col_infos])
-    print(ts_list, sigma_list)
+    print('oi stat list:', ts_list, sigma_list)
     for ts in ts_list:
         ts_cols = [x.name for x in col_infos if x.ts == ts]
         df = calc_spearman(df, ts_cols, f'oi_cp_spearman_ts_{ts}')

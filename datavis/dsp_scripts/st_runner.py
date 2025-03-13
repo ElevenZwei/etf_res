@@ -66,11 +66,19 @@ class StrategyRecord():
         next_pos = self.helper.next(ts, sigma, spot)
         self.pos.append(next_pos)
         self.act.append(self.diff.next(next_pos))
-        
 
 # db part
 import sqlalchemy
 from s0_md_query import get_engine
+
+class StrategyUploader:
+    metadata = None
+    engine = None
+
+    @classmethod
+    def initSql(cls):
+        cls.metadata = sqlalchemy.MetaData()
+        cls.engine = get_engine()
 
 class StrategyRunner():
     """
@@ -111,8 +119,8 @@ class StrategyRunner():
                 for name in self.run}
     
     def initSql(self):
-        self.metadata = sqlalchemy.MetaData()
-        self.engine = get_engine()
+        if StrategyUploader.engine is None:
+            StrategyUploader.initSql()
 
     @staticmethod
     def upsert_on_conflict_skip(table, conn, keys, data_iter):
@@ -122,9 +130,10 @@ class StrategyRunner():
         conn.execute(stmt)
 
     def uploadStrategy(self):
-        # table = Table('trade_strategy', self.metadata, autoload_with=self.engine)
+        # table = Table('trade_strategy',
+        #       StrategyUploader.metadata, autoload_with=StrategyUploader.engine)
         df = pd.DataFrame({'st_name': self.strategy_map.keys()})
-        df.to_sql('trade_strategy', self.engine,
+        df.to_sql('trade_strategy', StrategyUploader.engine,
                 if_exists='append', index=False,
                 method=self.upsert_on_conflict_skip)
     
@@ -134,7 +143,7 @@ class StrategyRunner():
                 'st_name': frame.st_name,
                 'arg': frame.args.json(),
         } for name, frame in self.run.items()])
-        df.to_sql('trade_strategy_args', self.engine,
+        df.to_sql('trade_strategy_args', StrategyUploader.engine,
                 if_exists='append', index=False,
                 method=self.upsert_on_conflict_skip)
     
@@ -147,7 +156,7 @@ class StrategyRunner():
                     'act': sig,
             } for x, sig in enumerate(frame.act)])
             df = df[df['act'] != 0]
-            df.to_sql('trade_signal', self.engine,
+            df.to_sql('trade_signal', StrategyUploader.engine,
                     if_exists='append', index=False,
                     method=self.upsert_on_conflict_skip)
 

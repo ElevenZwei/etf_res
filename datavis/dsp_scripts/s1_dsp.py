@@ -103,7 +103,7 @@ def smooth_time_axis(df: pd.DataFrame, col_name: str, dsp_sec: int, ts_sigma_sec
     grid_1d = df.pivot(index='dt', columns='strike', values=col_name)
     grid_1d.ffill(inplace=True)
     grid_1d.fillna(0, inplace=True)
-    grid_1d = downsample_time(grid_1d, 30)
+    grid_1d = downsample_time(grid_1d, dsp_sec)
     se_ts = grid_1d.index.astype('int64') // 10**9
     ts_wsize, ts_sigma, ts_diff_med = calc_window(se_ts, ts_sigma_sec, 3.5)
     # print(f"ts_sigma_sec={ts_sigma_sec}, dsp_sec={dsp_sec}, ts_diff_med={ts_diff_med}, ts_wsize={ts_wsize}, ts_sigma={ts_sigma}")

@@ -1,0 +1,85 @@
+import time
+import pytz
+from datetime import datetime, timedelta
+
+import silent_dsp as dsp
+
+class FinalSakanaScheduler:
+    def __init__(self,
+                 interval_minutes: int = 3,
+                 timezone_str: str = 'Asia/Shanghai',
+                 work_hours: tuple = ('09:30', '15:00'),
+                 work_days: set = {0, 1, 2, 3, 4}):
+
+        self.interval = timedelta(minutes=interval_minutes)
+        self.tz = pytz.timezone(timezone_str)
+        self.start_time = self._parse_time(work_hours[0])
+        self.end_time = self._parse_time(work_hours[1])
+        self.work_days = work_days
+        self.cb = lambda: print('empty job')
+
+    def set_callback(self, cb):
+        self.cb = cb
+
+    def _parse_time(self, time_str: str) -> datetime.time:
+        return datetime.strptime(time_str, '%H:%M').time()
+
+    def _is_working_time(self, dt: datetime) -> bool:
+        return (dt.weekday() in self.work_days
+                and self.start_time <= dt.time() < self.end_time)
+
+    def _next_execution(self) -> datetime:
+        now = datetime.now(self.tz)
+
+        if not self._is_working_time(now):
+            delay = self._next_workday_start(now)
+        else:
+            delay = self._next_interval(now)
+
+        return delay if delay.time() < self.end_time else self._next_workday_start(delay)
+
+    def _next_workday_start(self, dt: datetime) -> datetime:
+        next_day = dt + timedelta(days=1)
+        while next_day.weekday() not in self.work_days:
+            next_day += timedelta(days=1)
+        return self.tz.localize(
+            datetime.combine(next_day.date(), self.start_time)
+        )
+
+    def _next_interval(self, now: datetime) -> datetime:
+        base_time = now.replace(second=0, microsecond=0)
+        intervals_since_start = (base_time - self._today_start(now)) // self.interval
+        return self._today_start(now) + (intervals_since_start + 1) * self.interval
+
+    def _today_start(self, dt: datetime) -> datetime:
+        return dt.replace(hour=self.start_time.hour, minute=self.start_time.minute)
+
+    def run(self):
+        while True:
+            next_run = self._next_execution()
+            wait_seconds = (next_run - datetime.now(self.tz)).total_seconds()
+
+            if wait_seconds > 0:
+                # print(f"[í¶ˆ] Next run at: {next_run:%Y-%m-%d %H:%M:%S}")
+                print(f"[SAKANA] Next run at: {next_run:%Y-%m-%d %H:%M:%S}")
+                time.sleep(wait_seconds)
+
+            if self._is_working_time(datetime.now(self.tz)):
+                try:
+                    # print(f"[âš¡] Executed at: {datetime.now(self.tz):%H:%M:%S}")
+                    print(f"[ZAP] Executed at: {datetime.now(self.tz):%H:%M:%S}")
+                    # Main logic here
+                    self.cb()
+                except Exception as e:
+                    # print(f"[í²¥] Error: {e}")
+                    print(f"[BOOM] Error: {e}")
+
+if __name__ == "__main__":
+    scheduler = FinalSakanaScheduler(
+        interval_minutes=3,
+        timezone_str='Asia/Shanghai',
+        work_hours=('09:30', '15:00'),
+        work_days={0,1,2,3,4}
+    )
+    scheduler.set_callback(dsp.main)
+    scheduler.run()

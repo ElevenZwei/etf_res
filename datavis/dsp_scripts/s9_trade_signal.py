@@ -95,7 +95,7 @@ def calc_csv(df: pd.DataFrame, wide: bool):
     signal_cols = [x for x in df.columns if '_signal' in x]
     df = df[['dt', 'spot_price', *signal_cols]]
     # print rows where signal cols is not zero only.
-    print(df.loc[(df[signal_cols] != 0).any(axis=1)])
+    # print(df.loc[(df[signal_cols] != 0).any(axis=1)])
     return df
 
 def calc_signal_csv(spot: str, suffix: str, wide: bool):
@@ -103,6 +103,7 @@ def calc_signal_csv(spot: str, suffix: str, wide: bool):
     df = pd.read_csv(DATA_DIR / 'dsp_conv' / f'stats_{spot}_{suffix}.csv')
     df = calc_csv(df, wide=wide)
     df.to_csv(DATA_DIR / 'dsp_conv' / f'signal_{spot}_{suffix}.csv', index=False)
+    return df
 
 @click.command()
 @click.option('-s', '--spot', type=str, help="spot code: 159915 510050")

@@ -44,6 +44,7 @@ class FinalSakanaScheduler:
         # Case 2: 営業時間中
         if self._is_working_time(now):
             next_exec = self._next_interval(now)
+            print("next_exec", next_exec)
             if next_exec.time() < self.end_time:
                 return next_exec
             else:
@@ -66,7 +67,8 @@ class FinalSakanaScheduler:
         return self._today_start(now) + (intervals_since_start + 1) * self.interval
 
     def _today_start(self, dt: datetime) -> datetime:
-        return dt.replace(hour=self.start_time.hour, minute=self.start_time.minute)
+        return dt.replace(hour=self.start_time.hour, minute=self.start_time.minute,
+                          second=0, microsecond=0)
 
     def run(self):
         while True:
@@ -90,7 +92,7 @@ class FinalSakanaScheduler:
 
 if __name__ == "__main__":
     scheduler = FinalSakanaScheduler(
-        interval_minutes=2,
+        interval_minutes=1,
         timezone_str='Asia/Shanghai',
         work_hours=('09:30', '15:00'),
         work_days={0,1,2,3,4}

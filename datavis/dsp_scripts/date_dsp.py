@@ -62,7 +62,8 @@ def plot_data(spot: str, suffix: str, show: bool, save: bool, wide: bool):
     # s4.main(spot, suffix=suffix, show=show, save=save, wide=wide)
 
 def calc_signal(spot: str, suffix: str, wide: bool):
-    s9.calc_signal_csv(spot, suffix + '_s5', wide=wide)
+    df = s9.calc_signal_csv(spot, suffix + '_s5', wide=wide)
+    print(s9.filter_signal_nonzero(df))
 
 def download_data(spot: str, bg_str: str, ed_str: str, year: int, month: int, minute_bar: bool):
     return s0.auto_dl(spot, year=year, month=month, bg_str=bg_str, ed_str=ed_str, minute_bar=minute_bar)

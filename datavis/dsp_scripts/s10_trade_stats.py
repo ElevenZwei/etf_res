@@ -45,6 +45,16 @@ def calc_pos_price_maxmin(df: pd.DataFrame, buysell_signal_col: str):
     # print(price_df)
     return price_df
 
+def intraday_timediff(A: datetime.datetime, B: datetime.datetime):
+    if pd.isnull(A) or pd.isnull(B):
+        return None
+    res = A - B
+    # skip 11:30 to 13:00
+    if A.hour > 12 and B.hour < 12:
+        res -= datetime.timedelta(hours=1, minutes=30)
+    # print(A, B, res)
+    return res
+
 def calc_daily_stats(df: pd.DataFrame, buysell_signal_col: str, trades_per_day: int):
     df = df.sort_values(['dt'])
     df['pos_state_id'] = df[buysell_signal_col].ne(0).cumsum()
@@ -71,8 +81,9 @@ def calc_daily_stats(df: pd.DataFrame, buysell_signal_col: str, trades_per_day: 
     df = df.join(price_df, on='pos_state_id')
     df['long_short'] = np.where(df['open_signal'] > 0, 1, -1)
     df['pnl'] = (df['close_spot_price'] - df['open_spot_price']) * df['long_short']
-    df['hold_time'] = df['close_dt'] - df['open_dt']
-    df['intraday_reopen_diff'] = df['open_dt'] - df['close_dt'].shift(1)
+    df['hold_time'] = df.apply(lambda row: intraday_timediff(row['close_dt'], row['open_dt']), axis=1)
+    df['close_dt_prev'] = df['close_dt'].shift(1)
+    reopen_diff = df.apply(lambda row: intraday_timediff(row['open_dt'], row['close_dt_prev']), axis=1)
     df['pnl_max'] = np.where(df['long_short'] == 1, df['spot_price_max'] - df['open_spot_price'], df['open_spot_price'] - df['spot_price_min'])
     df['pnl_min'] = -1 * np.where(df['long_short'] == 1, df['open_spot_price'] - df['spot_price_min'], df['spot_price_max'] - df['open_spot_price'])
     # peak to peak loss and profit
@@ -83,10 +94,20 @@ def calc_daily_stats(df: pd.DataFrame, buysell_signal_col: str, trades_per_day: 
             'pnl_p2p_profit', 'pnl_p2p_loss',
             'open_spot_price', 'close_spot_price',
             'spot_price_max', 'spot_price_min',
-            'hold_time', 'intraday_reopen_diff',
+            'hold_time',
             ]]
+    if not pd.isnull(reopen_diff).all():
+        df['intraday_reopen_diff'] = reopen_diff
     df = df[:trades_per_day]
     return df
+
+def filp_signal(df: pd.DataFrame, signal_col: str):
+    """
+    翻转信号，或者说翻转有持仓和没有持仓的状态，统计没有信号的时候的盈亏变化情况
+    这个翻转要注意持仓间隔等等的问题。
+    感觉还是单独做一个让 ETF 无波动的策略更容易调优。
+    """
+    pass
 
 def calc_stats_one_day(df: pd.DataFrame, trades_per_day: int):
     signal_cols = [x for x in df.columns if x.endswith('_signal')]
@@ -94,20 +115,6 @@ def calc_stats_one_day(df: pd.DataFrame, trades_per_day: int):
     for col in signal_cols:
         res[col.replace('_signal', '')] = calc_daily_stats(df, col, trades_per_day)
     return res
-    # ts_trades = calc_daily_stats(df, 'ts_signal', trades_per_day)
-    # sigma_trades = calc_daily_stats(df, 'sigma_signal', trades_per_day)
-    # ts_sigma_trades = calc_daily_stats(df, 'ts_sigma_signal', trades_per_day)
-    # toss_trades = calc_daily_stats(df, 'toss_signal', trades_per_day)
-    # tosr_trades = calc_daily_stats(df, 'tosr_signal', trades_per_day)
-    # totp_trades = calc_daily_stats(df, 'totp_signal', trades_per_day)
-    # return {
-    #     'ts': ts_trades,
-    #     'sigma': sigma_trades,
-    #     'ts_sigma': ts_sigma_trades,
-    #     'toss': toss_trades,
-    #     'tosr': tosr_trades,
-    #     'totp': totp_trades,
-    # }
 
 def calc_stats_days(dfs: list[pd.DataFrame], trades_per_day: int):
     trades_dict = defaultdict(lambda: [])
@@ -118,13 +125,14 @@ def calc_stats_days(dfs: list[pd.DataFrame], trades_per_day: int):
     for key in trades_dict:
         # print(trades_dict[key])
         # exit(1)
-        df_arr = trades_dict[key]
+        df_arr = [x for x in trades_dict[key] if len(x) != 0]
         df = pd.concat(df_arr)
         df['pnl_acc'] = df['pnl'].cumsum()
         df['hold_time_acc'] = df['hold_time'].cumsum()
         # move acc_pnl into position 2
         cols = df.columns.tolist()
         cols.insert(2, cols.pop(cols.index('pnl_acc')))
+        cols.insert(3, cols.pop(cols.index('hold_time_acc')))
         df = df[cols]
         trades_dict[key] = df
     return trades_dict

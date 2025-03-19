@@ -7,16 +7,21 @@ create table trade_strategy(
 );
 
 create table trade_strategy_args(
-    arg_desc text not null unique,
+    arg_desc text not null,
+    arg_spot text not null,
+    arg jsonb,
     st_name text references trade_strategy(st_name) on update cascade on delete cascade,
-    arg jsonb
+    create_dt timestamptz not null default now(),
+    primary key(arg_desc, arg_spot)
 );
 
 create table trade_signal(
-    arg_desc text references trade_strategy_args(arg_desc) on update cascade on delete cascade,
+    arg_desc text not null,
+    arg_spot text not null,
     dt timestamptz not null,
     act int not null,
-    constraint pk_trade_signal primary key(arg_desc, dt)
+    primary key(arg_desc, dt),
+    foreign key(arg_desc, arg_spot) references trade_strategy_args(arg_desc, arg_spot)
 );
 
 -- oi 中间分析用表

@@ -16,6 +16,7 @@ from scipy import stats
 
 from dsp_config import DATA_DIR, gen_wide_suffix
 from helpers import OpenCloseHelper
+import s9_trade_signal as s9
 
 def calc_spearman(df: pd.DataFrame, cols: list[str], res_col: str):
     """
@@ -89,7 +90,7 @@ def calc_stats(df: pd.DataFrame):
         df[f'oi_cp_dirstd_sigma_{sigma}'] = df[f'oi_cp_spearman_sigma_{sigma}'] * df[f'oi_cp_stdev_sigma_{sigma}']
     return df
 
-def calc_long_short_pos(df: pd.DataFrame):
+def calc_long_short_pos(df: pd.DataFrame, wide: bool):
     """
     计算 long short pos
     """
@@ -105,6 +106,9 @@ def calc_long_short_pos(df: pd.DataFrame):
     sigma_helper = OpenCloseHelper(sigma_long_open, sigma_long_close, sigma_short_open, sigma_short_close)
     ts_pos = []
     sigma_pos = []
+    spot = str(df['spotcode'].iloc[0])
+    ts_col = f'oi_cp_dirstd_ts_600'
+    sigma_col = f'oi_cp_dirstd_sigma_{s9.get_sigma_width(spot, wide=wide)}'
     for idx, row in df.iterrows():
         if (row['dt'].hour == 9
                 or row['dt'].hour == 10 and row['dt'].minute < 10
@@ -113,8 +117,8 @@ def calc_long_short_pos(df: pd.DataFrame):
             ts_pos.append(0)
             sigma_pos.append(0)
             continue
-        ts_pos.append(ts_helper.next(row['oi_cp_dirstd_ts_600']))
-        sigma_pos.append(sigma_helper.next(row['oi_cp_dirstd_sigma_0.15']))
+        ts_pos.append(ts_helper.next(row[ts_col]))
+        sigma_pos.append(sigma_helper.next(row[sigma_col]))
     df['ts_pos'] = ts_pos
     df['sigma_pos'] = sigma_pos
     return df
@@ -129,7 +133,7 @@ def calc_stats_csv(spot: str, suffix: str, wide: bool):
     suffix += gen_wide_suffix(wide)
     df = pd.read_csv(DATA_DIR / 'dsp_conv' / f'merged_{spot}_{suffix}.csv')
     df = calc_stats(df)
-    df = calc_long_short_pos(df)
+    df = calc_long_short_pos(df, wide=wide)
     df.to_csv(DATA_DIR / 'dsp_conv' / f'stats_{spot}_{suffix}.csv', index=False)
 
 @click.command()

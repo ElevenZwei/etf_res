@@ -185,7 +185,7 @@ def plot_trade_pos(df: pd.DataFrame, fig, row, col):
             row=row, col=col)
     return fig
 
-def plot_stats(df: pd.DataFrame):
+def plot_stats(df: pd.DataFrame, spot: str):
     fig = subplots.make_subplots(rows=8, cols=1,
         row_heights=[0.3, 0.22, 0.1, 0.1, 0.07, 0.07, 0.07, 0.07],
         shared_xaxes=True,
@@ -212,21 +212,21 @@ def plot_stats(df: pd.DataFrame):
     )
     # fig.update_traces(xaxis='x1')
     df = plot_dt_str(df, 'dt')
-    fig = plot_oi(df, '159915', False, fig, 1, 1)
+    fig = plot_oi(df, spot, False, fig, 1, 1)
     fig = plot_trade_pos(df, fig, 2, 1)
     fig = plot_price(df, fig, 2, 1)
-    fig = plot_ts_dirstd(df, '159915', fig, 3, 1)
-    fig = plot_sigma_dirstd(df, '159915', fig, 4, 1)
-    fig = plot_ts_spearman(df, '159915', fig, 5, 1)
-    fig = plot_ts_stdev(df, '159915', fig, 6, 1)
-    fig = plot_sigma_spearman(df, '159915', fig, 7, 1)
-    fig = plot_sigma_stdev(df, '159915', fig, 8, 1)
+    fig = plot_ts_dirstd(df, spot, fig, 3, 1)
+    fig = plot_sigma_dirstd(df, spot, fig, 4, 1)
+    fig = plot_ts_spearman(df, spot, fig, 5, 1)
+    fig = plot_ts_stdev(df, spot, fig, 6, 1)
+    fig = plot_sigma_spearman(df, spot, fig, 7, 1)
+    fig = plot_sigma_stdev(df, spot, fig, 8, 1)
     return fig
 
 def plot_file(spot: str, suffix: str, save: bool, show: bool, wide: bool):
     suffix = suffix + gen_wide_suffix(wide)
     df = pd.read_csv(DATA_DIR / 'dsp_conv' / f'stats_{spot}_{suffix}.csv')
-    fig = plot_stats(df)
+    fig = plot_stats(df, spot)
     if show:
         fig.show()
     if save:

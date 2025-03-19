@@ -5,21 +5,38 @@ import json
 import helpers
 
 class StrategyArgs():
-    def __init__(self, time_begin, time_end, dirstd_ts_len, dirstd_sigma_width):
-        self.time_begin = time_begin
-        self.time_end = time_end
-        self.ts_len = dirstd_ts_len
-        self.sigma_width = dirstd_sigma_width
+    def __init__(self):
+        self.time_begin = None
+        self.time_end = None
+        self.time_no_open = None
+        self.ts_len = None
+        self.sigma_width = None
+        self.spot = None
+        self.scale_factor = None
         self.st_args = None
     
+    def setTime(self, time_begin, time_end, time_no_open):
+        self.time_begin = time_begin
+        self.time_end = time_end
+        self.time_no_open = time_no_open
+    
+    def setCol(self, dirstd_ts_len, dirstd_sigma_width):
+        self.ts_len = dirstd_ts_len
+        self.sigma_width = dirstd_sigma_width
+    
+    def setSpot(self, spot: str, scale_factor: dict[str, float]):
+        self.spot = spot
+        self.scale_factor = scale_factor
+
     def config(self, st_args):
         self.st_args = st_args
         return self
     
     def clone(self):
-        st = StrategyArgs(  
-                self.time_begin, self.time_end,
-                self.ts_len, self.sigma_width)
+        st = StrategyArgs()
+        st.setTime(self.time_begin, self.time_end, self.time_no_open)
+        st.setCol(self.ts_len, self.sigma_width)
+        st.setSpot(self.spot, self.scale_factor)
         st.config(self.st_args)
         return st
     
@@ -28,12 +45,17 @@ class StrategyArgs():
             'time': {
                 'begin': self.time_begin.strftime('%H:%M:%S'),
                 'end': self.time_end.strftime('%H:%M:%S'),
+                'no_open': self.time_no_open.strftime('%H:%M:%S')
             },
             'col': {
                 'ts': self.ts_len,
                 'sigma': self.sigma_width,
             },
-            'st': self.st_args
+            'spot': {
+                'spot': self.spot,
+                'scale': self.scale_factor,
+            },
+            'st': self.st_args,
         }
         json_str = json.dumps(obj)
         return json_str
@@ -56,7 +78,16 @@ class StrategyRecord():
     def next(self, row):
         self.dt.append(row['dt'])
         now = row['dt'].time()
+
+        # 持仓时间范围限制
         if now < self.args.time_begin or now > self.args.time_end:
+            self.pos.append(0)
+            self.act.append(self.diff.next(0))
+            return
+        
+        # 某个时限之后不再新开仓
+        if (now > self.args.time_no_open
+                and (len(self.pos) == 0 or self.pos[-1] == 0)):
             self.pos.append(0)
             self.act.append(self.diff.next(0))
             return
@@ -64,6 +95,9 @@ class StrategyRecord():
         ts = row[self.ts_col]
         sigma = row[self.sigma_col]
         spot = row['spot_price']
+        scale_factor = self.args.scale_factor
+        ts *= scale_factor['ts']
+        sigma *= scale_factor['sigma']
         self.last_input=(ts, sigma, spot)
         next_pos = self.helper.next(*self.last_input)
         self.pos.append(next_pos)
@@ -145,8 +179,9 @@ class StrategyRunner():
     def uploadFrame(self):
         df = pd.DataFrame([{
                 'arg_desc': name,
-                'st_name': frame.st_name,
+                'arg_spot': frame.args.spot,
                 'arg': frame.args.json(),
+                'st_name': frame.st_name,
         } for name, frame in self.run.items()])
         df.to_sql('trade_strategy_args', StrategyUploader.engine,
                 if_exists='append', index=False,
@@ -157,6 +192,7 @@ class StrategyRunner():
         for name, frame in self.run.items():
             df = pd.DataFrame([{
                     'arg_desc': name,
+                    'arg_spot': frame.args.spot,
                     'dt': frame.dt[x],
                     'act': sig,
             } for x, sig in enumerate(frame.act)])

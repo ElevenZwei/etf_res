@@ -13,13 +13,34 @@ from helpers import OpenCloseHelper, DiffHelper, TsOpenHelper, SigmaOpenHelper
 from helpers import TsOpenSigmaCloseHelper, TsOpenSigmaReopenHelper, TsOpenTakeProfitHelper
 from st_runner import StrategyArgs, StrategyRunner
 
+def get_sigma_width(spot: str, wide: bool):
+    if spot == '159915':
+        return 0.4 if wide else 0.15
+    elif spot == '510500':
+        return 0.6 if wide else 0.4
+    return None
+
+def get_scale_factor(spot: str):
+    m = {
+        '159915': { 'ts': 1, 'sigma': 1, },
+        '510500': { 'ts': 0.3, 'sigma': 0.2, },
+    }
+    return m[spot]
+
 def calc_signals(df: pd.DataFrame, wide: bool):
     runner = StrategyRunner()
-    st_args = StrategyArgs(
+    spot = str(df['spotcode'].iloc[0])
+    st_args = StrategyArgs()
+    st_args.setTime(
             time_begin=datetime.time(9, 55),
             time_end=datetime.time(14, 47),
+            time_no_open=datetime.time(14, 30))
+    st_args.setCol(
             dirstd_ts_len=600,
-            dirstd_sigma_width=(0.4 if wide else 0.15))
+            dirstd_sigma_width=get_sigma_width(spot, wide))
+    st_args.setSpot(
+            spot=spot,
+            scale_factor=get_scale_factor(spot))
     runner.addStrategy('ts1', 'ts', st_args.clone().config({
         'ts_open': 400,
         'ts_close': 100,
@@ -98,6 +119,10 @@ def calc_csv(df: pd.DataFrame, wide: bool):
     # print(df.loc[(df[signal_cols] != 0).any(axis=1)])
     return df
 
+def filter_signal_nonzero(df: pd.DataFrame):
+    signal_cols = [x for x in df.columns if '_signal' in x]
+    return df.loc[(df[signal_cols] != 0).any(axis=1)]
+
 def calc_signal_csv(spot: str, suffix: str, wide: bool):
     suffix += gen_wide_suffix(wide)
     df = pd.read_csv(DATA_DIR / 'dsp_conv' / f'stats_{spot}_{suffix}.csv')
@@ -146,5 +171,7 @@ totp 可以分成两个参数，一个是高回落参数，一个是纯抗单参
 现在的情况是怎样的高回落可以有再次出发的可能性这一点很难预计。
 我应该用 max drawdown 算法计算出每一次 ts 平仓之前的 Drawdown ，这个放在新的。
 
+发现有的时候 14:40 之后的一段时间反而是价格最好预测的时候。
+所以这段时间也值得研究，这个要做一个瞬时震荡器指标。
 """
 

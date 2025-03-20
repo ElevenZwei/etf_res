@@ -185,7 +185,7 @@ def plot_trade_pos(df: pd.DataFrame, fig, row, col):
             row=row, col=col)
     return fig
 
-def plot_stats(df: pd.DataFrame, spot: str):
+def plot_stats(df: pd.DataFrame, spot: str, suffix: str):
     fig = subplots.make_subplots(rows=8, cols=1,
         row_heights=[0.3, 0.22, 0.1, 0.1, 0.07, 0.07, 0.07, 0.07],
         shared_xaxes=True,
@@ -204,7 +204,7 @@ def plot_stats(df: pd.DataFrame, spot: str):
     fig.update_layout(
         height=2500,
         width=1400,
-        title_text="OI Stats",
+        title_text=f"OI Stats {spot} {suffix}",
         autosize=True,
         margin=dict(t=40, b=40),
         # hovermode='x unified',
@@ -226,7 +226,7 @@ def plot_stats(df: pd.DataFrame, spot: str):
 def plot_file(spot: str, suffix: str, save: bool, show: bool, wide: bool):
     suffix = suffix + gen_wide_suffix(wide)
     df = pd.read_csv(DATA_DIR / 'dsp_conv' / f'stats_{spot}_{suffix}.csv')
-    fig = plot_stats(df, spot)
+    fig = plot_stats(df, spot, suffix)
     if show:
         fig.show()
     if save:

@@ -11,7 +11,7 @@ create table trade_strategy_args(
     arg_spot text not null,
     arg jsonb,
     st_name text references trade_strategy(st_name) on update cascade on delete cascade,
-    create_dt timestamptz not null default now(),
+    update_dt timestamptz not null default now(),
     primary key(arg_desc, arg_spot)
 );
 
@@ -20,7 +20,7 @@ create table trade_signal(
     arg_spot text not null,
     dt timestamptz not null,
     act int not null,
-    primary key(arg_desc, dt),
+    primary key(arg_desc, arg_spot, dt),
     foreign key(arg_desc, arg_spot) references trade_strategy_args(arg_desc, arg_spot)
 );
 

@@ -55,7 +55,7 @@ def intraday_timediff(A: datetime.datetime, B: datetime.datetime):
     # print(A, B, res)
     return res
 
-def calc_daily_stats(df: pd.DataFrame, buysell_signal_col: str, trades_per_day: int):
+def calc_daily_stats(df: pd.DataFrame, buysell_signal_col: str, key: str, trades_per_day: int):
     df = df.sort_values(['dt'])
     df['pos_state_id'] = df[buysell_signal_col].ne(0).cumsum()
     price_df = calc_pos_price_maxmin(df, buysell_signal_col)
@@ -89,7 +89,8 @@ def calc_daily_stats(df: pd.DataFrame, buysell_signal_col: str, trades_per_day: 
     # peak to peak loss and profit
     df['pnl_p2p_loss'] = np.where(df['long_short'] == 1, df['spot_price_max_drawdown'], -1 * df['spot_price_max_drawup'])
     df['pnl_p2p_profit'] = np.where(df['long_short'] == 1, df['spot_price_max_drawup'], -1 * df['spot_price_max_drawdown'])
-    df = df[['open_dt', 'close_dt', 'long_short',
+    df['arg_desc'] = key
+    df = df[['open_dt', 'close_dt', 'arg_desc', 'long_short',
             'pnl', 'pnl_max', 'pnl_min',
             'pnl_p2p_profit', 'pnl_p2p_loss',
             'open_spot_price', 'close_spot_price',
@@ -113,7 +114,8 @@ def calc_stats_one_day(df: pd.DataFrame, trades_per_day: int):
     signal_cols = [x for x in df.columns if x.endswith('_signal')]
     res = {}
     for col in signal_cols:
-        res[col.replace('_signal', '')] = calc_daily_stats(df, col, trades_per_day)
+        key = col.replace('_signal', '')
+        res[key] = calc_daily_stats(df, col, key, trades_per_day)
     return res
 
 def calc_stats_days(dfs: list[pd.DataFrame], trades_per_day: int):

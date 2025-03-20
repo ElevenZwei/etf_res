@@ -8,7 +8,7 @@ import datetime
 import pandas as pd
 import numpy as np
 
-from dsp_config import DATA_DIR, ENABLE_PG_DB_UPLOAD, gen_wide_suffix
+from dsp_config import DATA_DIR, ENABLE_PG_DB_UPLOAD, ENABLE_PG_DB_UPLOAD_SIGNAL, gen_wide_suffix
 from helpers import OpenCloseHelper, DiffHelper, TsOpenHelper, SigmaOpenHelper
 from helpers import TsOpenSigmaCloseHelper, TsOpenSigmaReopenHelper, TsOpenTakeProfitHelper
 from st_runner import StrategyArgs, StrategyRunner
@@ -23,7 +23,7 @@ def get_sigma_width(spot: str, wide: bool):
 def get_scale_factor(spot: str):
     m = {
         '159915': { 'ts': 1, 'sigma': 1, },
-        '510500': { 'ts': 0.3, 'sigma': 0.2, },
+        '510500': { 'ts': 0.8, 'sigma': 0.8, },
     }
     return m[spot]
 
@@ -79,11 +79,29 @@ def calc_signals(df: pd.DataFrame, wide: bool):
         'sigma_close': -20,
         'p2p_stop_loss': 0.01,
     }))
+    runner.addStrategy('toss5', 'toss', st_args.clone().config({
+        'ts_open': 300,
+        'ts_close': 100,
+        'sigma_close': -80,
+        'p2p_stop_loss': 0.01,
+    }))
     runner.addStrategy('tosr1', 'tosr', st_args.clone().config({
         'ts_open': 300,
         'ts_close': 100,
         'sigma_open': 150,
         'sigma_close': 20,
+    }))
+    runner.addStrategy('tosr2', 'tosr', st_args.clone().config({
+        'ts_open': 300,
+        'ts_close': 100,
+        'sigma_open': 100,
+        'sigma_close': -20,
+    }))
+    runner.addStrategy('tosr3', 'tosr', st_args.clone().config({
+        'ts_open': 300,
+        'ts_close': 100,
+        'sigma_open': 200,
+        'sigma_close': 60,
     }))
     runner.addStrategy('totp1', 'totp', st_args.clone().config({
         'ts_open': 400,
@@ -93,6 +111,11 @@ def calc_signals(df: pd.DataFrame, wide: bool):
     runner.addStrategy('totp2', 'totp', st_args.clone().config({
         'ts_open': 350,
         'ts_close': 100,
+        'stop_loss': 0.01,
+    }))
+    runner.addStrategy('totp3', 'totp', st_args.clone().config({
+        'ts_open': 280,
+        'ts_close': 80,
         'stop_loss': 0.01,
     }))
 
@@ -106,7 +129,9 @@ def calc_signals(df: pd.DataFrame, wide: bool):
         runner.initSql()
         runner.uploadStrategy()
         runner.uploadFrame()
-        runner.uploadSignal()
+        # 调试模式里面不要上传正式信号。
+        if ENABLE_PG_DB_UPLOAD_SIGNAL:
+            runner.uploadSignal()
 
     return df
 

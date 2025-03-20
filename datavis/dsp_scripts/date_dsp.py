@@ -52,13 +52,20 @@ def calc_data(spot: str, suffix: str, wide: bool):
     # s1.calc_dsp_intersects(spot=spot, suffix=suffix, wide=wide)
     # s2.intersect_merge_files(spot, suffix=suffix, wide=wide)
 
-def plot_data(spot: str, suffix: str, show: bool, save: bool, wide: bool):
-    s3.main(spot, suffix=suffix, show=show, save=save, wide=wide)
-    # s4.main(spot, suffix=suffix + '_s5', show=show, save=save, wide=wide)
-    s6.main(spot, suffix=suffix, show=show, save=save)
-    s8.main(spot, suffix=suffix + '_s5', show=show, save=save, wide=wide)
+def plot_data(spot: str, suffix: str, show: bool, save: bool, wide: bool, plot_num: int):
+    if plot_num <= 0:
+        s3.main(spot, suffix=suffix, show=show, save=save, wide=wide)
+        s6.main(spot, suffix=suffix, show=show, save=save)
+        s8.main(spot, suffix=suffix + '_s5', show=show, save=save, wide=wide)
+    elif plot_num == 1:
+        s3.main(spot, suffix=suffix, show=show, save=save, wide=wide)
+    elif plot_num == 2:
+        s6.main(spot, suffix=suffix, show=show, save=save)
+    elif plot_num == 3:
+        s8.main(spot, suffix=suffix + '_s5', show=show, save=save, wide=wide)
 
     # old method
+    # s4.main(spot, suffix=suffix + '_s5', show=show, save=save, wide=wide)
     # s4.main(spot, suffix=suffix, show=show, save=save, wide=wide)
 
 def calc_signal(spot: str, suffix: str, wide: bool):
@@ -70,17 +77,17 @@ def download_data(spot: str, bg_str: str, ed_str: str, year: int, month: int, mi
 
 def date_dsp(spot: str,
              bg_str: str, ed_str: str,
-             refresh: bool, plot: bool, signal: bool,
+             refresh: bool, plot: int, signal: bool,
              year: int, month: int, minute_bar: bool,
              show: bool, save: bool, wide: bool):
     suffix = default_suffix(bg_str=bg_str, ed_str=ed_str, year=year, month=month)
     if not signal:
-        if not plot:
+        if plot == 0:
             if refresh:
                 suffix = download_data(spot, year=year, month=month,
                         bg_str=bg_str, ed_str=ed_str, minute_bar=minute_bar)
             calc_data(spot, suffix, wide=wide)
-        plot_data(spot, suffix, show=show, save=save, wide=wide)
+        plot_data(spot, suffix, show=show, save=save, wide=wide, plot_num=plot)
     calc_signal(spot, suffix, wide=wide)
 
 @click.command()
@@ -88,7 +95,7 @@ def date_dsp(spot: str,
 @click.option('-d', '--date', type=str, help="format is %Y%m%d")
 @click.option('-e', '--end-date', type=str, help="format is %Y%m%d")
 @click.option('-r', '--refresh', is_flag=True, default=False, help="Download new data from database.")
-@click.option('-p', '--plot', is_flag=True, default=False, help="Plot only, use existing data.")
+@click.option('-p', '--plot', is_flag=False, default=0, flag_value=-1, help="Plot only, use existing data.")
 @click.option('-g', '--signal', is_flag=True, default=False, help="Generate signal only, use existing data.")
 @click.option('-y', '--year', type=int)
 @click.option('-m', '--month', type=int)
@@ -97,7 +104,7 @@ def date_dsp(spot: str,
 @click.option('--save', type=bool, default=True, help="save to html.")
 @click.option('--wide', type=bool, default=False, help="use wide plot.")
 def click_main(spot: str, date: str, end_date: str,
-        refresh: bool, plot: bool, signal: bool,
+        refresh: bool, plot: int, signal: bool,
         year: int, month: int, bar: bool,
         show: bool, save: bool, wide: bool):
     if end_date is None:

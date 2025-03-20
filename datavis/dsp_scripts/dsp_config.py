@@ -42,7 +42,8 @@ PG_DB_CONF = PgConfig(
         port=15432,
         db='opt',
 )
-ENABLE_PG_DB_UPLOAD=True
+ENABLE_PG_DB_UPLOAD = True
+ENABLE_PG_DB_UPLOAD_SIGNAL = False
 
 @dataclass(frozen=True)
 class SpotConfig:

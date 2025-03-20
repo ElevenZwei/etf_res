@@ -1,3 +1,4 @@
+import datetime
 import numpy as np
 import pandas as pd
 import json
@@ -168,6 +169,17 @@ class StrategyRunner():
         stmt = stmt.on_conflict_do_nothing()
         conn.execute(stmt)
 
+    @staticmethod
+    def upsert_frame_if_changed(table, conn, keys, data_iter):
+        data = [dict(zip(keys, row)) for row in data_iter]
+        stmt = sqlalchemy.dialects.postgresql.insert(table.table).values(data)
+        update_dict = {'arg': stmt.excluded.arg, 'update_dt': stmt.excluded.update_dt}
+        condition = (stmt.excluded.arg != table.table.c.arg)
+        stmt = stmt.on_conflict_do_update(
+                index_elements=['arg_desc', 'arg_spot'],
+                set_=update_dict, where=condition)
+        conn.execute(stmt)
+
     def uploadStrategy(self):
         # table = Table('trade_strategy',
         #       StrategyUploader.metadata, autoload_with=StrategyUploader.engine)
@@ -182,10 +194,11 @@ class StrategyRunner():
                 'arg_spot': frame.args.spot,
                 'arg': frame.args.json(),
                 'st_name': frame.st_name,
+                'update_dt': datetime.datetime.now()
         } for name, frame in self.run.items()])
         df.to_sql('trade_strategy_args', StrategyUploader.engine,
                 if_exists='append', index=False,
-                method=self.upsert_on_conflict_skip)
+                method=self.upsert_frame_if_changed)
     
     def uploadSignal(self):
         # 这个要先用

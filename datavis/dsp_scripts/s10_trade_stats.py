@@ -55,7 +55,19 @@ def intraday_timediff(A: datetime.datetime, B: datetime.datetime):
     # print(A, B, res)
     return res
 
+def split_sig_2_lines(df: pd.DataFrame, buysell_signal_col: str):
+    """
+    对于在同一分钟里面信号从空到多或者从多到空的拆分处理。
+    """
+    rows_to_split = np.abs(df[buysell_signal_col]) == 2
+    split_rows = df.loc[rows_to_split].copy()
+    split_rows[buysell_signal_col] /= 2
+    df = df[~rows_to_split]
+    df = pd.concat([df, split_rows, split_rows], ignore_index=True)
+    return df
+
 def calc_daily_stats(df: pd.DataFrame, buysell_signal_col: str, key: str, trades_per_day: int):
+    df = split_sig_2_lines(df, buysell_signal_col)
     df = df.sort_values(['dt'])
     df['pos_state_id'] = df[buysell_signal_col].ne(0).cumsum()
     price_df = calc_pos_price_maxmin(df, buysell_signal_col)

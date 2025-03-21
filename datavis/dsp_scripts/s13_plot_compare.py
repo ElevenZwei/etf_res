@@ -73,16 +73,28 @@ def plot(df: pd.DataFrame, spot: str, suffix: str, show: bool, save: bool):
     print(f"Comparing {len(desc)} strategies on {spot}: {', '.join(desc)}")
     color_mapper = ColorMapper(desc)
 
-    fig = subplots.make_subplots(rows=1, cols=2,
+    fig = subplots.make_subplots(rows=2, cols=2,
+            vertical_spacing=0.08,
             subplot_titles=(
                 # "PNL Accumulated",
                 "PNL Percent Accumulated",
+                "Trade Count Accumulated",
                 "Hold Time Ratio Accumulated",
+                "Hold Time Mean Accumulated",
             ))
+    fig.update_layout(
+            height=1200,
+            width=1500,
+            title_text=f'PNL Comparison for {spot} {suffix}',
+            # margin=dict(t=40, b=40),
+    )
+
     # fig = plot_cols(df, 'date', 'pnl_acc@', 'PNL Accumulated', color_mapper, fig, 1, 1)
     fig = plot_cols(df, 'date', 'pnl_p_acc@', 'PNL Percent Accumulated', color_mapper, fig, 1, 1)
-    fig = plot_cols(df, 'date', 'hold_time_acc_ratio@', 'Hold Time Ratio Accumulated', color_mapper, fig, 1, 2)
-    fig.update_layout(title_text=f'PNL Comparison for {spot} {suffix}')
+    fig = plot_cols(df, 'date', 'cnt_acc@', 'Trade Count Accumulated', color_mapper, fig, 1, 2)
+    fig = plot_cols(df, 'date', 'hold_time_acc_ratio@', 'Hold Time Ratio Accumulated', color_mapper, fig, 2, 1)
+    fig = plot_cols(df, 'date', 'hold_time_mean_acc@', 'Hold Time Mean Accumulated', color_mapper, fig, 2, 2)
+    
     if save:
         fig.write_image(f"{DATA_DIR}/dsp_plot/pnl_acc_compare_{spot}_{suffix}.png")
     if show:

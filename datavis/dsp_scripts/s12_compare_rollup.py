@@ -16,8 +16,9 @@ def daily_rollup(df: pd.DataFrame):
     arg_desc = df['arg_desc'].iloc[0]
     df['date'] = pd.to_datetime(df['open_dt']).dt.date
     df['hold_time'] = pd.to_timedelta(df['hold_time'])
+    df['hold_time_sec'] = df['hold_time'].dt.total_seconds()
     df['pnl_p'] = (df['close_spot_price'] / df['open_spot_price'] - 1) * df['long_short']
-    df = df[['date', 'pnl', 'pnl_p', 'hold_time']]
+    df = df[['date', 'pnl', 'pnl_p', 'hold_time', 'hold_time_sec']]
     res = pd.DataFrame()
     res['cnt'] = df.groupby('date').size()
     res['cnt_acc'] = res['cnt'].cumsum()
@@ -26,6 +27,7 @@ def daily_rollup(df: pd.DataFrame):
     res['pnl_p'] = df.groupby('date')['pnl_p'].sum()
     res['pnl_p_acc'] = res['pnl_p'].cumsum()
     res['hold_time'] = df.groupby('date')['hold_time'].sum()
+    res['hold_time_mean'] = df.groupby('date')['hold_time_sec'].mean()
     res['hold_time_acc'] = res['hold_time'].cumsum()
     res['arg_desc'] = arg_desc
     # print(res)
@@ -75,8 +77,9 @@ def calc_hold_ratio(df: pd.DataFrame):
     hold_time_acc_ratio@arg_desc = hold_time_ratio@arg_desc 的累积平均
     4小时是一天的股票交易时长。
     """
-    hold_time_cols = [x for x in df.columns if x.startswith('hold_time@')]
     insert_df = pd.DataFrame()
+
+    hold_time_cols = [x for x in df.columns if x.startswith('hold_time@')]
     for x in hold_time_cols:
         hold_time_ratio_col = x.replace('hold_time@', 'hold_time_ratio@')
         hold_time_ratio = df[x] / np.timedelta64(4, 'h')  # 4小时是一天的股票交易时长
@@ -84,6 +87,13 @@ def calc_hold_ratio(df: pd.DataFrame):
         hold_time_acc_ratio = hold_time_ratio.expanding().mean().fillna(0)
         insert_df[hold_time_ratio_col] = hold_time_ratio
         insert_df[hold_time_acc_ratio_col] = hold_time_acc_ratio
+
+    hold_time_mean_cols = [x for x in df.columns if x.startswith('hold_time_mean@')]
+    for x in hold_time_mean_cols:
+        hold_time_mean_acc_col = x.replace('hold_time_mean@', 'hold_time_mean_acc@')
+        hold_time_mean_acc = df[x].expanding().mean().fillna(0)
+        insert_df[hold_time_mean_acc_col] = hold_time_mean_acc
+
     df = pd.concat([df, insert_df], axis=1)
     return df
 

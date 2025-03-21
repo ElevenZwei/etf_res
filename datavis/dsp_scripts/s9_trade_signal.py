@@ -14,6 +14,8 @@ from helpers import TsOpenSigmaCloseHelper, TsOpenSigmaReopenHelper, TsOpenTakeP
 from st_runner import StrategyArgs, StrategyRunner
 
 def get_sigma_width(spot: str, wide: bool):
+    if spot.endswith('.SZ') or spot.endswith('.SH'):
+        spot = spot[:-3]
     if spot == '159915':
         return 0.4 if wide else 0.15
     elif spot == '510500':
@@ -21,6 +23,8 @@ def get_sigma_width(spot: str, wide: bool):
     return None
 
 def get_scale_factor(spot: str):
+    if spot.endswith('.SZ') or spot.endswith('.SH'):
+        spot = spot[:-3]
     m = {
         '159915': { 'ts': 1, 'sigma': 1, },
         '510500': { 'ts': 0.8, 'sigma': 0.8, },
@@ -71,13 +75,13 @@ def calc_signals(df: pd.DataFrame, wide: bool):
         'ts_open': 300,
         'ts_close': 100,
         'sigma_close': -20,
-        'p2p_stop_loss': 0.03,
+        'p2p_stop_loss': 0.01,
     }))
     runner.addStrategy('toss4', 'toss', st_args.clone().config({
         'ts_open': 300,
         'ts_close': 100,
         'sigma_close': -20,
-        'p2p_stop_loss': 0.01,
+        'p2p_stop_loss': 0.005,
     }))
     runner.addStrategy('toss5', 'toss', st_args.clone().config({
         'ts_open': 300,

@@ -165,7 +165,7 @@ def calc_stats_csv(spot: str, exp_date: datetime.date,
     return trades_dict
 
 def calc_stats_all_csvs(
-        spot: str, trades_per_day:int, wide:bool,
+        spot: str, trades_per_day: int, suffix: str, wide: bool,
         bg_date: datetime.date, ed_date: datetime.date):
     dfs = []
     fs = glob.glob(f'{DATA_DIR}/dsp_conv/signal_{spot}_*_s5{gen_wide_suffix(wide)}.csv')
@@ -198,35 +198,37 @@ def calc_stats_all_csvs(
     for x in dfs:
         x['dt'] = pd.to_datetime(x['dt'])
     trades_dict = calc_stats_days(dfs, trades_per_day)
-    save_suffix = f'all{gen_wide_suffix(wide)}'
+    if suffix is None:
+        suffix = 'all'
+    save_suffix = f'{suffix}{gen_wide_suffix(wide)}'
     for key in trades_dict:
         trades_dict[key].to_csv(DATA_DIR / 'dsp_stats' 
                 / f'{spot}_{key}_trades_{save_suffix}.csv', index=False,
                 float_format='%.3f')
     return trades_dict
 
-def main(spot: str, exp_date: datetime.date,
+def stat_with_exp(spot: str, exp_date: datetime.date,
         bg_date: datetime.date, ed_date: datetime.date, trades_per_day: int,
         wide: bool):
     calc_stats_csv(spot, exp_date, bg_date, ed_date, trades_per_day, wide)
 
 def stat_batch(spot: str, trades_per_day: int, wide: bool):
-    main(spot,
+    stat_with_exp(spot,
             bg_date=datetime.datetime(2024, 12, 1),
             ed_date=datetime.datetime(2024, 12, 25),
             exp_date=datetime.datetime(2024, 12, 25),
             trades_per_day=trades_per_day, wide=wide)
-    main(spot,
+    stat_with_exp(spot,
             bg_date=datetime.datetime(2024, 12, 26),
             ed_date=datetime.datetime(2025, 1, 22),
             exp_date=datetime.datetime(2025, 1, 22),
             trades_per_day=trades_per_day, wide=wide)
-    main(spot,
+    stat_with_exp(spot,
             bg_date=datetime.datetime(2025, 1, 23),
             ed_date=datetime.datetime(2025, 2, 26),
             exp_date=datetime.datetime(2025, 2, 26),
             trades_per_day=trades_per_day, wide=wide)
-    main(spot,
+    stat_with_exp(spot,
             bg_date=datetime.datetime(2025, 2, 27),
             ed_date=datetime.datetime(2025, 3, 26),
             exp_date=datetime.datetime(2025, 3, 26),
@@ -240,21 +242,22 @@ def stat_batch(spot: str, trades_per_day: int, wide: bool):
 @click.option('-e', '--ed_date', type=str, help="end date.")
 @click.option('-t', '--trades_per_day', type=int, default=2, help="trades per day.")
 @click.option('--wide', is_flag=True, type=bool, default=False, help="use wide data.")
-@click.option('-a', '--stat-all', is_flag=True, type=bool, default=False, help="write into _all.csv file.")
+@click.option('-a', '--stat-all', is_flag=True, type=bool, default=False, help="use glob to collect all csvs.")
+@click.option('--suffix', type=str, help="csv file name suffix.")
 def click_main(spot: str, exp_date: str,
         bg_date: str, ed_date: str, trades_per_day: int,
-        wide: bool, stat_all: bool):
+        wide: bool, stat_all: bool, suffix: str):
     if bg_date is not None:
         bg_date = datetime.datetime.strptime(bg_date, '%Y%m%d').date()
     if ed_date is not None:
         ed_date = datetime.datetime.strptime(ed_date, '%Y%m%d').date()
     if stat_all:
-        calc_stats_all_csvs(spot, trades_per_day,
+        calc_stats_all_csvs(spot, trades_per_day, suffix=suffix,
                 wide=wide, bg_date=bg_date, ed_date=ed_date)
         # stat_batch(spot, trades_per_day, wide=wide)
     else:
         exp_date = datetime.datetime.strptime(exp_date, '%Y%m%d').date()
-        main(spot, exp_date, bg_date, ed_date, trades_per_day, wide=wide)
+        stat_with_exp(spot, exp_date, bg_date, ed_date, trades_per_day, wide=wide)
 
 if __name__ == '__main__':
     click_main()

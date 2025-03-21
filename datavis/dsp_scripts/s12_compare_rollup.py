@@ -65,7 +65,27 @@ def merge_rollup_df(dfs: list[pd.DataFrame]):
     res = pd.concat(res, axis=1)
     res = res[sort_cols(list(res.columns))]
     res = res.sort_index()
+    res = calc_hold_ratio(res)
     return res
+
+def calc_hold_ratio(df: pd.DataFrame):
+    """
+    计算持仓时间占比。
+    hold_time_ratio@arg_desc = hold_time@arg_desc / 4小时
+    hold_time_acc_ratio@arg_desc = hold_time_ratio@arg_desc 的累积平均
+    4小时是一天的股票交易时长。
+    """
+    hold_time_cols = [x for x in df.columns if x.startswith('hold_time@')]
+    insert_df = pd.DataFrame()
+    for x in hold_time_cols:
+        hold_time_ratio_col = x.replace('hold_time@', 'hold_time_ratio@')
+        hold_time_ratio = df[x] / np.timedelta64(4, 'h')  # 4小时是一天的股票交易时长
+        hold_time_acc_ratio_col = x.replace('hold_time@', 'hold_time_acc_ratio@')
+        hold_time_acc_ratio = hold_time_ratio.expanding().mean().fillna(0)
+        insert_df[hold_time_ratio_col] = hold_time_ratio
+        insert_df[hold_time_acc_ratio_col] = hold_time_acc_ratio
+    df = pd.concat([df, insert_df], axis=1)
+    return df
 
 def read_csv(spot: str, suffix: str):
     fs = glob.glob(f'{DATA_DIR}/dsp_stats/{spot}_*_trades_{suffix}.csv')
@@ -81,7 +101,8 @@ def main(spot: str, suffix: str):
     dfs = read_csv(spot, suffix)
     dfs = [daily_rollup(df) for df in dfs]
     res = merge_rollup_df(dfs)
-    res.to_csv(f'{DATA_DIR}/dsp_stats/{spot}_compare_rollup_{suffix}.csv', float_format='%.3f')
+    res.to_csv(f'{DATA_DIR}/dsp_stats/{spot}_compare_rollup_{suffix}.csv',
+            float_format='%.3f')
     # print(res)
     return res
 

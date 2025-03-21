@@ -2,3 +2,4 @@ db/
 archive/
 /data/*
 tmp/
+error_log.txt

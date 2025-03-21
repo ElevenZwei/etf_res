@@ -27,6 +27,9 @@ def process_date(dt, spot, refresh, plot, signal, year, month, wide: bool, minut
                     show=False, save=True, wide=wide)
     except Exception as e:
         print(f'{dt.date()} failed, error: {e}')
+        # print error message into a log file
+        with open('error_log.txt', 'a') as f:
+            f.write(f'{dt.date()} failed, error: {e}\n')
 
 @click.command()
 @click.option('-s', '--spot', type=str, required=True, help="spot code: 159915 510050")
@@ -47,7 +50,8 @@ def click_main(spot: str, begin: str, end: str,
     max_concurrent_jobs = 1  # Set the maximum number of concurrent jobs
     with Pool(processes=max_concurrent_jobs) as pool:
         pool.starmap(process_date, [(dt, spot, refresh, plot, signal, year, month, wide, bar)
-                                    for dt in pd.date_range(begin, end)])
+                                    for dt in pd.date_range(begin, end)
+                                    if dt.weekday() < 5])
     
 if __name__ == '__main__':
     click_main()

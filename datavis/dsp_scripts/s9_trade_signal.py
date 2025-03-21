@@ -45,6 +45,7 @@ def calc_signals(df: pd.DataFrame, wide: bool):
     st_args.setSpot(
             spot=spot,
             scale_factor=get_scale_factor(spot))
+    runner.addStrategy('base1', 'base', st_args.clone())
     runner.addStrategy('ts1', 'ts', st_args.clone().config({
         'ts_open': 400,
         'ts_close': 100,
@@ -125,7 +126,7 @@ def calc_signals(df: pd.DataFrame, wide: bool):
 
     runner.addData(df)
     last_line = runner.readLastInput()
-    print(f"last_input: (ts, sigma, spot)={last_line['ts1']}, time={df['dt'].iloc[-1]}")
+    print(f"last_input: (ts, sigma, spot, dt)={last_line['ts1']}")
     sig = pd.DataFrame(runner.readSignal())
     df = pd.concat([df, sig], axis=1)
 

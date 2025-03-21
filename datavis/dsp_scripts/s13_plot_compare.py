@@ -18,11 +18,12 @@ PLOT_CONFIG = {
 
         'ts': pc.sequential.Emrld[::-1],
         'sigma': pc.sequential.Agsunset[1:],
-        'ts_sigma': pc.sequential.Agsunset[2:]
+        'ts_sigma': pc.sequential.Agsunset[2:],
+
+        'base': pc.sequential.Purpor,
     },
     'color_seqs': [
-        pc.sequential.Purp,
-        pc.sequential.Purpor,
+        pc.sequential.Viridis,
     ]
 }
 
@@ -61,9 +62,9 @@ def plot_cols(df: pd.DataFrame, x_col, y_prefix, y_name, color_mapper, fig, row,
 
 def plot(df: pd.DataFrame, spot: str, suffix: str, show: bool, save: bool):
     df['date'] = pd.to_datetime(df['date'])
-    hold_time_cols = [col for col in df.columns if 'hold_time' in col]
-    for col in hold_time_cols:
-        df[col] = pd.to_timedelta(df[col])
+    # hold_time_cols = [col for col in df.columns if 'hold_time' in col]
+    # for col in hold_time_cols:
+    #     df[col] = pd.to_timedelta(df[col])
     cols = [col for col in df.columns if '@' in col]
     desc = [col.split('@')[1] for col in cols]
     # remove duplicates in desc
@@ -76,11 +77,11 @@ def plot(df: pd.DataFrame, spot: str, suffix: str, show: bool, save: bool):
             subplot_titles=(
                 # "PNL Accumulated",
                 "PNL Percent Accumulated",
-                "Hold Time Accumulated",
+                "Hold Time Ratio Accumulated",
             ))
     # fig = plot_cols(df, 'date', 'pnl_acc@', 'PNL Accumulated', color_mapper, fig, 1, 1)
     fig = plot_cols(df, 'date', 'pnl_p_acc@', 'PNL Percent Accumulated', color_mapper, fig, 1, 1)
-    fig = plot_cols(df, 'date', 'hold_time_acc@', 'Hold Time Accumulated', color_mapper, fig, 1, 2)
+    fig = plot_cols(df, 'date', 'hold_time_acc_ratio@', 'Hold Time Ratio Accumulated', color_mapper, fig, 1, 2)
     fig.update_layout(title_text=f'PNL Comparison for {spot} {suffix}')
     if save:
         fig.write_image(f"{DATA_DIR}/dsp_plot/pnl_acc_compare_{spot}_{suffix}.png")

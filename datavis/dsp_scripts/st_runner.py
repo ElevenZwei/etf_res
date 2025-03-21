@@ -99,7 +99,7 @@ class StrategyRecord():
         scale_factor = self.args.scale_factor
         ts *= scale_factor['ts']
         sigma *= scale_factor['sigma']
-        self.last_input=(ts, sigma, spot)
+        self.last_input=(ts, sigma, spot, row['dt'])
         next_pos = self.helper.next(*self.last_input)
         self.pos.append(next_pos)
         self.act.append(self.diff.next(next_pos))
@@ -135,6 +135,7 @@ class StrategyRunner():
             'toss': helpers.TsOpenSigmaCloseHelper,
             'totp': helpers.TsOpenTakeProfitHelper,
             'tosr': helpers.TsOpenSigmaReopenHelper,
+            'base': helpers.BasePriceOpenHelper,
         }
         self.run = {}
 

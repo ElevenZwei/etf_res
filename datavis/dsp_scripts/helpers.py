@@ -40,6 +40,17 @@ class DiffHelper:
         return self.last
 
 
+class BasePriceOpenHelper:
+    """
+    在可交易的时间单纯做多，用于统计基础价格的变动。
+    """
+    def config(self, conf):
+        pass
+
+    def next(self, ts, sigma, spot, dt):
+        return 1
+
+
 class TsOpenHelper:
     def __init__(self):
         pass
@@ -50,7 +61,7 @@ class TsOpenHelper:
             -conf['ts_open'], -conf['ts_close'],
         )
     
-    def next(self, ts, sigma, spot):
+    def next(self, ts, sigma, spot, dt):
         return self.helper.next(ts)
 
 
@@ -64,7 +75,7 @@ class SigmaOpenHelper:
             -conf['sigma_open'], -conf['sigma_close'],
         )
     
-    def next(self, ts, sigma, spot):
+    def next(self, ts, sigma, spot, dt):
         return self.helper.next(sigma)
 
 class TsSigmaOpenHelper:
@@ -81,7 +92,7 @@ class TsSigmaOpenHelper:
             -conf['sigma_open'], -conf['sigma_close'],
         )
     
-    def next(self, ts, sigma, spot):
+    def next(self, ts, sigma, spot, dt):
         ts_pos = self.ts_helper.next(ts)
         sigma_pos = self.sigma_helper.next(sigma)
         if ts_pos == sigma_pos:
@@ -108,7 +119,7 @@ class TsOpenSigmaCloseHelper:
         self.sigma_open = self.sigma_close + 80
         self.stop_loss = conf['p2p_stop_loss']
     
-    def next(self, ts, sigma, spot):
+    def next(self, ts, sigma, spot, dt):
         if self.state == 0:
             if self.ts_state == 0 and ts > self.ts_open and sigma > self.sigma_open:
                 self.ts_state = 1
@@ -174,7 +185,7 @@ class TsOpenSigmaReopenHelper:
         self.sigma_open = conf['sigma_open']
         self.sigma_close = conf['sigma_close']
     
-    def next(self, ts, sigma, spot):
+    def next(self, ts, sigma, spot, dt):
         if self.state == 0:
             if ts > self.ts_open and sigma > self.sigma_open:
                 self.state = 1
@@ -208,7 +219,7 @@ class TsOpenTakeProfitHelper:
         self.ts_close = conf['ts_close']
         self.stop_loss = conf['stop_loss']
     
-    def next(self, ts, sigma, spot_price):
+    def next(self, ts, sigma, spot_price, dt):
         # 这个 if 让它开仓之后在选择记录最高点和最低点（这一点带来的影响不太清楚）。
         # 就是说如果没有这个 if ，当前面已经有非常高的高峰，那么这个开仓信号就会被忽略。
         if self.state == 0:

@@ -37,7 +37,13 @@ def func(spot: str, dt: str, year: int, month: int):
         'spot_price': 'spot',
         **{col: col.replace('_signal', '') for col in focus_cols}
     })
+    focus_cols = [col.replace('_signal', '') for col in focus_cols]
+    print(f'{spot} {dt} signal:')
     print(focus_df)
+    # calculate sum for each signal
+    focus_pos = focus_df[focus_cols].sum()
+    print(f'{spot} {dt} pos:')
+    print(focus_pos)
 
 def main():
     dt = datetime.datetime.now().date()

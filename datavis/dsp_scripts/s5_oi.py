@@ -144,7 +144,7 @@ def melt_intersect_dot_2(spot_df: pd.DataFrame, oi_df: pd.DataFrame, col_name: s
 def cp_dot(spot_df: pd.DataFrame, oi_df: pd.DataFrame,
         dsp_sec: int, ts_sigma: int, strike_sigma: float,
         only_cp: bool):
-    print(f'processing ts={ts_sigma}, strike={strike_sigma}')
+    # print(f'processing ts={ts_sigma}, strike={strike_sigma}')
     oi_df['oi_diff_cp'] = oi_df['oi_diff_c'] - oi_df['oi_diff_p']
 
     if only_cp:
@@ -168,6 +168,8 @@ def cp_batch(spot_df: pd.DataFrame, oi_df: pd.DataFrame, dsp_sec: int,
         ts_sigma_list: list[int], strike_sigma_list: list[float],
         only_cp: bool):
     cp_list = []
+    print(f'processing ts={ts_sigma_list}, strike={strike_sigma_list}')
+    # 这里的 ts_sigma_list 和 strike_sigma_list 是可以并行的
     with Pool(processes=POOL_SIZE) as pool:
         cp = pool.starmap(cp_dot, [(spot_df, oi_df, dsp_sec, ts_sigma, strike_sigma, only_cp)
                                     for ts_sigma in ts_sigma_list for strike_sigma in strike_sigma_list])

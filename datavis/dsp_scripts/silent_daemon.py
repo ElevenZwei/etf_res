@@ -9,12 +9,12 @@ class FinalSakanaScheduler:
     这个是 AI 生成的类似于 crontab 的定时器类型，里面的 bug 我改了好多。
     """
     def __init__(self,
-                 interval_minutes: int = 3,
+                 interval_seconds: int = 60,
                  timezone_str: str = 'Asia/Shanghai',
                  work_hours: tuple = ('09:30', '15:00'),
                  work_days: set = {0, 1, 2, 3, 4}):
 
-        self.interval = timedelta(minutes=interval_minutes)
+        self.interval = timedelta(seconds=interval_seconds)
         self.tz = pytz.timezone(timezone_str)
         self.start_time = self._parse_time(work_hours[0])
         self.end_time = self._parse_time(work_hours[1])
@@ -76,7 +76,7 @@ class FinalSakanaScheduler:
             wait_seconds = (next_run - datetime.now(self.tz)).total_seconds()
 
             if wait_seconds > 0:
-                # print(f"[���] Next run at: {next_run:%Y-%m-%d %H:%M:%S}")
+                # print(f"[���] Next run at: {next_run:%Y-%m-%d %H:%M:%S}")
                 print(f"[SAKANA] Next run at: {next_run:%Y-%m-%d %H:%M:%S}")
                 time.sleep(wait_seconds)
 
@@ -87,12 +87,12 @@ class FinalSakanaScheduler:
                     # Main logic here
                     self.cb()
                 except Exception as e:
-                    # print(f"[���] Error: {e}")
+                    # print(f"[���] Error: {e}")
                     print(f"[BOOM] Error: {e}")
 
 if __name__ == "__main__":
     scheduler = FinalSakanaScheduler(
-        interval_minutes=1,
+        interval_seconds=20,
         timezone_str='Asia/Shanghai',
         work_hours=('09:30', '15:00'),
         work_days={0,1,2,3,4}

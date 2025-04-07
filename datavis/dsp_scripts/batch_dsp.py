@@ -5,19 +5,15 @@ Dsp Batch
 import click
 import date_dsp as dd
 import pandas as pd
-from multiprocessing import Pool, Lock
-
-dl_lock = Lock()
 
 def process_date(dt, spot, refresh, plot, signal, year, month, wide: bool, minute_bar: bool):
     try:
         dt_str = dt.strftime('%Y%m%d')
         if refresh:
-            with dl_lock:
-                print(f'downloading {dt.date()}')
-                dd.download_data(spot,
-                        bg_str=dt_str, ed_str=dt_str,
-                        year=year, month=month, minute_bar=minute_bar)
+            print(f'downloading {dt.date()}')
+            dd.download_data(spot,
+                    bg_str=dt_str, ed_str=dt_str,
+                    year=year, month=month, minute_bar=minute_bar)
         print(f'calculating {dt.date()}')
         dd.date_dsp(spot,
                     bg_str=dt_str,
@@ -46,12 +42,9 @@ def click_main(spot: str, begin: str, end: str,
                refresh: bool, plot: bool, signal: bool,
                year: int, month: int,
                wide: bool, bar: bool):
-    # Intel i9 也只能跑两个并发
-    max_concurrent_jobs = 1  # Set the maximum number of concurrent jobs
-    with Pool(processes=max_concurrent_jobs) as pool:
-        pool.starmap(process_date, [(dt, spot, refresh, plot, signal, year, month, wide, bar)
-                                    for dt in pd.date_range(begin, end)
-                                    if dt.weekday() < 5])
+    [process_date(dt, spot, refresh, plot, signal, year, month, wide, bar)
+            for dt in pd.date_range(begin, end)
+            if dt.weekday() < 5]
     
 if __name__ == '__main__':
     click_main()

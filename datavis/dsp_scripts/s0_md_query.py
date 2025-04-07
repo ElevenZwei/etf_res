@@ -123,6 +123,7 @@ def dl_oi_data(spot: str, expiry_date: datetime.date,
     return df
     
 def df_calc_open_diff(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.drop_duplicates(subset=['dt', 'tradecode'], keep='first')
     call_df = df[df['callput'] == 1]
     # call_df = call_df.rename(columns={'tradecode': 'code_c'})
     call_pivot = call_df.pivot(index='dt', columns='strike', values='oi')

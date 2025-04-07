@@ -19,6 +19,7 @@ from s1_dsp import remove_dup_cut, smooth_time_axis, smooth_spot_df, interpolate
 from dsp_config import DATA_DIR, get_spot_config, gen_wide_suffix
 
 DSP_SEC = 60
+POOL_SIZE = 10
 
 def read_file(spot: str, suffix: str, wide: bool):
     df = pd.read_csv(f'{DATA_DIR}/dsp_input/strike_oi_diff_{spot}_{suffix}.csv')
@@ -168,11 +169,10 @@ def cp_batch(spot_df: pd.DataFrame, oi_df: pd.DataFrame, dsp_sec: int,
         ts_sigma_list: list[int], strike_sigma_list: list[float],
         only_cp: bool):
     cp_list = []
-    for ts_sigma in ts_sigma_list:
-        with Pool(processes=4) as pool:
-            cp = pool.starmap(cp_dot, [(spot_df, oi_df, dsp_sec, ts_sigma, strike_sigma, only_cp)
-                                        for strike_sigma in strike_sigma_list])
-        cp_list.extend(cp)
+    with Pool(processes=POOL_SIZE) as pool:
+        cp = pool.starmap(cp_dot, [(spot_df, oi_df, dsp_sec, ts_sigma, strike_sigma, only_cp)
+                                    for ts_sigma in ts_sigma_list for strike_sigma in strike_sigma_list])
+    cp_list.extend(cp)
     merged = pd.concat([spot_df, *cp_list], axis=1)
     return merged
 

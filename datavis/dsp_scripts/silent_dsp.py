@@ -16,7 +16,7 @@ FOCUS_ST = ['ts1', 'totp2', 'toss3', 'tosr2']
 
 def func(spot: str, dt: str, year: int, month: int):
     wide = False
-    print(f'download {spot} {dt}')
+    print(f'calc {spot} {dt}')
     suffix = s0.auto_dl(spot, year=year, month=month, bg_str=dt, ed_str=dt)
     s5.calc_intersect(spot, suffix, wide=wide)
     sufs5 = suffix + '_s5'
@@ -30,33 +30,44 @@ def func(spot: str, dt: str, year: int, month: int):
         if prefix in sig_cols_set:
             focus_cols.append(f'{prefix}_signal')
 
-    focus_df = sig_df.loc[(sig_df[focus_cols] != 0).any(axis=1)]
-    focus_df = focus_df[['dt', 'spot_price', *focus_cols]]
-    focus_df = focus_df.rename(columns={
+    focus_sig = sig_df.loc[(sig_df[focus_cols] != 0).any(axis=1)]
+    focus_sig = focus_sig[['dt', 'spot_price', *focus_cols]]
+    focus_sig = focus_sig.rename(columns={
         'dt': 'dt',
         'spot_price': 'spot',
         **{col: col.replace('_signal', '') for col in focus_cols}
     })
     focus_cols = [col.replace('_signal', '') for col in focus_cols]
-    print(f'{spot} {dt} signal:')
-    print(focus_df)
+    # print(f'{spot} {dt} signal:')
+    # print(focus_sig)
     # calculate sum for each signal
-    focus_pos = focus_df[focus_cols].sum()
-    print(f'{spot} {dt} pos:')
-    print(focus_pos)
+    focus_pos = focus_sig[focus_cols].sum()
+    # print(f'{spot} {dt} pos:')
+    # print(focus_pos)
+    return focus_sig, focus_pos
 
-def main():
-    dt = datetime.datetime.now().date()
-    dt_str = dt.strftime('%Y%m%d')
-    func('159915', dt_str, year=None, month=None)
+def main(date: Optional[str] = None):
+    if date is None:
+        dt = datetime.datetime.now().date()
+        dt_str = dt.strftime('%Y%m%d')
+    else:
+        dt_str = date
+    spot_list = ['159915', '510500']
+    res = [func(spot, dt_str, None, None) for spot in spot_list]
+    transpose_res = list(zip(*res))
+    for spot, focus_sig in zip(spot_list, transpose_res[0]):
+        focus_sig['code'] = spot
+        print(f'{spot} {dt_str} signal:')
+        print(focus_sig)
+    for spot, focus_pos in zip(spot_list, transpose_res[1]):
+        focus_pos['code'] = spot
+        print(f'{spot} {dt_str} pos:')
+        print(focus_pos)
 
 @click.command()
 @click.option('-d', '--date', type=str, default=None)
 def click_main(date: Optional[str]):
-    if date is None:
-        main()
-    else:
-        func('159915', date, year=None, month=None)
+    main(date=date)
 
 if __name__ == '__main__':
     click_main()

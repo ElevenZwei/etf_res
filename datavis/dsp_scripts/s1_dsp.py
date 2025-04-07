@@ -192,7 +192,7 @@ def smooth_spot_df(df: pd.DataFrame, dsp_sec, ts_sigma_sec_list: list[int]):
 
     for ts_sigma_sec in ts_sigma_sec_list:
         ts_wsize, ts_sigma, ts_diff_med = calc_window(se_ts, ts_sigma_sec, 3.5)
-        print(f"spot: ts_sigma_sec={ts_sigma_sec}, ts_diff_med={ts_diff_med}, ts_wsize={ts_wsize}, ts_sigma={ts_sigma}")
+        # print(f"spot: ts_sigma_sec={ts_sigma_sec}, ts_diff_med={ts_diff_med}, ts_wsize={ts_wsize}, ts_sigma={ts_sigma}")
         df[f'spot_price_{ts_sigma_sec}'] = left_gaussian(df['spot_price'], ts_wsize, ts_sigma)
 
     df = df.set_index('dt')

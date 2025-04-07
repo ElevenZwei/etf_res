@@ -79,14 +79,14 @@ def calc_stats(df: pd.DataFrame):
     col_infos = extract_column_info(df)
     ts_set = {x.ts for x in col_infos}
     sigma_set = {x.sigma for x in col_infos}
-    print(f'calc stats begin for {len(ts_set)} ts and {len(sigma_set)} sigma')
+    # print(f'calc stats begin for {len(ts_set)} ts and {len(sigma_set)} sigma')
     with Pool(POOL_SIZE) as pool:
         df_res = pool.starmap(calc_prop_stats, [
                 *[(df, col_infos, 'ts', ts) for ts in ts_set],
                 *[(df, col_infos, 'sigma', sigma) for sigma in sigma_set]
         ])
         df = pd.concat([df, *df_res], axis=1)
-    print(f'calc stats done for {len(ts_set)} ts and {len(sigma_set)} sigma')
+    # print(f'calc stats done for {len(ts_set)} ts and {len(sigma_set)} sigma')
     return df
 
 def calc_long_short_pos(df: pd.DataFrame, wide: bool):

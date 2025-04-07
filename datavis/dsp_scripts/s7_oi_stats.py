@@ -31,7 +31,7 @@ def calc_spearman(df: pd.DataFrame, cols: list[str], res_col: str):
         a = row[cols].to_numpy()
         if np.all(a == a[0]):
             return 0
-        rho, _ = spearmanr(a, b)
+        rho, _ = stats.spearmanr(a, b)
         if rho < -0.99:
             return -1
         if rho > 0.99:

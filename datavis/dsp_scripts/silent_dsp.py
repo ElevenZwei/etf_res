@@ -20,7 +20,7 @@ def func(spot: str, dt: str, year: int, month: int):
     suffix = s0.auto_dl(spot, year=year, month=month, bg_str=dt, ed_str=dt)
     s5.calc_intersect(spot, suffix, wide=wide)
     sufs5 = suffix + '_s5'
-    s7.calc_stats_csv(spot, sufs5, wide=wide)
+    s7.calc_stats_csv(spot, sufs5, wide=wide, show_pos=False)
     sig_df = s9.calc_signal_csv(spot, sufs5, wide=wide)
     
     sig_cols = [x for x in sig_df.columns if x.endswith('_signal')]

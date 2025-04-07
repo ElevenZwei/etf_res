@@ -78,6 +78,10 @@ def dl_oi_data(spot: str, expiry_date: datetime.date,
             order by dt asc;
         """
     else:
+        # TODO 我现在怀疑这个查询对于不经常更新的期权，这个 OD match 的过程会遗漏很多项目。
+        # 不过这种遗漏只会在 wind 下载的数据里面出现，因为录制机器会重复相同的数据。
+        # 这有两个改进的方向，一个是在查询的时候把精度降低到 30 秒，假设 30 秒里面各种项目至少有一次更新。
+        # 另一个是把这个 pivot + ffill + join 的逻辑放到 python 里面来做。
         query = f"""
             set enable_nestloop=false;
             with OI as (

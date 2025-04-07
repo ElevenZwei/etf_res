@@ -25,33 +25,24 @@ def calc_spearman(df: pd.DataFrame, cols: list[str], res_col: str):
     每一行中的理想顺序是 cols[0] 数字最小， cols[-1] 数字最大 。
     对于 df 中的每一行，计算其与 cols 的 Spearman 系数。
     """
-    rho_list = []
     b = np.arange(len(cols))
-    for idx, row in df.iterrows():
-        a = np.array(row[cols])
-        # filter all constant situation
+
+    def row_spearman(row):
+        a = row[cols].to_numpy()
         if np.all(a == a[0]):
-            rho = 0
-        else:
-            rho, pval = stats.spearmanr(a, b)
-            if rho < -0.99:
-                rho = -1
-            if rho > 0.99:
-                rho = 1
-        rho_list.append(rho)
-    df[res_col] = rho_list
+            return 0
+        rho, _ = spearmanr(a, b)
+        if rho < -0.99:
+            return -1
+        if rho > 0.99:
+            return 1
+        return rho
+
+    df[res_col] = df.apply(row_spearman, axis=1)
     return df
 
 def calc_stdev(df: pd.DataFrame, cols: list[str], res_col: str):
-    """
-    计算标准差。
-    """
-    stdev_list = []
-    for idx, row in df.iterrows():
-        a = np.array(row[cols])
-        stdev = np.std(a)
-        stdev_list.append(stdev)
-    df[res_col] = stdev_list
+    df[res_col] = df[cols].std(axis=1, ddof=0)  # ddof=0 表示与 np.std 默认行为一致
     return df
 
 @dataclass(frozen=True)
@@ -129,19 +120,21 @@ def calc_long_short_pos(df: pd.DataFrame, wide: bool):
 #  两个指标分开计算盈利然后加权也是一种做法。
 #  或者平仓的时候两个指标分开平仓。
 
-def calc_stats_csv(spot: str, suffix: str, wide: bool):
+def calc_stats_csv(spot: str, suffix: str, wide: bool, show_pos: bool = True):
     suffix += gen_wide_suffix(wide)
     df = pd.read_csv(DATA_DIR / 'dsp_conv' / f'merged_{spot}_{suffix}.csv')
     df = calc_stats(df)
-    df = calc_long_short_pos(df, wide=wide)
+    if show_pos:
+        df = calc_long_short_pos(df, wide=wide)
     df.to_csv(DATA_DIR / 'dsp_conv' / f'stats_{spot}_{suffix}.csv', index=False)
 
 @click.command()
 @click.option('-s', '--spot', type=str, required=True, help="spot code: 159915 510050")
 @click.option('-d', '--suffix', type=str, required=True, help="csv file name suffix.")
 @click.option('--wide', type=bool, default=False, help="wide or not.")
-def click_main(spot: str, suffix: str, wide: bool):
-    calc_stats_csv(spot, suffix, wide=wide)
+@click.option('--show_pos', type=bool, default=True, help="add pos or not.")
+def click_main(spot: str, suffix: str, wide: bool, show_pos: bool = True):
+    calc_stats_csv(spot, suffix, wide=wide, show_pos=show_pos)
 
 if __name__ == '__main__':
     click_main()

@@ -20,6 +20,7 @@ def get_sigma_width(spot: str, wide: bool):
         return 0.4 if wide else 0.15
     elif spot == '510500':
         return 0.6 if wide else 0.4
+    raise RuntimeError(f"Unknown spot: {spot}")
     return None
 
 def get_scale_factor(spot: str):

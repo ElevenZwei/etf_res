@@ -123,19 +123,24 @@ def dl_oi_data(spot: str, expiry_date: datetime.date,
     return df
     
 def df_calc_open_diff(df: pd.DataFrame) -> pd.DataFrame:
-    call_df = df[df['callput'] == 1].pivot(index='dt', columns='strike', values='oi')
-    call_df = call_df.astype('int64').ffill().bfill()
-    call_df = call_df - call_df.iloc[0]
-    call_melt = call_df.melt(ignore_index=False, var_name='strike', value_name='oi_diff_c')
+    call_df = df[df['callput'] == 1]
+    # call_df = call_df.rename(columns={'tradecode': 'code_c'})
+    call_pivot = call_df.pivot(index='dt', columns='strike', values='oi')
+    call_pivot = call_pivot.astype('int64').ffill().bfill()
+    call_pivot = call_pivot - call_pivot.iloc[0]
+    call_melt = call_pivot.melt(ignore_index=False, var_name='strike', value_name='oi_diff_c')
 
-    put_df = df[df['callput'] == -1].pivot(index='dt', columns='strike', values='oi')
-    put_df = put_df.astype('int64').ffill().bfill()
-    put_df = put_df - put_df.iloc[0]
-    put_melt = put_df.melt(ignore_index=False, var_name='strike', value_name='oi_diff_p')
+    put_df = df[df['callput'] == -1]
+    # put_df = put_df.rename(columns={'tradecode': 'code_p'})
+    put_pivot = put_df.pivot(index='dt', columns='strike', values='oi')
+    put_pivot = put_pivot.astype('int64').ffill().bfill()
+    put_pivot = put_pivot - put_pivot.iloc[0]
+    put_melt = put_pivot.melt(ignore_index=False, var_name='strike', value_name='oi_diff_p')
 
     df2 = pd.merge(call_melt, put_melt, left_on=['dt', 'strike'], right_on=['dt', 'strike'], how='inner')
-    df = pd.merge(df, df2, left_on=['dt', 'strike'], right_on=['dt', 'strike'], how='inner')
-    return df
+    df2 = pd.merge(df2, call_df[['dt', 'spotcode', 'expirydate', 'strike', 'spot_price']], left_on=['dt', 'strike'], right_on=['dt', 'strike'], how='inner')
+    # print(df2)
+    return df2
 
 def dl_save_range_oi(spot: str, expiry_date: datetime.date,
         bg_date: datetime.date, ed_date: datetime.date,

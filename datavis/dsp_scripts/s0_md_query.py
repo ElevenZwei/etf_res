@@ -153,16 +153,17 @@ def dl_save_range_oi(spot: str, expiry_date: datetime.date,
     fname = f'strike_oi_raw_{spot}_{suffix}.csv'
     fpath = f'{DATA_DIR}/dsp_input/{fname}'
 
+    bg_time = datetime.time(9, 30, 0)
+    df1 = pd.DataFrame()
     # 如果文件存在，读取最后一行的时间戳
     if os.path.exists(fpath):
         df1 = pd.read_csv(fpath)
-        last_row = df1.iloc[-1]
-        last_dt = pd.to_datetime(last_row['dt'])
-        bg_date = last_dt.date()
-        bg_time = (last_dt + datetime.timedelta(seconds=1)).time()
-    else:
-        df1 = pd.DataFrame()
-        bg_time = datetime.time(9, 30, 0)
+        # check format
+        if 'tradecode' in df1.columns:
+            last_row = df1.iloc[-1]
+            last_dt = pd.to_datetime(last_row['dt'])
+            bg_date = last_dt.date()
+            bg_time = (last_dt + datetime.timedelta(seconds=1)).time()
 
     df2 = dl_oi_data(spot, expiry_date,
             bg_date, ed_date,

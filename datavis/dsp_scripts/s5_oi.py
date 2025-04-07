@@ -7,6 +7,8 @@ Simplified to the following steps:
 3. Use different gaussian sigmas alongside the spot price.
 """
 
+from multiprocessing import Pool
+
 import click
 import pandas as pd
 import numpy as np
@@ -121,25 +123,6 @@ def sigmoid_dot_column(df: pd.DataFrame, col_name: str, winsize: int):
     df[col_name] = df[col_name].map(lambda x: np.nan if np.isnan(x).any() else x)
     return df
 
-def melt_intersect_dot(spot_df: pd.DataFrame, oi_df: pd.DataFrame, col_name: str,
-        dsp_sec: int, ts_sigma: int, strike_sigma: float):
-    grid_1d = smooth_column_time_grid(oi_df, col_name, dsp_sec, ts_sigma)
-    # grid_1d.to_csv(f'{DATA_DIR}/tmp/grid_1d_{col_name}_{ts_sigma}_{strike_sigma}.csv')
-    strikes = grid_1d.columns
-    # print(strikes)
-    win_size, sigma, med = calc_window(strikes, strike_sigma, 3.5)
-    # 这一步防止过度 padding 这是 s5 和 s1 相比一开始遗漏的一步
-    win_size = min(len(strikes), win_size)
-    melt_df = sliding_melt(grid_1d, win_size, col_name)
-    intersect_df = spot_intersect(spot_df, melt_df)
-    # print("intersect_df:")
-    # print(intersect_df)
-    # intersect_df.to_csv(f'{DATA_DIR}/tmp/intersect_{col_name}_{ts_sigma}_{strike_sigma}.csv')
-    # print(intersect_df)
-    # print(win_size, sigma, med)
-    intersect_df = gaussian_dot_column(intersect_df, col_name, win_size, sigma)
-    return intersect_df
-
 def melt_intersect_dot_2(spot_df: pd.DataFrame, oi_df: pd.DataFrame, col_name: str,
         dsp_sec: int, ts_sigma: int, strike_sigma: float):
     grid_1d = smooth_column_time_grid(oi_df, col_name, dsp_sec, ts_sigma)
@@ -147,6 +130,7 @@ def melt_intersect_dot_2(spot_df: pd.DataFrame, oi_df: pd.DataFrame, col_name: s
     # print(index_grid)
     index_melt = index_grid.reset_index().melt(id_vars='dt', var_name='strike', value_name=col_name).set_index('dt')
     intersect_df = spot_intersect(spot_df, index_melt)
+    ## 上面这些操作都不受到 strike_sigma 的影响，理论上同一个 ts_sigma 可以共享上面的数据。
     # print(intersect_df)
     strikes = grid_1d.columns
     win_size, sigma, med = calc_window(strikes, strike_sigma, 3.5)
@@ -185,9 +169,10 @@ def cp_batch(spot_df: pd.DataFrame, oi_df: pd.DataFrame, dsp_sec: int,
         only_cp: bool):
     cp_list = []
     for ts_sigma in ts_sigma_list:
-        for strike_sigma in strike_sigma_list:
-            cp = cp_dot(spot_df, oi_df, dsp_sec, ts_sigma, strike_sigma, only_cp=only_cp)
-            cp_list.append(cp)
+        with Pool(processes=4) as pool:
+            cp = pool.starmap(cp_dot, [(spot_df, oi_df, dsp_sec, ts_sigma, strike_sigma, only_cp)
+                                        for strike_sigma in strike_sigma_list])
+        cp_list.extend(cp)
     merged = pd.concat([spot_df, *cp_list], axis=1)
     return merged
 

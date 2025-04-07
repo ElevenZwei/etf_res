@@ -12,7 +12,15 @@ import s7_oi_stats as s7
 import s9_trade_signal as s9
 from dsp_config import DATA_DIR, PG_DB_CONF, gen_suffix
 
-FOCUS_ST = ['ts1', 'totp2', 'toss3', 'tosr2']
+FOCUS_ST = ['ts1', 'totp2', 'toss3', 'tosr2', 'sigma1']
+FOCUS_SPOT_ST = {
+    '159915': [
+        'totp2', 'toss3', 'sigma1',
+    ],
+    '510500': [
+        'totp2', 'tosr2', 'sigma1',
+    ],
+}
 
 def func(spot: str, dt: str, year: int, month: int):
     wide = False
@@ -26,7 +34,7 @@ def func(spot: str, dt: str, year: int, month: int):
     sig_cols = [x for x in sig_df.columns if x.endswith('_signal')]
     sig_cols_set = {x.replace('_signal', '') for x in sig_cols}
     focus_cols = []
-    for prefix in FOCUS_ST:
+    for prefix in FOCUS_SPOT_ST.get(spot, FOCUS_ST):
         if prefix in sig_cols_set:
             focus_cols.append(f'{prefix}_signal')
 

@@ -16,10 +16,9 @@ import scipy.signal as ssig
 import scipy.interpolate as sitp
 
 from s1_dsp import remove_dup_cut, smooth_time_axis, smooth_spot_df, interpolate_strike_2, downsample_time, calc_window
-from dsp_config import DATA_DIR, get_spot_config, gen_wide_suffix
+from dsp_config import DATA_DIR, POOL_SIZE, S5_DSP_SEC, get_spot_config, gen_wide_suffix
 
-DSP_SEC = 60
-POOL_SIZE = 10
+DSP_SEC = S5_DSP_SEC
 
 def read_file(spot: str, suffix: str, wide: bool):
     df = pd.read_csv(f'{DATA_DIR}/dsp_input/strike_oi_diff_{spot}_{suffix}.csv')

@@ -8,17 +8,18 @@
 """
 
 from dataclasses import dataclass, field
+from multiprocessing import Pool
 
 import click
 import pandas as pd
 import numpy as np
 from scipy import stats
 
-from dsp_config import DATA_DIR, gen_wide_suffix
+from dsp_config import DATA_DIR, POOL_SIZE, gen_wide_suffix
 from helpers import OpenCloseHelper
 import s9_trade_signal as s9
 
-def calc_spearman(df: pd.DataFrame, cols: list[str], res_col: str):
+def calc_spearman(df: pd.DataFrame, cols: list[str]) -> pd.Series:
     """
     计算 Spearman 系数。 
     cols 输入表示每一行中数据列的理想顺序。
@@ -38,12 +39,10 @@ def calc_spearman(df: pd.DataFrame, cols: list[str], res_col: str):
             return 1
         return rho
 
-    df[res_col] = df.apply(row_spearman, axis=1)
-    return df
+    return df.apply(row_spearman, axis=1)
 
-def calc_stdev(df: pd.DataFrame, cols: list[str], res_col: str):
-    df[res_col] = df[cols].std(axis=1, ddof=0)  # ddof=0 表示与 np.std 默认行为一致
-    return df
+def calc_stdev(df: pd.DataFrame, cols: list[str]) -> pd.Series:
+    return df[cols].std(axis=1, ddof=0)  # ddof=0 表示与 np.std 默认行为一致
 
 @dataclass(frozen=True)
 class ColumnInfo:
@@ -59,6 +58,18 @@ def extract_column_info(df: pd.DataFrame):
         col_infos.append(ColumnInfo(name=col, ts=int(ts), sigma=float(sigma)))
     return col_infos
 
+def calc_prop_stats(df: pd.DataFrame, col_infos: list[ColumnInfo], prop: str, value: float) -> pd.DataFrame:
+    ts_cols = [x.name for x in col_infos if getattr(x, prop) == value]
+    df_clip = df[ts_cols]
+    spearman = calc_spearman(df_clip, ts_cols)
+    stdev = calc_stdev(df_clip, ts_cols)
+    dirstd = spearman * stdev
+    return pd.DataFrame({
+        f'oi_cp_spearman_{prop}_{value}': spearman,
+        f'oi_cp_stdev_{prop}_{value}': stdev,
+        f'oi_cp_dirstd_{prop}_{value}': dirstd,
+    })
+
 def calc_stats(df: pd.DataFrame):
     """
     1. 通过 columns 提取信息
@@ -66,19 +77,16 @@ def calc_stats(df: pd.DataFrame):
     """
     df['dt'] = pd.to_datetime(df['dt'])
     col_infos = extract_column_info(df)
-    ts_list = np.unique([x.ts for x in col_infos])
-    sigma_list = np.unique([x.sigma for x in col_infos])
-    print('oi stat list:', ts_list, sigma_list)
-    for ts in ts_list:
-        ts_cols = [x.name for x in col_infos if x.ts == ts]
-        df = calc_spearman(df, ts_cols, f'oi_cp_spearman_ts_{ts}')
-        df = calc_stdev(df, ts_cols, f'oi_cp_stdev_ts_{ts}')
-        df[f'oi_cp_dirstd_ts_{ts}'] = df[f'oi_cp_spearman_ts_{ts}'] * df[f'oi_cp_stdev_ts_{ts}']
-    for sigma in sigma_list:
-        sigma_cols = [x.name for x in col_infos if x.sigma == sigma]
-        df = calc_spearman(df, sigma_cols, f'oi_cp_spearman_sigma_{sigma}')
-        df = calc_stdev(df, sigma_cols, f'oi_cp_stdev_sigma_{sigma}')
-        df[f'oi_cp_dirstd_sigma_{sigma}'] = df[f'oi_cp_spearman_sigma_{sigma}'] * df[f'oi_cp_stdev_sigma_{sigma}']
+    ts_set = {x.ts for x in col_infos}
+    sigma_set = {x.sigma for x in col_infos}
+    print(f'calc stats begin for {len(ts_set)} ts and {len(sigma_set)} sigma')
+    with Pool(POOL_SIZE) as pool:
+        df_res = pool.starmap(calc_prop_stats, [
+                *[(df, col_infos, 'ts', ts) for ts in ts_set],
+                *[(df, col_infos, 'sigma', sigma) for sigma in sigma_set]
+        ])
+        df = pd.concat([df, *df_res], axis=1)
+    print(f'calc stats done for {len(ts_set)} ts and {len(sigma_set)} sigma')
     return df
 
 def calc_long_short_pos(df: pd.DataFrame, wide: bool):

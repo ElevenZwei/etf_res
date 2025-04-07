@@ -42,8 +42,11 @@ PG_DB_CONF = PgConfig(
         port=15432,
         db='opt',
 )
-ENABLE_PG_DB_UPLOAD = True
+ENABLE_PG_DB_UPLOAD = False
 ENABLE_PG_DB_UPLOAD_SIGNAL = False
+
+POOL_SIZE = 10
+S5_DSP_SEC = 60
 
 @dataclass(frozen=True)
 class SpotConfig:

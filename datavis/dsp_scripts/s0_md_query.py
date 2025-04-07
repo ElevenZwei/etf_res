@@ -111,7 +111,7 @@ def dl_oi_data(spot: str, expiry_date: datetime.date,
             order by dt asc;
         """
     
-    print(query)
+    # print(query)
     with get_engine().connect() as conn:
         df = pd.read_sql(query, conn)
     

@@ -62,7 +62,7 @@ class FinalSakanaScheduler:
         )
 
     def _next_interval(self, now: datetime) -> datetime:
-        base_time = now.replace(second=0, microsecond=0)
+        base_time = now
         intervals_since_start = (base_time - self._today_start(now)) // self.interval
         return self._today_start(now) + (intervals_since_start + 1) * self.interval
 

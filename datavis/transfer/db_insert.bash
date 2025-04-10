@@ -41,5 +41,10 @@ function import_mdtfs {
 # import_mdtfs 159915 20250217
 # import_mdtfs 510050 20241230
 # import_mdtfs 510300 20241230
-import_mdtfs 510500 20250217
+# import_mdtfs 510500 20250217
 # import_mdtfs 588000 20241230
+
+# import_mdtfs 159915 20250402
+# import_mdtfs 510500 20250402
+import_mdtfs 510050 20250402
+import_mdtfs 510300 20250402

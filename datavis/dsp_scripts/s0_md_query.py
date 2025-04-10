@@ -143,17 +143,23 @@ def df_calc_open_diff(df: pd.DataFrame) -> pd.DataFrame:
     # print(df2)
     return df2
 
+def save_fpath(spot: str, tag: str,
+        bg_date: datetime.date,
+        ed_date: datetime.date,
+        expiry_date: datetime.date):
+    bg_date_str = bg_date.strftime('%Y%m%d')
+    ed_date_str = ed_date.strftime('%Y%m%d')
+    date_suffix = bg_date_str if bg_date == ed_date else f'{bg_date_str}_{ed_date_str}'
+    expiry_date_str = expiry_date.strftime('%Y%m%d')
+    suffix = gen_suffix(expiry_date_str, date_suffix)
+    fname = f'strike_oi_{tag}_{spot}_{suffix}.csv'
+    fpath = f'{DATA_DIR}/dsp_input/{fname}'
+    return fpath, suffix
+
 def dl_save_range_oi(spot: str, expiry_date: datetime.date,
         bg_date: datetime.date, ed_date: datetime.date,
         minute_bar: bool):
-    bg_date_str = bg_date.strftime('%Y%m%d')
-    ed_date_str = ed_date.strftime('%Y%m%d')
-    expiry_date_str = expiry_date.strftime('%Y%m%d')
-    date_suffix = bg_date_str if bg_date == ed_date else f'{bg_date_str}_{ed_date_str}'
-    suffix = gen_suffix(expiry_date_str, date_suffix)
-    fname = f'strike_oi_raw_{spot}_{suffix}.csv'
-    fpath = f'{DATA_DIR}/dsp_input/{fname}'
-
+    fpath, _ = save_fpath(spot, 'raw', bg_date, ed_date, expiry_date)
     bg_time = datetime.time(9, 30, 0)
     df1 = pd.DataFrame()
     # 如果文件存在，读取最后一行的时间戳
@@ -177,26 +183,37 @@ def dl_save_range_oi(spot: str, expiry_date: datetime.date,
     df.to_csv(fpath, index=False)
 
     df_diff = df_calc_open_diff(df)
-    fname_diff = f'strike_oi_diff_{spot}_{suffix}.csv'
-    fpath_diff = f'{DATA_DIR}/dsp_input/{fname_diff}'
+    fpath_diff, suffix = save_fpath(spot, 'diff', bg_date, ed_date, expiry_date)
     df_diff.to_csv(fpath_diff, index=False)
     return suffix
 
-def get_nearest_expirydate(spot: str, dt: datetime.datetime):
+def get_nearest_expirydate(spot: str, dt: datetime.date):
     exp: Optional[datetime.date] = dl_expiry_date(spot, dt.year, dt.month)
     if exp is None:
         return exp
     # 对于当月交割日已经过去的情况，切换到下一个月
-    if exp < dt.date():
+    if exp < dt:
         dt += relativedelta(months=1)
         exp = dl_expiry_date(spot, dt.year, dt.month)
     return exp
 
+def save_fpath_default(spot: str, tag: str, dt: datetime.date):
+    expiry_date = get_nearest_expirydate(spot, dt)
+    if expiry_date is None:
+        raise RuntimeError("cannot find expiry date.")
+    return save_fpath(spot, tag, dt, dt, expiry_date)
+
+def auto_dl_default(spot: str, dt: datetime.date):
+    expiry_date = get_nearest_expirydate(spot, dt)
+    if expiry_date is None:
+        raise RuntimeError("cannot find expiry date.")
+    return dl_save_range_oi(spot, expiry_date, dt, dt, False)
+
 def auto_dl(spot: str, bg_str: str, ed_str: str,
         year: Optional[int] = None, month: Optional[int] = None,
         minute_bar=False):
-    bg_dt = datetime.datetime.strptime(bg_str, '%Y%m%d')
-    ed_dt = datetime.datetime.strptime(ed_str, '%Y%m%d')
+    bg_dt = datetime.datetime.strptime(bg_str, '%Y%m%d').date()
+    ed_dt = datetime.datetime.strptime(ed_str, '%Y%m%d').date()
     if year is None or month is None:
         exp = get_nearest_expirydate(spot, ed_dt)
     else:

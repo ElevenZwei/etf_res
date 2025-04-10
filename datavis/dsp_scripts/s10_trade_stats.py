@@ -75,7 +75,7 @@ def calc_daily_stats(df: pd.DataFrame, buysell_signal_col: str, key: str, trades
     df['trade_price'] = df['spot_price'].shift(-1)
     df = df[df[buysell_signal_col] != 0].copy()
     if len(df) % 2 != 0:
-        print('Error: the number of signals is not even, date:', df.iloc[0]['dt'])
+        print('Error: the number of signals is not even, signal:', buysell_signal_col, ' date:', df.iloc[0]['dt'])
         df = df.iloc[:-1]
 
     # 对于只有一层仓位的交易信号，可以用 shift 找到开平对应的数据行。

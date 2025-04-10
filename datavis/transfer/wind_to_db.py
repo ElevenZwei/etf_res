@@ -34,6 +34,7 @@ def convert_mdt_df(df: pd.DataFrame):
     return df
 
 def convert_mdt_bar(df: pd.DataFrame):
+    df = df.rename(columns={ x: x.lower() for x in df.columns })
     df = df.rename(columns={
         'time': 'dt',
         'name': 'code',
@@ -42,6 +43,7 @@ def convert_mdt_bar(df: pd.DataFrame):
         'low': 'lowp',
         'close': 'closep',
         'oi': 'openinterest',
+        'position': 'openinterest',
     })
     df['volume'] = df['volume'].astype('Int64')
     df['openinterest'] = df['openinterest'].astype('Int64')

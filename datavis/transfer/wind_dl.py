@@ -2,6 +2,7 @@ from WindPy import w
 import pandas as pd
 import datetime
 import click
+import os
 
 import wind_to_db as windtodb
 
@@ -54,7 +55,7 @@ def dl_data(spotcode: str, dtstr: str):
         while attempts < max_attempts:
             try:
                 opt_data = w.wst(opt_code, "ask1,asize1,bid1,bsize1,ask2,asize2,bid2,bsize2,last,oi,volume",
-                                 f"{dtstr} 09:00:00", f"{dtstr} 15:18:51", "")
+                                 f"{dtstr} 09:00:00", f"{dtstr} 11:00:51", "")
                 opt_data = wind2df(opt_data)
                 break
             except WindException as we:
@@ -67,16 +68,25 @@ def dl_data(spotcode: str, dtstr: str):
 
 def dl_data_bar(spotcode: str, dtstr: str):
     opt_names = dl_opt_names(spotcode, dtstr)
+    if opt_names.shape[0] == 0:
+        print(f"no opt names for {spotcode} on {dtstr}")
+        return 0
     dt = datetime.datetime.strptime(dtstr, '%Y-%m-%d')
+    dtstr1 = dt.strftime('%Y%m%d')
+    mkdir = f'../db/bar/{spotcode}/{dtstr1}'
+    if not os.path.exists(mkdir):
+        os.makedirs(mkdir)
+    opt_names.to_csv(f'{mkdir}/names_{spotcode}_{dtstr1}.csv', index=False)
+    cnt = 0
     max_attempts = 3
     for opt_code in [spotcode, *opt_names['option_code']]:
         print(f"get opt bar, spot {spotcode} date {dtstr} opt {opt_code}")
         attempts = 0
         while attempts < max_attempts:
             try:
-                opt_data = w.wsd(opt_code,
+                opt_data = w.wsi(opt_code,
                         "open, high, low, close, volume, oi",
-                        dtstr, dtstr,
+                        f"{dtstr} 09:00:00", f"{dtstr} 15:00:00",
                         f"BarSize=1")
                 opt_data = wind2df(opt_data)
                 break
@@ -84,8 +94,34 @@ def dl_data_bar(spotcode: str, dtstr: str):
                 attempts += 1
                 if attempts == max_attempts:
                     raise we
-        opt_data = windtodb.convert_bar_df(opt_data)
-        opt_data.to_csv(f'../db/bar/bar_{spotcode}_{opt_code}_{dt.strftime("%Y%m%d")}.csv', index=False)
+
+        opt_data = windtodb.convert_mdt_bar(opt_data)
+        opt_data_filtered = opt_data[opt_data['openp'] > 0]
+        # 防止因为没有交易所以 OI 数据也错过了，只保存了一个空的文件。
+        if opt_data_filtered.shape[0] == 0:
+            opt_data_filtered = opt_data[:1]
+        opt_data = opt_data_filtered
+        if opt_code != spotcode:
+            opt_info = opt_names[opt_names['option_code'] == opt_code].iloc[0]
+            expiry_date = opt_info['expiredate']
+            strike = opt_info['strike_price']
+            opt_name = opt_info['option_name']
+            callput = {'认购': 1, '认沽': -1}[opt_info['call_put']]
+            opt_data['expirydate'] = expiry_date
+            opt_data['strike'] = strike
+            opt_data['name'] = opt_name
+            opt_data['callput'] = callput
+            opt_data['spotcode'] = spotcode
+        else:
+            opt_data['expirydate'] = None
+            opt_data['strike'] = None
+            opt_data['name'] = spotcode
+            opt_data['callput'] = 0
+            opt_data['spotcode'] = spotcode
+        opt_data.to_csv(f'{mkdir}/bar_{spotcode}_{opt_code}_{dtstr1}.csv', index=False)
+        cnt += 1
+    print(f"get {cnt} opt bars for {spotcode} on {dtstr}")
+    return cnt
 
 def main(spots: list[str], dates: list[str], bar: bool):
     for spot in spots:

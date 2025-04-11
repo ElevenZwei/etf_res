@@ -56,6 +56,7 @@ def train_model(train_df: pd.DataFrame):
     :return: 训练好的模型
     """
     X = train_df[['index_ret', 'index_ret_var', 'opt_ret_var']]
+    # X = train_df[['index_ret', 'index_ret_var']]
     y = train_df['opt_ret']
     X = sm.add_constant(X)  # 添加常数项
     model = sm.OLS(y, X).fit()
@@ -71,6 +72,7 @@ def evaluate_model(model, validate_df: pd.DataFrame):
     :return: 模型评估结果
     """
     X = validate_df[['index_ret', 'index_ret_var', 'opt_ret_var']]
+    # X = validate_df[['index_ret', 'index_ret_var']]
     y = validate_df['opt_ret']
     X = sm.add_constant(X)  # 添加常数项
     y_pred = model.predict(X)

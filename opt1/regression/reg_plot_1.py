@@ -30,7 +30,11 @@ def plot_df_lines(df: pd.DataFrame, dt: datetime.date):
     'dtstr' as x axis.
     'real' and 'pred' as y axis.
     """
-    fig = px.line(df, x='dtstr', y=['real', 'pred', 'residual'],
+    df['neg_residual'] = -df['residual']
+    fig = px.line(df, x='dtstr', y=['real', 'pred',
+                    # 'residual',
+                    'neg_residual'
+                    ],
                   title=f'Regression Result {dt}')
     fig.update_layout(xaxis_title='Date', yaxis_title='Value')
     fig.show()

@@ -20,8 +20,11 @@ class TradeHelperReg1:
     我们就认为是一个买入开仓信号，在 real 变化成开仓时的 pred 的数字时平仓，或者在收盘时平仓。
     """
     def __init__(self,
+            long_enable: bool, short_enable: bool,
             long_trig: float, short_trig: float,
             mode_trend: bool, hold_to_close: bool, stop_loss: float):
+        self.long_enable = long_enable
+        self.short_enable = short_enable
         self.long_trig = long_trig
         self.short_trig = short_trig
         self.pos = 0
@@ -39,11 +42,11 @@ class TradeHelperReg1:
 
         residual = real - pred
         if self.pos == 0 and not self.locked:
-            if self.mode_mul * (residual - self.long_trig) > 0:
+            if self.long_enable and self.mode_mul * (residual - self.long_trig) > 0:
                 self.pos = 1
                 self.entry_real = real
                 self.entry_pred = pred
-            elif self.mode_mul * (residual - self.short_trig) < 0:
+            elif self.short_enable and self.mode_mul * (residual - self.short_trig) < 0:
                 self.pos = -1
                 self.entry_real = real
                 self.entry_pred = pred
@@ -74,40 +77,136 @@ class TradeHelperReg2:
     这个策略需要一直使用最新滚动的 1200 条 residual 来计算分位数。
     做回归只会归零，策略只能做趋势。
     """
-    def __init__(self, long_enable: bool, short_enable: bool, window_size: int):
+    def __init__(self,
+            long_enable: bool, short_enable: bool, window_size: int,
+            negate_residual: bool,
+            ):
         self.long_enable = long_enable
         self.short_enable = short_enable
         self.window_size = window_size
         self.residuals = deque(maxlen=window_size)
         self.residual_cache = []
+        self.negate_residual = negate_residual
         self.pos = 0
+
+        self.long_open_trig = 100
+        self.short_open_trig = -100
+        self.long_close_trig = -100
+        self.short_close_trig = 100
+        self.trig_cache = {
+            'dt': [],
+            'long_open': [],
+            'short_open': [],
+            'long_close': [],
+            'short_close': [],
+        }
+
+        self.last_dt = None
     
     def set_init_residual(self, residual_arr):
+        if self.negate_residual:
+            residual_arr = -residual_arr
         self.residuals.extend(residual_arr)
     
     def next(self, dt, real, pred):
+        residual = real - pred
+        if self.negate_residual:
+            residual = -residual
+        self.residual_cache.append(residual)
+
+        if self.last_dt is None or dt.date() > self.last_dt.date():
+            self.residuals.extend(self.residual_cache)
+            self.residual_cache = []
+            self.long_open_trig = np.percentile(self.residuals, 80)
+            self.short_open_trig = np.percentile(self.residuals, 20)
+            self.long_close_trig = np.percentile(self.residuals, 0.1)
+            self.short_close_trig = np.percentile(self.residuals, 50)
+        self.last_dt = dt
+        self.trig_cache['dt'].append(dt)
+        self.trig_cache['long_open'].append(self.long_open_trig)
+        self.trig_cache['short_open'].append(self.short_open_trig)
+        self.trig_cache['long_close'].append(self.long_close_trig)
+        self.trig_cache['short_close'].append(self.short_close_trig)
+
         if dt.hour == 9 and dt.minute < 32:
-            # self.residuals.extend(self.residual_cache)
-            # self.residual_cache = []
+            self.pos = 0
             return 0
 
-        residual = real - pred
-        # self.residual_cache.append(residual)
-        self.residuals.append(residual)
         if len(self.residuals) < self.window_size:
             return 0
 
         if self.pos == 0:
-            long_trig = np.percentile(self.residuals, 80)
-            short_trig = np.percentile(self.residuals, 20)
-            if self.long_enable and residual > long_trig:
+            if self.long_enable and residual > self.long_open_trig:
                 self.pos = 1
-            elif self.short_enable and residual < short_trig:
+            elif self.short_enable and residual < self.short_open_trig:
                 self.pos = -1
         
-        if self.pos == 1 and residual < np.percentile(self.residuals, 0.1):
+        if self.pos == 1 and residual < self.long_close_trig:
             self.pos = 0
-        if self.pos == -1 and residual > np.percentile(self.residuals, 50):
+        if self.pos == -1 and residual > self.short_close_trig:
+            self.pos = 0
+
+        if (dt.hour == 14 and dt.minute > 56) or dt.hour >= 15:
+            self.pos = 0
+        return self.pos
+    
+    def get_trig_cache(self):
+        df = pd.DataFrame(self.trig_cache)
+        return df
+
+class TradeHelperReg3:
+    def __init__(self, long_enable: bool, short_enable: bool, window_size: int):
+        self.long_enable = long_enable
+        self.short_enable = short_enable
+        self.window_size = window_size
+        self.residuals = deque(maxlen=window_size)
+        self.pos = 0
+    
+        self.last_residual_dt = None
+        self.last_residual_opt_price = None
+        self.residual_cache = []
+        self.long_trig = 100.0
+        self.short_trig = -100.0
+    
+    def set_init_residual(self, df):
+        for a, b, c in zip(df['dt'], df['residual'], df['opt_price']):
+            self.add_residual(a, b, c)
+    
+    def add_residual(self, dt, residual, opt_price):
+        if (self.last_residual_dt is None
+                or dt.date() > self.last_residual_dt.date()):
+            # dump residual cache
+            self.residuals.extend(self.residual_cache)
+            self.residual_cache = []
+            if len(self.residuals) >= self.window_size:
+                self.long_open_trig = np.percentile(self.residuals, 80)
+                self.short_open_trig = np.percentile(self.residuals, 20)
+                self.long_close_trig = np.percentile(self.residuals, 0.1)
+                self.short_close_trig = np.percentile(self.residuals, 50)
+            # reset residual base price
+            self.last_residual_dt = dt
+            self.last_residual_opt_price = opt_price
+        res = residual * self.last_residual_opt_price
+        self.residual_cache.append(res)
+        return res
+    
+    def next(self, dt, real, pred, opt_price):
+        residual = real - pred
+        residual = self.add_residual(dt, residual, opt_price)
+
+        if dt.hour == 9 and dt.minute < 32:
+            return 0
+        if len(self.residuals) < self.window_size:
+            return 0
+
+        if self.pos == 0:
+            if self.long_enable and residual > self.long_open_trig:
+                self.pos = 1
+            elif self.short_enable and residual < self.short_open_trig:
+                self.pos = -1
+        if self.pos == 1 and residual < self.long_close_trig:
+            self.pos = 0
+        if self.pos == -1 and residual > self.short_close_trig:
             self.pos = 0
 
         if (dt.hour == 14 and dt.minute > 46) or dt.hour >= 15:
@@ -120,51 +219,86 @@ def run_trade(train_df: pd.DataFrame, validate_df: pd.DataFrame):
     运行交易策略，返回交易结果。
     :return: 交易结果数据框
     """
-    if train_df is not None:
-        long_trig = train_df['residual'].quantile(0.80)
-        short_trig = train_df['residual'].quantile(0.20)
+    reg1_long_quantile = 0.8
+    reg1_short_quantile = 0.2
+    daily_stop_loss = 0.04
+    if train_df is None:
+        long_trig = validate_df['residual'].quantile(reg1_long_quantile)
+        short_trig = validate_df['residual'].quantile(reg1_short_quantile)
     else:
-        long_trig = validate_df['residual'].quantile(0.80)
-        short_trig = validate_df['residual'].quantile(0.20)
+        long_trig = train_df['residual'].quantile(reg1_long_quantile)
+        short_trig = train_df['residual'].quantile(reg1_short_quantile)
     print(f"Long Trigger: {long_trig}, Short Trigger: {short_trig}")
     df = validate_df.copy()
 
-    reg1_trade_helper = TradeHelperReg1(long_trig, short_trig,
-            mode_trend=True, hold_to_close=False, stop_loss=0.05)
+    reg1_trade_helper = TradeHelperReg1(
+            long_enable=True, short_enable=True,
+            long_trig=long_trig, short_trig=short_trig,
+            mode_trend=True, hold_to_close=False, stop_loss=daily_stop_loss)
     df['reg1a_pos'] = df.apply(lambda row:
             reg1_trade_helper.next(row['dt'], row['real'], row['pred']), axis=1)
 
-    reg1_trade_helper = TradeHelperReg1(long_trig, short_trig,
-            mode_trend=True, hold_to_close=True, stop_loss=0.05)
-    df['reg1b_pos'] = df.apply(lambda row:
+    reg1_trade_helper = TradeHelperReg1(
+            long_enable=True, short_enable=False,
+            long_trig=long_trig, short_trig=short_trig,
+            mode_trend=True, hold_to_close=False, stop_loss=daily_stop_loss)
+    df['reg1a_long_pos'] = df.apply(lambda row:
             reg1_trade_helper.next(row['dt'], row['real'], row['pred']), axis=1)
 
-    reg1_trade_helper = TradeHelperReg1(long_trig, short_trig,
-            mode_trend=False, hold_to_close=False, stop_loss=0.05)
-    df['reg1c_pos'] = df.apply(lambda row:
+    reg1_trade_helper = TradeHelperReg1(
+            long_enable=False, short_enable=True,
+            long_trig=long_trig, short_trig=short_trig,
+            mode_trend=True, hold_to_close=False, stop_loss=daily_stop_loss)
+    df['reg1a_short_pos'] = df.apply(lambda row:
             reg1_trade_helper.next(row['dt'], row['real'], row['pred']), axis=1)
 
-    reg1_trade_helper = TradeHelperReg1(long_trig, short_trig,
-            mode_trend=False, hold_to_close=True, stop_loss=0.05)
-    df['reg1d_pos'] = df.apply(lambda row:
-            reg1_trade_helper.next(row['dt'], row['real'], row['pred']), axis=1)
+    # reg1_trade_helper = TradeHelperReg1(long_trig, short_trig,
+    #         mode_trend=False, hold_to_close=False, stop_loss=0.05)
+    # df['reg1c_pos'] = df.apply(lambda row:
+    #         reg1_trade_helper.next(row['dt'], row['real'], row['pred']), axis=1)
 
+    # reg1_trade_helper = TradeHelperReg1(long_trig, short_trig,
+    #         mode_trend=False, hold_to_close=True, stop_loss=0.05)
+    # df['reg1d_pos'] = df.apply(lambda row:
+    #         reg1_trade_helper.next(row['dt'], row['real'], row['pred']), axis=1)
+
+    wsize = 1200
+    negate_residual = False
+    reg2_trade_helper = TradeHelperReg2(long_enable=True, short_enable=False, window_size=wsize, negate_residual=negate_residual)
+    if train_df is not None:
+        reg2_trade_helper.set_init_residual(train_df['residual'].values[-wsize:])
+    df['reg2a_pos'] = df.apply(lambda row:
+            reg2_trade_helper.next(row['dt'], row['real'], row['pred']), axis=1)
+    df2 = reg2_trade_helper.get_trig_cache().rename(mapper=lambda x: f'reg2a_{x}' if x != 'dt' else x, axis=1)
+    df = pd.merge(df, df2, how='left', on='dt')
+    reg2_trade_helper = TradeHelperReg2(long_enable=False, short_enable=True, window_size=wsize, negate_residual=negate_residual)
+    if train_df is not None:
+        reg2_trade_helper.set_init_residual(train_df['residual'].values[-wsize:])
+    df['reg2b_pos'] = df.apply(lambda row:
+            reg2_trade_helper.next(row['dt'], row['real'], row['pred']), axis=1)
+    reg2_trade_helper = TradeHelperReg2(long_enable=True, short_enable=True, window_size=wsize, negate_residual=negate_residual)
+    if train_df is not None:
+        reg2_trade_helper.set_init_residual(train_df['residual'].values[-wsize:])
+    df['reg2c_pos'] = df.apply(lambda row:
+            reg2_trade_helper.next(row['dt'], row['real'], row['pred']), axis=1)
+
+    # # reg3 
     # wsize = 1200
-    # reg2_trade_helper = TradeHelperReg2(long_enable=True, short_enable=False, window_size=wsize)
+    # reg3_trade_helper = TradeHelperReg3(long_enable=True, short_enable=False, window_size=wsize)
     # if train_df is not None:
-    #     reg2_trade_helper.set_init_residual(train_df['residual'].values[-wsize:])
-    # df['reg2a_pos'] = df.apply(lambda row:
-    #         reg2_trade_helper.next(row['dt'], row['real'], row['pred']), axis=1)
-    # reg2_trade_helper = TradeHelperReg2(long_enable=False, short_enable=True, window_size=wsize)
+    #     reg3_trade_helper.set_init_residual(train_df[-wsize:])
+    # df['reg3a_pos'] = df.apply(lambda row:
+    #         reg3_trade_helper.next(row['dt'], row['real'], row['pred'], row['opt_price']), axis=1)
+    # reg3_trade_helper = TradeHelperReg3(long_enable=False, short_enable=True, window_size=wsize)
     # if train_df is not None:
-    #     reg2_trade_helper.set_init_residual(train_df['residual'].values[-wsize:])
-    # df['reg2b_pos'] = df.apply(lambda row:
-    #         reg2_trade_helper.next(row['dt'], row['real'], row['pred']), axis=1)
-    # reg2_trade_helper = TradeHelperReg2(long_enable=True, short_enable=True, window_size=wsize)
+    #     reg3_trade_helper.set_init_residual(train_df[-wsize:])
+    # df['reg3b_pos'] = df.apply(lambda row:
+    #         reg3_trade_helper.next(row['dt'], row['real'], row['pred'], row['opt_price']), axis=1)
+    # reg3_trade_helper = TradeHelperReg3(long_enable=True, short_enable=True, window_size=wsize)
     # if train_df is not None:
-    #     reg2_trade_helper.set_init_residual(train_df['residual'].values[-wsize:])
-    # df['reg2c_pos'] = df.apply(lambda row:
-    #         reg2_trade_helper.next(row['dt'], row['real'], row['pred']), axis=1)
+    #     reg3_trade_helper.set_init_residual(train_df[-wsize:])
+    # df['reg3c_pos'] = df.apply(lambda row:
+    #         reg3_trade_helper.next(row['dt'], row['real'], row['pred'], row['opt_price']), axis=1)
 
     return df
 
@@ -184,8 +318,17 @@ def trade_stat(trade_df: pd.DataFrame, pos_col: str):
     trade_df = trade_df[::2]
     trade_df['label'] = pos_col
     trade_df['dir'] = trade_df['sig']
+
     trade_df['profit'] = ((1 + trade_df['close_p']) / (1 + trade_df['open_p']) - 1) * trade_df['sig']
-    trade_df = trade_df[['label', 'dt', 'close_dt', 'dir', 'open_p', 'close_p', 'profit']]
+    trade_df['profit_arith_sum'] = trade_df['profit'].cumsum()
+    trade_df['profit_log'] = trade_df['profit'].apply(lambda x: np.log(1+x) if x > -1 else np.log(0.001))
+    trade_df['profit_exp_sum'] = trade_df['profit_log'].cumsum().apply(np.exp)
+    
+    strategy = '_'.join(pos_col.split('_')[:-1])
+    aux_cols = [x for x in trade_df.columns if x.startswith(strategy) and x != pos_col]
+    trade_df = trade_df[['label', 'dt', 'close_dt', 'dir', 'open_p', 'close_p',
+            'profit', 'profit_arith_sum', 'profit_log', 'profit_exp_sum',
+            ] + aux_cols]
     print(trade_df)
     print('profit sum:', trade_df['profit'].sum())
     return trade_df

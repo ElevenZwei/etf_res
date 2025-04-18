@@ -25,6 +25,7 @@ def read_csv(fpath: str):
         'if-ret': 'index_ret',
         'if-ret-var': 'index_ret_var',
         'option-price(shi1)': 'opt_price',
+        'option-price': 'opt_price',
     }, inplace=True)
     df = df.sort_values(by='dt')
     return df
@@ -56,7 +57,6 @@ def train_model(train_df: pd.DataFrame):
     :return: 训练好的模型
     """
     X = train_df[['index_ret', 'index_ret_var', 'opt_ret_var']]
-    # X = train_df[['index_ret', 'index_ret_var']]
     y = train_df['opt_ret']
     X = sm.add_constant(X)  # 添加常数项
     model = sm.OLS(y, X).fit()
@@ -88,6 +88,7 @@ def evaluate_model(model, validate_df: pd.DataFrame):
         'real': y,
         'pred': y_pred,
         'residual': y - y_pred,
+        'opt_price': validate_df['opt_price'],
     })
 
 
@@ -115,10 +116,19 @@ def residual_stat(df: pd.DataFrame, label: str, col: str = 'residual'):
 
 INPUT_DIR = '../input'
 OUTPUT_DIR = '../output'
+INPUT_FILE = '生成中间数据/中间数据.csv'
 
 def main(split_date: datetime.date):
-    df = read_csv(f'{INPUT_DIR}/sample_mid.csv')
+    df = read_csv(f'{INPUT_DIR}/{INPUT_FILE}')
     train_df, validate_df = clip_df(df, split_date, 30, 7)
+
+    # find lines with nan in train_df
+    nan_lines = train_df[train_df.isnull().any(axis=1)]
+    if nan_lines.shape[0] > 0:
+        print(f"NaN lines in train_df:")
+        print(nan_lines)
+
+    print(f"Train data shape: {train_df.shape}, Validate data shape: {validate_df.shape}")
     model = train_model(train_df)
 
     output_date_dir = f'{OUTPUT_DIR}/{split_date.strftime("%Y%m%d")}'

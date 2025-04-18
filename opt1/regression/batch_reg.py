@@ -21,15 +21,17 @@ def concat_trades(dts: list[str]):
     for dt in dts:
         fs = glob.glob(f'../output/{dt}/reg*_trades_validate.csv')
         for f in fs:
-            # strategy = f.split('/')[-1].split('_')[0]
             # use pathlib to get the strategy name correctly in Windows
-            strategy = os.path.basename(f).split('_')[0]
+            strategy = '_'.join(os.path.basename(f).split('_')[:-2])
+            if strategy == '':
+                continue
             if strategy not in st_dfs:
                 st_dfs[strategy] = []
             df = pd.read_csv(f)
             if df.shape[0] == 0:
                 continue
             st_dfs[strategy].append(df)
+    st_res = {}
     for strategy, dfs in st_dfs.items():
         df = pd.concat(dfs)
         df['profit_arith_sum'] = df['profit'].cumsum()
@@ -41,6 +43,21 @@ def concat_trades(dts: list[str]):
         df['profit_exp_sum'] = df['profit_log'].cumsum().apply(np.exp)
         df.to_csv(f"../output/{strategy}_trades.csv", index=False, float_format='%.6f')
         print(f"Concatenated trades saved to ../output/{strategy}_trades.csv")
+        st_res[strategy] = df
+    return st_res
+
+def compress_trades(df: pd.DataFrame, strategy: str):
+    # compress to one row per day
+    df['dt'] = pd.to_datetime(df['dt'])
+    df['date'] = df['dt'].dt.date
+    daily_profit = df.groupby('date')['profit'].sum().reset_index()
+    daily_profit['profit_arith_sum'] = daily_profit['profit'].cumsum()
+    daily_profit['profit_log'] = daily_profit['profit'].apply(lambda x: np.log(1+x) if x > -1 else np.log(0.001))
+    daily_profit['profit_exp_sum'] = daily_profit['profit_log'].cumsum().apply(np.exp)
+    daily_profit['strategy'] = strategy
+    daily_profit.to_csv(f"../output/{strategy}_trades_daily.csv", index=False, float_format='%.6f')
+    print(f"Compressed trades saved to ../output/{strategy}_trades_daily.csv")
+    return daily_profit
 
 def main(bgdt: datetime.date, eddt: datetime.date,
         regress: bool, trade: bool, concat: bool):
@@ -56,10 +73,19 @@ def main(bgdt: datetime.date, eddt: datetime.date,
                 s2.main(dt)
         except Exception as e:
             print(f"Error processing {dtstr}: {e}")
+            # dump to error file
+            with open(f"../output/{dtstr}_error.txt", "w") as f:
+                f.write(f"Error processing {dtstr}: {e}\n")
+                f.write(f"Traceback:\n")
+                import traceback
+                traceback.print_exc(file=f)
+                f.write("\n")
             continue
         print(f"Finished {dtstr}")
     if concat:
-        concat_trades(dts)
+        st_res = concat_trades(dts)
+        for strategy, df in st_res.items():
+            compress_trades(df, strategy)
 
 @click.command()
 @click.option('-b', '--bgdt', type=str, required=True, help="format is %Y%m%d")

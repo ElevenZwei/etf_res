@@ -71,25 +71,30 @@ import scipy.interpolate as spi
 df = pd.DataFrame({
     'A': [0, 1, 4, 9, 16, 25],
     'B': [0, 2, 8, 18, 32, 50],
+    # 'B': [3510.6, 3503.3, 3497.7, 3481.7, 3483.5, 3484.5],
     'C': [1, 3, 6, 10, 15, 21]
 })
 
-# 目标插值后的长度
-factor = 3  # 增加 3 倍密度
-new_len = df.shape[1] * factor
+# # 目标插值后的长度
+# factor = 3  # 增加 3 倍密度
+# new_len = df.shape[1] * factor
 
-def cubic_spline_interpolation(row):
-    """对 DataFrame 的一行数据进行 Cubic Spline 插值"""
-    x = np.linspace(0, len(row) - 1, len(row))  # 原始 x 轴索引
-    x_new = np.linspace(0, len(row) - 1, new_len)  # 新 x 轴索引
-    cs = spi.CubicSpline(x, row)  # 计算三次样条插值
-    return cs(x_new)  # 计算新 y 值
+# def cubic_spline_interpolation(row):
+#     """对 DataFrame 的一行数据进行 Cubic Spline 插值"""
+#     x = np.linspace(0, len(row) - 1, len(row))  # 原始 x 轴索引
+#     x_new = np.linspace(0, len(row) - 1, new_len)  # 新 x 轴索引
+#     cs = spi.CubicSpline(x, row)  # 计算三次样条插值
+#     return cs(x_new)  # 计算新 y 值
 
+# print(df)
+
+# print(df.apply(cubic_spline_interpolation, axis=1))
+# # 对 DataFrame 每一行进行插值，并转换为新的 DataFrame
+# df_interpolated = pd.DataFrame(np.vstack(df.apply(cubic_spline_interpolation, axis=1)))
+
+# # 打印结果
+# print(df_interpolated)
+
+df['x'] = df['B'].expanding().mean()
+df['y'] = df['B'].expanding().std()
 print(df)
-
-print(df.apply(cubic_spline_interpolation, axis=1))
-# 对 DataFrame 每一行进行插值，并转换为新的 DataFrame
-df_interpolated = pd.DataFrame(np.vstack(df.apply(cubic_spline_interpolation, axis=1)))
-
-# 打印结果
-print(df_interpolated)

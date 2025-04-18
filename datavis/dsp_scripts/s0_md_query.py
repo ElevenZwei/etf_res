@@ -177,7 +177,10 @@ def dl_save_range_oi(spot: str, expiry_date: datetime.date,
             bg_time=bg_time, ed_time=datetime.time(15, 0, 0),
             minute_bar=minute_bar)
 
-    df = pd.concat([x for x in [df1, df2] if x.shape[0] != 0], ignore_index=True)
+    dfs = [x for x in [df1, df2] if x.shape[0] != 0]
+    if dfs == []:
+        raise RuntimeError("db is empty.")
+    df = pd.concat(dfs, ignore_index=True)
     if df.shape[0] == 0:
         raise RuntimeError("db is empty.")
     df.to_csv(fpath, index=False)

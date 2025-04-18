@@ -30,7 +30,7 @@ def pivot_sum(df: pd.DataFrame, col: str = 'oi'):
     计算 oi 数据的总和。
     """
     df = df.pivot(index='dt', columns='strike', values=col)
-    df = df.astype('int64').ffill().bfill()
+    df = df.ffill().bfill().astype('int64')
     return df.sum(axis=1)
 
 def calc_oi(df: pd.DataFrame):
@@ -75,6 +75,7 @@ def click_main(spot: str, begin: str, end: str):
     end = datetime.datetime.strptime(end, '%Y%m%d').date()
     dt_list = pd.date_range(begin, end).to_list()
     for dt in dt_list:
+        dt = dt.date()
         if dt.weekday() > 5:
             continue
         try:
@@ -85,6 +86,7 @@ def click_main(spot: str, begin: str, end: str):
             # print error message into a log file
             with open('error_log.txt', 'a') as f:
                 f.write(f'{dt} failed, error: {e}\n')
+            raise e
 
 if __name__ == '__main__':
     click_main()

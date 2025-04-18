@@ -30,4 +30,4 @@ def merge(spot: str):
     df.to_csv(f"{OUTPUT_DIR}/oi_{spot}.csv", index=False)
     print(f"merged {len(fs)} files into {OUTPUT_DIR}/strike_oi_oi_{spot}.csv")
 
-merge('510500')
+merge('159915')

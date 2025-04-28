@@ -17,6 +17,7 @@ def read_csv(fpath: str):
     :return: 数据框
     """
     df = pd.read_csv(fpath)
+    df = df.rename(columns={'tt': 'date'})
     df['dt'] = pd.to_datetime(df['date'])
     df.drop(columns=['date'], inplace=True)
     df.rename(columns={
@@ -116,7 +117,8 @@ def residual_stat(df: pd.DataFrame, label: str, col: str = 'residual'):
 
 INPUT_DIR = '../input'
 OUTPUT_DIR = '../output'
-INPUT_FILE = '生成中间数据/中间数据.csv'
+# INPUT_FILE = '生成中间数据/中间数据.csv'
+INPUT_FILE = 'xu1.csv'
 
 def main(split_date: datetime.date):
     df = read_csv(f'{INPUT_DIR}/{INPUT_FILE}')

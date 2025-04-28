@@ -17,20 +17,23 @@ import click
 from dsp_config import DATA_DIR, get_spot_config, gen_wide_suffix
 
 def left_gaussian(sig, wsize, sigma):
-    wsize = min(wsize, len(sig))
+    # 这个 min 会导致在数据量小的时候 wsize 也很小，
+    # 所以不同时间的输入的处理方式会不一样，所以我把它去掉了。
+    # wsize = min(wsize, len(sig))
     gau = ssig.windows.gaussian(wsize, sigma)
     gau[:wsize // 2] = 0
     gau /= np.sum(gau)
     # 在卷积边缘位置填充边缘数值
     # valid 模式下的输出长度是 N-K+1 如果 K 是单数，那么填充 K//2*2 刚好是 K-1 个长度，如果是双数就会多一个。
     sig = np.pad(sig, pad_width=wsize // 2, mode='edge')
+    # print(sig.shape, gau.shape)
     res = np.convolve(sig, gau, mode='valid')
     if wsize % 2 == 0:
         res = res[:-1]
     return res
 
 def full_gaussian(sig, wsize, sigma):
-    wsize = min(wsize, len(sig))
+    # wsize = min(wsize, len(sig))
     gau = ssig.windows.gaussian(wsize, sigma)
     gau /= np.sum(gau)
     sig = np.pad(sig, pad_width=wsize // 2, mode='edge')

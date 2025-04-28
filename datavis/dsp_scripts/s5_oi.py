@@ -8,6 +8,7 @@ Simplified to the following steps:
 """
 
 from multiprocessing import Pool
+import datetime
 
 import click
 import pandas as pd
@@ -20,10 +21,15 @@ from dsp_config import DATA_DIR, POOL_SIZE, S5_DSP_SEC, get_spot_config, gen_wid
 
 DSP_SEC = S5_DSP_SEC
 
-def read_file(spot: str, suffix: str, wide: bool):
+def read_file(spot: str, suffix: str, wide: bool,
+        begin_dt: datetime.datetime = None, end_dt: datetime.datetime = None):
     df = pd.read_csv(f'{DATA_DIR}/dsp_input/strike_oi_diff_{spot}_{suffix}.csv')
     df['spotcode'] = df['spotcode'].astype(str)
     df['dt'] = pd.to_datetime(df['dt'])
+    if begin_dt is not None:
+        df = df[df['dt'] >= pd.Timestamp(begin_dt, tz='Asia/Shanghai')]
+    if end_dt is not None:
+        df = df[df['dt'] <= pd.Timestamp(end_dt, tz='Asia/Shanghai')]
     # 在很多天的连续记录里面不能使用裁剪，只能计算 wide=True 的规律。
     df = remove_dup_cut(df, wide=wide)
     return df
@@ -195,8 +201,9 @@ def interpolate_melt(batch_df: pd.DataFrame, col_prefix: str):
     # print(res)
     return res
 
-def calc_intersect(spot: str, suffix: str, wide: bool):
-    df = read_file(spot, suffix, wide)
+def calc_intersect(spot: str, suffix: str, wide: bool,
+        begin_dt: datetime.datetime = None, end_dt: datetime.datetime = None):
+    df = read_file(spot, suffix, wide, begin_dt, end_dt)
     spot_config = get_spot_config(spot)
     spot_df = smooth_spot_df(df, DSP_SEC, spot_config.oi_ts_gaussian_sigmas)
     cp_df = cp_batch(spot_df, df, DSP_SEC,

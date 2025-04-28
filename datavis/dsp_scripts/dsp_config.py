@@ -46,7 +46,7 @@ ENABLE_PG_DB_UPLOAD = False
 ENABLE_PG_DB_UPLOAD_SIGNAL = False
 
 POOL_SIZE = 10
-S5_DSP_SEC = 60
+S5_DSP_SEC = 15
 
 @dataclass(frozen=True)
 class SpotConfig:

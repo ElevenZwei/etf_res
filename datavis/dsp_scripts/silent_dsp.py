@@ -22,11 +22,14 @@ FOCUS_SPOT_ST = {
     ],
 }
 
-def func(spot: str, dt: str, year: int, month: int):
+def func(spot: str, dt: str, year: int, month: int,
+        begin_time: str = '09:00:00', end_time: str = '15:00:00'):
     wide = False
     print(f'calc {spot} {dt}')
     suffix = s0.auto_dl(spot, year=year, month=month, bg_str=dt, ed_str=dt)
-    s5.calc_intersect(spot, suffix, wide=wide)
+    begin_datetime = datetime.datetime.strptime(f'{dt} {begin_time}', '%Y%m%d %H:%M:%S')
+    end_datetime = datetime.datetime.strptime(f'{dt} {end_time}', '%Y%m%d %H:%M:%S')
+    s5.calc_intersect(spot, suffix, wide=wide, begin_dt=begin_datetime, end_dt=end_datetime)
     sufs5 = suffix + '_s5'
     s7.calc_stats_csv(spot, sufs5, wide=wide, show_pos=False)
     sig_df = s9.calc_signal_csv(spot, sufs5, wide=wide)
@@ -62,7 +65,9 @@ def main(date: Optional[str] = None):
         dt_str = date
     spot_list = ['159915', '510500']
     res = [func(spot, dt_str, None, None) for spot in spot_list]
+    # res is like [(focus_sig, focus_pos), ...]
     transpose_res = list(zip(*res))
+    # transpose_res is like [(focus_sig, ...), (focus_pos, ...)]
     for spot, focus_sig in zip(spot_list, transpose_res[0]):
         focus_sig['code'] = spot
         print(f'{spot} {dt_str} signal:')
@@ -79,3 +84,5 @@ def click_main(date: Optional[str]):
 
 if __name__ == '__main__':
     click_main()
+    # sig, pos = func('159915', '20250424', None, None, '09:00:00', '10:14:30')
+    # print(sig)

@@ -20,12 +20,12 @@ def run(mode: int):
     venue_name = 'sim'
     ven = prepare_venue(engine, venue_name)
     spot_inst = prepare_spot_quote(
-        # f'{DATA_DIR}/input/oi_spot_159915.csv',
-        f'{DATA_DIR}/input/nifty_oi.csv',
+        f'{DATA_DIR}/input/oi_spot_159915.csv',
+        # f'{DATA_DIR}/input/nifty_oi.csv',
         engine, ven, bgdt, eddt)
     opt_info = prepare_option_quote(
-        # f'{DATA_DIR}/input/tl_greeks_159915_all_fixed.csv',
-        f'{DATA_DIR}/input/nifty_greeks_combined.csv',
+        f'{DATA_DIR}/input/tl_greeks_159915_all_fixed.csv',
+        # f'{DATA_DIR}/input/nifty_greeks_combined.csv',
         engine, ven, bgdt, eddt)
 
     suffix=f"{mode}"

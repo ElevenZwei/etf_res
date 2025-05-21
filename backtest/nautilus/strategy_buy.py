@@ -82,7 +82,7 @@ class StrategyBuy(Strategy):
         # Buy Options
         cp = 1 if spot_action == 1 else -1
         pick_opt = self.pick_atm_option(avail_opts, spot_price, cp)
-        other_opt = self.pick_atm_option(avail_opts, spot_price, -cp)
+        # other_opt = self.pick_atm_option(avail_opts, spot_price, -cp)
         if pick_opt is None:
             self.log.info("cannot pick opt, skip this.")
             return
@@ -120,9 +120,6 @@ class StrategyBuy(Strategy):
         elif self.size_mode == 2:
             # mode 2
             buy_size = (5_000 / askp) // 10000 * 10000
-        elif self.size_mode == -2:
-            # mode -2
-            buy_size = (5_000 / last_quote.ask_price) // 10000 * 10000
         elif self.size_mode == 3:
             # mode 3
             buy_size = 300_000

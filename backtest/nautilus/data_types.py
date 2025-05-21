@@ -81,8 +81,22 @@ def prepare_spot_quote(csv_fpath, engine, venue, bgdt, eddt):
     # df = CSVTickDataLoader.load('../input/spot_sig_159915.csv', 'dt')
     # df = CSVTickDataLoader.load('../input/oi_signal_159915_act_changes.csv', 'dt')
     df = CSVTickDataLoader.load(csv_fpath, 'dt')
-    se_dt = df.index.to_series().dt.date
-    df = df[(se_dt >= bgdt) & (se_dt < eddt)]
+    inst = prepare_spot_quote_from_df(
+        df, df, engine, venue, bgdt, eddt)
+    return inst
+
+def prepare_spot_quote_from_df(spot_df, action_df, engine, venue, bgdt, eddt):
+    """ 传入的 DF 需要有 DateTimeIndex """
+    se_dt = spot_df.index.to_series().dt.date
+    spot_df = spot_df[(se_dt >= bgdt) & (se_dt < eddt)]
+    action_dt = action_df.index.to_series().dt.date
+    action_df = action_df[(action_dt >= bgdt) & (action_dt < eddt)]
+    if spot_df is not action_df:
+        spot_df = spot_df.drop(columns=['action'], errors='ignore')
+        action_df = action_df[['action']]
+        spot_df = spot_df.join(action_df, how='left')
+        spot_df['action'] = spot_df['action'].ffill().fillna(0)
+    df = spot_df
     codes = df['code'].unique()
     assert(len(codes) == 1)
     spot = codes[0]

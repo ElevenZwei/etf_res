@@ -31,6 +31,13 @@ class StrategyBullSpreadConfig(StrategyConfig, frozen=True):
     short_sell_delta: float = None
 
 class StrategyBullSpread(Strategy):
+    """
+    牛市价差策略
+    这个策略的输入数据需要包含多空信号，
+    策略只是根据多空信号产生期权结构持仓。
+    策略自己不计算多空信号。
+    这里每次开仓固定是 10 手。
+    """
     def __init__(self, config: StrategyBullSpreadConfig):
         super().__init__(config)
         self.id_inst = { x.id: x for x in config.infos }

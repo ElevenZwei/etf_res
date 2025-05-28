@@ -12,7 +12,7 @@
 
 对于运行之后产品的后期处理，现在有 log 处理和 csv 处理两个路线。  
 首推 csv 处理的路线，在有了三个 csv 文件之后运行两个脚本。  
-`python -m backtest.nautilus.afx.afx_order_df`  
+`python -m backtest.nautilus.afx.afx_order_df -f <order.csv>`  
 `python -m backtest.nautilus.afx.afx_order_2_worth`  
 第一个脚本整理 nautilus 回测框架输出的 order csv 文件内容。
 第二个脚本读取标的价格和订单记录合成账户的净值变化。

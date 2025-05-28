@@ -30,6 +30,7 @@ class StrategyBuy(Strategy):
 
         self.hold_id = None
         self.hold_from: datetime.datetime = None
+        self.hold_action = None
         
         info_list = [{
             'inst': x.inst,
@@ -38,6 +39,7 @@ class StrategyBuy(Strategy):
             'last_day': x.last_day,
             'cp': x.cp,
             'strike': x.strike } for x in self.infos.values()]
+        print(info_list)
         self.df_info = pd.DataFrame(info_list)
         
     def get_cash(self):    
@@ -73,10 +75,23 @@ class StrategyBuy(Strategy):
         if spot_action is None:
             self.log.info(f"spot action is none.")
             return
+        if self.hold_action == spot_action:
+            self.log.info(f"hold action is same, skip this.")
+            return
         self.log.info(f'spot price={spot_price}, action={spot_action}')
         self.close_all()
-
+        if spot_action == 0:
+            self.log.info(f"spot action is 0, skip this.")
+            return
         now = self.clock.utc_now() 
+        self.log.info(f"now={now}")
+        if (now.hour == 6 and now.minute > 30) or now.hour > 6:
+            self.log.info(f"now is after 14:30, skip this.")
+            return
+        if (now.hour == 1 and now.minute < 40):
+            self.log.info(f"now is before 9:40, skip this.")
+            return
+
         avail_opts = self.pick_available_options(now)
         # self.log.info(f"avail_opts: {repr(avail_opts[['first_day', 'last_day', 'expiry_date']])}")
         # Buy Options
@@ -126,41 +141,13 @@ class StrategyBuy(Strategy):
         elif self.size_mode == 4:
             # mode 4
             buy_size = min(500_000, (5_000 / askp) // 10000 * 10000)
-        elif self.size_mode == 5:
-            # mode 5
-            buy_size = (5_000 / max(0.01, askp)) // 10000 * 10000
-        elif self.size_mode == 6:
-            # 模拟定点数的操作
-            if askp < 0.01:
-                askp = 0.01
-            askp = round(askp * 100) / 100
-            buy_size = (5000 / askp) // 10000 * 10000
-        elif self.size_mode == 7:
-            if askp < 0.01:
-                askp = 0.01
-            askp = math.floor(askp * 100) / 100
-            buy_size = (5000 / askp) // 10000 * 10000
-        elif self.size_mode == 8:
-            if askp < 0.01:
-                askp = 0.01
-            askp = math.ceil(askp * 100) / 100
-            buy_size = (5000 / askp) // 10000 * 10000
-        elif self.size_mode == 9:
-            if askp < 0.01:
-                askp = 0.01
-            askp = round(askp * 100 + 0.2) / 100
-            buy_size = (5000 / askp) // 10000 * 10000
-        elif self.size_mode == 10:
-            if askp < 0.01:
-                askp = 0.01
-            askp = round(askp * 100 - 0.2) / 100
-            buy_size = (5000 / askp) // 10000 * 10000
         else:
             raise RuntimeError(f"unknown size mode={self.size_mode}")
 
         self.log.info(f"pick opt={pick_opt['inst'].id}, ask_price={askp}, size={buy_size}")
         self.hold_id = inst.id
         self.hold_from = now
+        self.hold_action = spot_action
         order = self.order_factory.market(
             instrument_id=inst.id,
             order_side=OrderSide.BUY,
@@ -176,6 +163,11 @@ class StrategyBuy(Strategy):
         if now.date() == opt_info.last_day:
             self.close_all()
             # self.close_all_positions(tick.instrument_id)
+        if now.hour == 6 and now.minute > 40:
+            if self.hold_id is not None:
+                self.log.info(f"now is after 14:40, close daliy option position.")
+                self.close_all()
+
         if (self.hold_id is not None and self.hold_id == tick_id
                 and self.hold_from + datetime.timedelta(days=self.config.hold_days_limit) < now):
             self.log.info("close because hold time limit")
@@ -205,4 +197,5 @@ class StrategyBuy(Strategy):
             return
         self.close_all_positions(self.hold_id)
         self.hold_id = None
+        self.hold_action = 0
 

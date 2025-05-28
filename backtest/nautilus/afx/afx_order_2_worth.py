@@ -1,5 +1,6 @@
 # 用  option 数据和历史成交记录合成一个分钟净值盈亏情况
 
+import click
 import math
 import tqdm
 import pandas as pd
@@ -12,14 +13,18 @@ from backtest.config import DATA_DIR
 def make_opt_pivot(df: pd.DataFrame):
     if 'tradecode' not in df.columns:
         df['tradecode'] = df['code']
+    if 'closep' not in df.columns:
+        df['closep'] = df['price']
     df = df[['dt', 'tradecode', 'closep']].copy()
-    df['dt'] = pd.to_datetime(df['dt']).dt.tz_localize('Asia/Shanghai')
+    df['dt'] = pd.to_datetime(df['dt'])
     df = df.sort_values(['dt', 'tradecode'])
     df = df.drop_duplicates()
     df = df.rename(columns={'tradecode': 'code'})
-    df['code'] = df['code'].apply(lambda x: 'OPT' + x.replace('-', '_'))
-    df['dt'] = pd.to_datetime(df['dt'])
+    df['code'] = df['code'].apply(lambda x:
+            'OPT' + x.rstrip('.SZ').replace('-', '_'))
+    # df['dt'] = pd.to_datetime(df['dt'])
     res = df.pivot(index='dt', columns='code', values='closep')
+    print(df)
     df = df.ffill()
     return res
 
@@ -28,7 +33,8 @@ def make_order_df(df: pd.DataFrame):
         {'BUY': 1, 'SELL': -1}
     )
     df['amount'] = df['amount'] * df['direction']
-    df['code'] = df['code'].apply(lambda x: 'OPT' + x.rstrip('.sim').replace('-', '_'))
+    df['code'] = df['code'].apply(lambda x:
+            'OPT' + x.rstrip('.sim').rstrip('.SZ').replace('-', '_'))
     df = df[['dt', 'code', 'amount', 'price']].copy()
     df['dt'] = pd.to_datetime(df['dt']).dt.tz_convert('Asia/Shanghai')
     df = df.set_index('dt')
@@ -89,13 +95,15 @@ def calc_pnls(opt_df: pd.DataFrame, order_df: pd.DataFrame):
     pnl_df = pd.DataFrame(pnls)
     return pnl_df
 
-def main():
-    # opt_df = pd.read_csv(f'{DATA_DIR}/input/tl_greeks_159915_all_fixed.csv')
-    opt_df = pd.read_csv(f'{DATA_DIR}/input/nifty_greeks_combined.csv')
+def main(suffix: str, principal: float = 1000000.0):
+    opt_df = pd.read_csv(f'{DATA_DIR}/input/tl_greeks_159915_all_fixed.csv')
+    # opt_df = pd.read_csv(f'{DATA_DIR}/input/oi_spot_159915.csv')
+    # opt_df = pd.read_csv(f'{DATA_DIR}/input/nifty_greeks_combined.csv')
     opt_df = make_opt_pivot(opt_df)
     print(opt_df)
     # opt_df.to_csv('opt_df.csv')
-    order_df = pd.read_csv(f'{DATA_DIR}/output/opt_bullsp_order_5_t.csv')
+    # order_df = pd.read_csv(f'{DATA_DIR}/output/opt_bullsp_order_5_t.csv')
+    order_df = pd.read_csv(f'{DATA_DIR}/output/opt_order_{suffix}_t.csv')
     order_df = make_order_df(order_df)
 
     """
@@ -110,9 +118,16 @@ def main():
     pnl_df = calc_pnls(opt_df, order_df)
     pnl_df = pnl_df.set_index('dt').resample('1d').last().reset_index()
     pnl_df = pnl_df[~pnl_df['pnl'].isna()]
+    pnl_df['dt'] = pnl_df['dt'].dt.date
+    pnl_df['ratio'] = pnl_df['pnl'] / principal
     # print(pnl_df)
-    pnl_df.to_csv(f'{DATA_DIR}/output/pnl_b5s1.csv', index=False, float_format='%.2f')
+    pnl_df.to_csv(f'{DATA_DIR}/output/pnl_{suffix}.csv', index=False, float_format='%.2f')
 
+@click.command(context_settings=dict(help_option_names=['-h', '--help']))
+@click.option('-s', '--suffix', type=str, default='', help='suffix for output file')
+@click.option('-p', '--principal', type=float, default=1000000.0, help='initial principal for pnl calculation')
+def click_main(suffix: str, principal: float):
+    main(suffix, principal)
 
 if __name__ == '__main__':
-    main()
+    click_main()

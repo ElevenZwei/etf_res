@@ -104,7 +104,7 @@ class StrategyETF(Strategy):
         self.hold_action = spot_action
         order = self.order_factory.market(
             instrument_id=inst_id,
-            order_side=OrderSide.BUY,
+            order_side=OrderSide.BUY if spot_action > 0 else OrderSide.SELL,
             quantity=inst.make_qty(buy_size),
             time_in_force=TimeInForce.FOK,
         )

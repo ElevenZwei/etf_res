@@ -18,12 +18,13 @@ df_zxt_pcr = df_zxt_pcr[df_zxt_pcr.index >= BEGIN_DATE]
 df_zxt_pcr = df_zxt_pcr.rename(columns={'159915': 'pcr'})
 df_zxt_pcr['spot'] = '159915'
 
-df_zxt_stock = pd.read_parquet(f'{DATA_DIR}/zxt/order_signal.parquet', engine='pyarrow')
+df_zxt_stock = pd.read_parquet(f'{DATA_DIR}/zxt/ofsignal_pos.parquet', engine='pyarrow')
 df_zxt_stock = df_zxt_stock.rename_axis('dt')
 df_zxt_stock.index = df_zxt_stock.index.tz_localize('Asia/Shanghai')
 df_zxt_stock = df_zxt_stock[df_zxt_stock.index >= BEGIN_DATE]
 df_zxt_stock.to_csv(f'{DATA_DIR}/input/zxt_stock.csv', index=True)
-df_zxt_stock['stock'] = df_zxt_stock.mean(axis=1) * 2 - 1  # convert [0, 1] to [-1, 1]
+df_zxt_stock['stock'] = df_zxt_stock.mean(axis=1)
+# df_zxt_stock['stock'] = df_zxt_stock['stock'] * 2 - 1  # convert [0, 1] to [-1, 1]
 df_zxt_stock['spot'] = '159915'
 df_zxt_stock = df_zxt_stock[['spot', 'stock']]
 
@@ -63,7 +64,7 @@ def calc_position_changes(df: pd.DataFrame, prefix: str) -> pd.DataFrame:
 # 计算 PCR POSITION
 df_zxt_pcr = calc_position(df_zxt_pcr, open_th=0.8, close_th=0.2, column='pcr')
 df_zxt_pcr.to_csv(f'{DATA_DIR}/input/zxt_pcr_position.csv', index=True)
-df_zxt_stock = calc_position(df_zxt_stock, open_th=0.8, close_th=0.2, column='stock')
+df_zxt_stock = calc_position(df_zxt_stock, open_th=0.5, close_th=0.5, column='stock')
 df_zxt_stock.to_csv(f'{DATA_DIR}/input/zxt_stock_position.csv', index=True)
 
 # 保存一份 pcr position changes 的数据

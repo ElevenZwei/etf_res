@@ -13,9 +13,9 @@ print(df.tail())
 # print(df.info())
 print(df.describe())
 df.to_csv('./pc_final_pos.csv')
-for col in df.columns:
-    if col.startswith('399'):
-        df[col] = df[col] * 2 - 1  # convert to -1, 0, 1
+# for col in df.columns:
+    # if col.startswith('399'):
+        # df[col] = df[col] * 2 - 1  # convert to -1, 0, 1
 
 # df['399006'].plot()
 df['399006'].cumsum().plot()

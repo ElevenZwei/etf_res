@@ -96,8 +96,8 @@ def calc_pnls(opt_df: pd.DataFrame, order_df: pd.DataFrame):
     return pnl_df
 
 def main(suffix: str, principal: float = 1000000.0):
-    opt_df = pd.read_csv(f'{DATA_DIR}/input/tl_greeks_159915_all_fixed.csv')
-    # opt_df = pd.read_csv(f'{DATA_DIR}/input/oi_spot_159915.csv')
+    # opt_df = pd.read_csv(f'{DATA_DIR}/input/tl_greeks_159915_all_fixed.csv')
+    opt_df = pd.read_csv(f'{DATA_DIR}/input/oi_spot_159915.csv')
     # opt_df = pd.read_csv(f'{DATA_DIR}/input/nifty_greeks_combined.csv')
     opt_df = make_opt_pivot(opt_df)
     print(opt_df)

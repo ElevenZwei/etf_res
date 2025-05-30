@@ -31,11 +31,11 @@ def run(size_mode: int, suffix: str, column: str = 'pcr_position'):
     spot_df['dt'] = pd.to_datetime(spot_df['dt'])
     spot_df = spot_df.set_index('dt')
 
-    # action_df = pd.read_csv(f'{DATA_DIR}/input/zxt_mask_position_changes.csv')
-    # action_df['dt'] = pd.to_datetime(action_df['dt'])
-    # action_df = action_df.set_index('dt')
+    action_df = pd.read_csv(f'{DATA_DIR}/input/zxt_stock_position.csv')
+    action_df['dt'] = pd.to_datetime(action_df['dt'])
+    action_df = action_df.set_index('dt')
     
-    action_df = pd.read_parquet(f'{DATA_DIR}/input/zxt_mask_position.parquet', engine='pyarrow')
+    # action_df = pd.read_parquet(f'{DATA_DIR}/input/zxt_mask_position.parquet', engine='pyarrow')
     action_df['action'] = action_df[column]
 
     spot_inst = prepare_spot_quote_from_df(

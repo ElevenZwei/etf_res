@@ -86,26 +86,30 @@ class StrategyETF(Strategy):
         askp = last_quote.ask_price.as_double()
         if self.size_mode == 1:
             # mode 1
-            buy_size = self.get_cash() / askp // 10000 * 10000
+            trade_size = self.get_cash() / askp // 10000 * 10000
         elif self.size_mode == 2:
             # mode 2
-            buy_size = (1_000_000 / askp) // 10000 * 10000
+            trade_size = (1_000_000 / askp) // 10000 * 10000
         elif self.size_mode == 3:
             # mode 3
-            buy_size = 500_000
+            trade_size = 500_000
         elif self.size_mode == 4:
             # mode 4
-            buy_size = min(500_000, (1_000_000 / askp) // 10000 * 10000)
+            trade_size = min(500_000, (1_000_000 / askp) // 10000 * 10000)
         else:
             raise RuntimeError(f"unknown size mode={self.size_mode}")
 
+        trade_size *= abs(spot_action)
+        if trade_size < 10000:
+            self.log.info(f"trade size is too small, skip this, size={trade_size}")
+            return
         self.hold_id = inst_id
         self.hold_from = now
         self.hold_action = spot_action
         order = self.order_factory.market(
             instrument_id=inst_id,
             order_side=OrderSide.BUY if spot_action > 0 else OrderSide.SELL,
-            quantity=inst.make_qty(buy_size),
+            quantity=inst.make_qty(trade_size),
             time_in_force=TimeInForce.FOK,
         )
         self.submit_order(order)

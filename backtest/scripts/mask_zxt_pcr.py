@@ -64,7 +64,8 @@ def calc_position_changes(df: pd.DataFrame, prefix: str) -> pd.DataFrame:
 # 计算 PCR POSITION
 df_zxt_pcr = calc_position(df_zxt_pcr, open_th=0.8, close_th=0.2, column='pcr')
 df_zxt_pcr.to_csv(f'{DATA_DIR}/input/zxt_pcr_position.csv', index=True)
-df_zxt_stock = calc_position(df_zxt_stock, open_th=0.5, close_th=0.5, column='stock')
+# df_zxt_stock = calc_position(df_zxt_stock, open_th=0.5, close_th=0.5, column='stock')
+df_zxt_stock['stock_position'] = df_zxt_stock['stock']
 df_zxt_stock.to_csv(f'{DATA_DIR}/input/zxt_stock_position.csv', index=True)
 
 # 保存一份 pcr position changes 的数据
@@ -74,30 +75,30 @@ df_zxt_stock_changes = calc_position_changes(df_zxt_stock, prefix='stock')
 df_zxt_stock_changes.to_csv(f'{DATA_DIR}/input/zxt_stock_position_changes.csv', index=True)
 
 # 这个数据是我们自己计算的 PC DIFF 信号
-df_pc = pd.read_csv(f'{DATA_DIR}/input/oi_signal_159915_act_changes.csv')
-df_pc['dt'] = pd.to_datetime(df_pc['dt'])
-df_pc = df_pc.set_index('dt')
-df_pc = df_pc.rename(columns={'action': 'diff_position'})
-df_pc = df_pc[['diff_position']]
+# df_pc = pd.read_csv(f'{DATA_DIR}/input/oi_signal_159915_act_changes.csv')
+# df_pc['dt'] = pd.to_datetime(df_pc['dt'])
+# df_pc = df_pc.set_index('dt')
+# df_pc = df_pc.rename(columns={'action': 'diff_position'})
+# df_pc = df_pc[['diff_position']]
 
-# df join
-df_mask = df_zxt_pcr.join(df_zxt_stock.drop(columns=['spot']), how='outer')
-df_mask = df_mask.join(df_pc, how='outer')
-df_mask['pcr_position'] = df_mask['pcr_position'].ffill().fillna(0)
-df_mask['diff_position'] = df_mask['diff_position'].ffill().fillna(0)
-df_mask['stock_position'] = df_mask['stock_position'].ffill().fillna(0)
-df_mask['mask_position'] = df_mask.apply(lambda row:
-        row['diff_position'] if row['diff_position'] * row['pcr_position'] > 0 else 0, axis=1)
-df_mask['mask2_position'] = df_mask.apply(lambda row:
-        row['diff_position'] if row['diff_position'] * row['stock_position'] > 0 else 0, axis=1)
-df_mask['spot'] = df_mask['spot'].ffill().bfill()
-df_mask = df_mask[['spot', 'mask_position', 'mask2_position', 'diff_position', 'pcr_position', 'stock_position', 'pcr', 'stock']]
-df_mask.to_parquet(f'{DATA_DIR}/input/zxt_mask_position.parquet', engine='pyarrow')
-print(df_mask)
+# # df join
+# df_mask = df_zxt_pcr.join(df_zxt_stock.drop(columns=['spot']), how='outer')
+# df_mask = df_mask.join(df_pc, how='outer')
+# df_mask['pcr_position'] = df_mask['pcr_position'].ffill().fillna(0)
+# df_mask['diff_position'] = df_mask['diff_position'].ffill().fillna(0)
+# df_mask['stock_position'] = df_mask['stock_position'].ffill().fillna(0)
+# df_mask['mask_position'] = df_mask.apply(lambda row:
+#         row['diff_position'] if row['diff_position'] * row['pcr_position'] > 0 else 0, axis=1)
+# df_mask['mask2_position'] = df_mask.apply(lambda row:
+#         row['diff_position'] if row['diff_position'] * row['stock_position'] > 0 else 0, axis=1)
+# df_mask['spot'] = df_mask['spot'].ffill().bfill()
+# df_mask = df_mask[['spot', 'mask_position', 'mask2_position', 'diff_position', 'pcr_position', 'stock_position', 'pcr', 'stock']]
+# df_mask.to_parquet(f'{DATA_DIR}/input/zxt_mask_position.parquet', engine='pyarrow')
+# print(df_mask)
 
-df_mask['mask_position_prev'] = df_mask['mask_position'].shift(1)
-df_mask['mask_position_prev'] = df_mask['mask_position_prev'].fillna(0)
-df_mask_changes = df_mask[df_mask['mask_position'] != df_mask['mask_position_prev']]
-df_mask_changes = df_mask_changes[['spot', 'mask_position', 'diff_position', 'pcr_position', 'stock_position', 'pcr']]
-print(df_mask_changes)
-df_mask_changes.to_csv(f'{DATA_DIR}/input/zxt_mask_position_changes.csv', index=True)
+# df_mask['mask_position_prev'] = df_mask['mask_position'].shift(1)
+# df_mask['mask_position_prev'] = df_mask['mask_position_prev'].fillna(0)
+# df_mask_changes = df_mask[df_mask['mask_position'] != df_mask['mask_position_prev']]
+# df_mask_changes = df_mask_changes[['spot', 'mask_position', 'diff_position', 'pcr_position', 'stock_position', 'pcr']]
+# print(df_mask_changes)
+# df_mask_changes.to_csv(f'{DATA_DIR}/input/zxt_mask_position_changes.csv', index=True)

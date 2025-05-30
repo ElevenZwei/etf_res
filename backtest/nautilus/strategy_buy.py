@@ -95,8 +95,8 @@ class StrategyBuy(Strategy):
         avail_opts = self.pick_available_options(now)
         # self.log.info(f"avail_opts: {repr(avail_opts[['first_day', 'last_day', 'expiry_date']])}")
         # Buy Options
-        cp = 1 if spot_action == 1 else -1
-        pick_opt = self.pick_atm_option(avail_opts, spot_price, cp)
+        buy_cp = 1 if spot_action > 0 else -1
+        pick_opt = self.pick_atm_option(avail_opts, spot_price, buy_cp)
         # other_opt = self.pick_atm_option(avail_opts, spot_price, -cp)
         if pick_opt is None:
             self.log.info("cannot pick opt, skip this.")
@@ -145,6 +145,10 @@ class StrategyBuy(Strategy):
             raise RuntimeError(f"unknown size mode={self.size_mode}")
 
         self.log.info(f"pick opt={pick_opt['inst'].id}, ask_price={askp}, size={buy_size}")
+        buy_size *= abs(spot_action)
+        if buy_size < 10000:
+            self.log.info(f"trade size is too small, skip this, size={buy_size}")
+            return
         self.hold_id = inst.id
         self.hold_from = now
         self.hold_action = spot_action

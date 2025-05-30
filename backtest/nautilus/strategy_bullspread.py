@@ -103,10 +103,10 @@ class StrategyBullSpread(Strategy):
             return
 
         # 找到最近的 option 数值开仓
-        if spot_action == 1:
+        if spot_action > 0:
             buy_delta = self.config.long_buy_delta
             sell_delta = self.config.long_sell_delta
-        elif spot_action == -1:
+        elif spot_action < 0:
             buy_delta = self.config.short_buy_delta
             sell_delta = self.config.short_sell_delta
         else:

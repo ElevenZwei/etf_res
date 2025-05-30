@@ -10,22 +10,22 @@ from nautilus_trader.model.enums import OrderSide
 
 from backtest.nautilus.data_types import MyQuoteTick, OptionInfo
 
-class StrategySellConfig(StrategyConfig, frozen=True):
+class StrategySynConfig(StrategyConfig, frozen=True):
     spot: Instrument = None
     infos: dict[Instrument, OptionInfo] = None
     venue: Venue = None
     size_mode: int = None
-    sell_delta: float = None
 
-class StrategySell(Strategy):
-    def __init__(self, config: StrategySellConfig):
+class StrategySyn(Strategy):
+    def __init__(self, config: StrategySynConfig):
         super().__init__(config)
         self.spot = config.spot
         self.infos = config.infos
         self.size_mode = config.size_mode
         self.id_inst = { x.id: x for x in config.infos }
 
-        self.hold_id = None
+        self.buy_hold_id = None
+        self.sell_hold_id = None
         self.hold_from: datetime.datetime = None
         self.hold_action = None
         
@@ -46,8 +46,10 @@ class StrategySell(Strategy):
     def get_net_worth(self):
         cash = self.portfolio.account(self.config.venue).balance().total.as_double()
         pos_value = 0
-        if self.hold_id is not None:
-            pos_value = self.portfolio.net_exposure(self.hold_id).as_double()
+        if self.sell_hold_id is not None:
+            pos_value += self.portfolio.net_exposure(self.sell_hold_id).as_double()
+        if self.buy_hold_id is not None:
+            pos_value += self.portfolio.net_exposure(self.buy_hold_id).as_double()
         sum = cash + pos_value
         self.log.info(f"account: cash={cash}, pos={pos_value}, sum={sum}")
         return sum
@@ -91,52 +93,59 @@ class StrategySell(Strategy):
 
         avail_opts = self.pick_available_options(now)
         # Sell Options
-        sell_cp = -1 if spot_action > 0 else 1
-        pick_opt = self.pick_option_with_delta(avail_opts, sell_cp * self.config.sell_delta)
-        if pick_opt is None:
-            self.log.info("cannot pick opt, skip this.")
+        buy_cp = 1 if spot_action > 0 else -1
+        sell_cp = -buy_cp
+        buy_opt = self.pick_option_with_delta(avail_opts, buy_cp * 0.5)
+        if buy_opt is None:
+            self.log.info("cannot pick buy opt, skip this.")
+            return
+        sell_opt = self.pick_option_with_delta(avail_opts, sell_cp * 0.5)
+        if sell_opt is None:
+            self.log.info("cannot pick sell opt, skip this.")
             return
 
         # Make order 
-        inst = pick_opt['inst']
-        sell_tick = self.cache.quote_tick(inst.id)
+        sell_inst = sell_opt['inst']
+        sell_tick = self.cache.quote_tick(sell_inst.id)
         if sell_tick is None:
             self.log.info("cannot read opt md, skip this.")
             return
         if sell_tick.bid_price == 0:
-            self.log.info(f"last ask_price is zero, skip this, price={repr(sell_tick)}")
+            self.log.info(f"last bid_price is zero, skip this, price={repr(sell_tick)}")
             return
 
-        sell_margin = self.calc_option_margin(inst.id)
-        
-        if self.size_mode == 1:
-            # mode 1
-            sell_size = self.get_cash() / sell_margin // 10000 * 10000
-        elif self.size_mode == 2:
-            # mode 2
-            sell_size = (1_000_000 / sell_margin) // 10000 * 10000
-        elif self.size_mode == 3:
-            # mode 3
-            sell_size = 500_000
-        elif self.size_mode == 4:
-            # mode 4
-            sell_size = min(500_000, (1_000_000 / sell_margin) // 10000 * 10000)
-        else:
-            raise RuntimeError(f"unknown size mode={self.size_mode}")
-
-        bidp = sell_tick.bid_price.as_double()
-        self.log.info(f"pick opt={pick_opt['inst'].id}, bid_price={bidp}, size={sell_size}")
-        sell_size *= abs(spot_action)
-        if sell_size < 10000:
-            self.log.info(f"trade size is too small, skip this, size={sell_size}")
+        buy_inst = buy_opt['inst']
+        buy_tick = self.cache.quote_tick(buy_inst.id)
+        if buy_tick is None:
+            self.log.info("cannot read opt md, skip this.")
             return
-        self.hold_id = inst.id
+        if buy_tick.ask_price == 0:
+            self.log.info(f"last ask_price is zero, skip this, price={repr(buy_tick)}")
+            return
+
+        group_margin = self.calc_option_margin(sell_inst.id) + buy_tick.ask_price.as_double()
+        trade_size = self.get_cash() / group_margin // 10000 * 10000
+
+        self.log.info(f"pick buy opt={buy_opt['inst'].id}, sell opt={sell_opt['inst'].id}, size={trade_size}")
+        trade_size *= abs(spot_action)
+        if trade_size < 10000:
+            self.log.info(f"trade size is too small, skip this, size={trade_size}")
+            return
+        self.sell_hold_id = sell_inst.id
+        self.buy_hold_id = buy_inst.id
         self.hold_from = now
         self.hold_action = spot_action
         order = self.order_factory.market(
-            instrument_id=inst.id,
+            instrument_id=sell_inst.id,
             order_side=OrderSide.SELL,
-            quantity=inst.make_qty(sell_size),
+            quantity=sell_inst.make_qty(trade_size),
+            time_in_force=TimeInForce.FOK,
+        )
+        self.submit_order(order)
+        order = self.order_factory.market(
+            instrument_id=buy_inst.id,
+            order_side=OrderSide.BUY,
+            quantity=buy_inst.make_qty(trade_size),
             time_in_force=TimeInForce.FOK,
         )
         self.submit_order(order)
@@ -149,7 +158,7 @@ class StrategySell(Strategy):
             self.close_all()
         if self.size_mode == 1:
             if now.hour == 6 and now.minute > 40:
-                if self.hold_id is not None:
+                if self.sell_hold_id is not None or self.buy_hold_id is not None:
                     self.log.info(f"now is after 14:40, close daliy option position.")
                     self.close_all()
 
@@ -187,10 +196,12 @@ class StrategySell(Strategy):
         return avail.iloc[0]
 
     def close_all(self):
-        if self.hold_id is None:
+        if self.sell_hold_id is None and self.buy_hold_id is None:
             return
-        self.close_all_positions(self.hold_id)
-        self.hold_id = None
+        self.close_all_positions(self.sell_hold_id)
+        self.close_all_positions(self.buy_hold_id)
+        self.buy_hold_id = None
+        self.sell_hold_id = None
         self.hold_action = 0
 
     def calc_option_margin(self, inst_id):

@@ -18,8 +18,8 @@ from backtest.nautilus.data_types import prepare_venue, prepare_spot_quote_from_
 from backtest.nautilus.strategy_syn import StrategySyn, StrategySynConfig
 
 def run(size_mode: int, suffix: str, column: str = 'pcr_position'):
-    bgdt = datetime.date(2024, 3, 1)
-    eddt = datetime.date(2024, 4, 1)
+    bgdt = datetime.date(2024, 2, 1)
+    eddt = datetime.date(2024, 10, 1)
 
     engine = BacktestEngine(config=BacktestEngineConfig(
         trader_id=TraderId('BT-001'),

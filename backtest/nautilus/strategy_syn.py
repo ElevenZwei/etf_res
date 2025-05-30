@@ -74,6 +74,17 @@ class StrategySyn(Strategy):
         if spot_action is None:
             self.log.info(f"spot action is none.")
             return
+        if self.size_mode == 5 or self.size_mode == 6:
+            # long only mode
+            if spot_action < 0:
+                self.log.info(f"spot action is negative, skip this.")
+                spot_action = 0
+        if self.size_mode == 7 or self.size_mode == 8:
+            # short only mode
+            if spot_action > 0:
+                self.log.info(f"spot action is positive, skip this.")
+                spot_action = 0
+
         if self.hold_action == spot_action:
             self.log.info(f"hold action is same, skip this.")
             return
@@ -156,7 +167,7 @@ class StrategySyn(Strategy):
         opt_info: OptionInfo = self.infos[self.id_inst[tick_id]]
         if now.date() == opt_info.last_day:
             self.close_all()
-        if self.size_mode == 1:
+        if self.size_mode % 2 == 1:
             if now.hour == 6 and now.minute > 40:
                 if self.sell_hold_id is not None or self.buy_hold_id is not None:
                     self.log.info(f"now is after 14:40, close daliy option position.")

@@ -16,7 +16,7 @@ from backtest.nautilus.strategy_etf import StrategyETF, StrategyETFConfig
 
 def run(size_mode: int, suffix: str, column: str = 'pcr_position'):
     bgdt = datetime.date(2024, 2, 1)
-    eddt = datetime.date(2024, 3, 1)
+    eddt = datetime.date(2024, 10, 1)
 
     engine = BacktestEngine(config=BacktestEngineConfig(
         trader_id=TraderId('BT-001'),

@@ -51,7 +51,7 @@ def prepare_venue(engine, venue_name):
         # fill_model=fill_model,
     )
     return ven
-        
+
 def df_to_my_quote(df, inst):
     res = []
     df['epoch_ns'] = df.index.astype('int64')
@@ -100,7 +100,7 @@ def prepare_spot_quote_from_df(spot_df, action_df, engine, venue, bgdt, eddt):
     codes = df['code'].unique()
     assert(len(codes) == 1)
     spot = codes[0]
-    df.loc[:, 'ask'] = df['price']
+    df.loc[:, 'ask'] = df['price'] # + 0.0001
     df.loc[:, 'bid'] = df['price']
     print('loading spot:', spot)
     spot_symbol = Symbol(spot)
@@ -137,7 +137,7 @@ def prepare_option_quote(csv_fpath, engine, venue, bgdt, eddt):
     infos = {}
     for code in tqdm.tqdm(codes):
         df_clip = df[df['code'] == code].copy()
-        df_clip.loc[:, 'ask']= df_clip['closep']
+        df_clip.loc[:, 'ask']= df_clip['closep'] # + 0.0001
         df_clip.loc[:, 'bid'] = df_clip['closep']
         id = df_clip['tradecode'].iloc[0]
         # print(id)

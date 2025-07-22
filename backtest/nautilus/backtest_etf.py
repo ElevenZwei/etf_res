@@ -15,8 +15,10 @@ from backtest.nautilus.data_types import prepare_venue, prepare_spot_quote_from_
 from backtest.nautilus.strategy_etf import StrategyETF, StrategyETFConfig
 
 def run(size_mode: int, suffix: str, column: str = 'pcr_position'):
-    bgdt = datetime.date(2024, 2, 1)
-    eddt = datetime.date(2024, 10, 1)
+    # bgdt = datetime.date(2024, 2, 1)
+    # eddt = datetime.date(2024, 10, 1)
+    bgdt = datetime.date(2025, 1, 1)
+    eddt = datetime.date(2025, 5, 27)
 
     engine = BacktestEngine(config=BacktestEngineConfig(
         trader_id=TraderId('BT-001'),
@@ -24,8 +26,11 @@ def run(size_mode: int, suffix: str, column: str = 'pcr_position'):
     venue_name = 'sim'
     ven = prepare_venue(engine, venue_name)
 
-    spot_df = pd.read_csv(f'{DATA_DIR}/input/oi_spot_159915.csv')
+    # spot_df = pd.read_csv(f'{DATA_DIR}/input/oi_spot_159915.csv')
+    spot_df = pd.read_csv(f'{DATA_DIR}/input/spot_159915_2025_dsp.csv')
     spot_df['dt'] = pd.to_datetime(spot_df['dt'])
+    if spot_df['code'].dtype != str:
+        spot_df['code'] = spot_df['code'].astype('Int64').astype(str)
     spot_df = spot_df.set_index('dt')
 
     action_df = pd.read_csv(f'{DATA_DIR}/input/zxt_stock_position.csv')

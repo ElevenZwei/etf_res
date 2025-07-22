@@ -1,5 +1,3 @@
-
-import math
 import pandas as pd
 import datetime
 from nautilus_trader.trading.strategy import Strategy
@@ -17,8 +15,6 @@ class StrategyBuyConfig(StrategyConfig, frozen=True):
     venue: Venue = None
     size_mode: int = None
     hold_days_limit: int = None
-    impv_min: float = None
-    impv_max: float = None
 
 class StrategyBuy(Strategy):
     def __init__(self, config: StrategyBuyConfig):
@@ -30,7 +26,7 @@ class StrategyBuy(Strategy):
 
         self.hold_id = None
         self.hold_from: datetime.datetime = None
-        self.hold_action = None
+        self.hold_action = 0
         
         info_list = [{
             'inst': x.inst,
@@ -72,17 +68,35 @@ class StrategyBuy(Strategy):
         self.log.info(f'net_worth={self.get_net_worth()}')
         spot_price = tick.ask_price
         spot_action = tick.action
+
         if spot_action is None:
             self.log.info(f"spot action is none.")
             return
+        if self.size_mode == 5 or self.size_mode == 6:
+            # long only mode
+            if spot_action < 0:
+                self.log.info(f"spot action is negative, skip this.")
+                spot_action = 0
+        if self.size_mode == 7 or self.size_mode == 8:
+            # short only mode
+            if spot_action > 0:
+                self.log.info(f"spot action is positive, skip this.")
+                spot_action = 0
+
         if self.hold_action == spot_action:
             self.log.info(f"hold action is same, skip this.")
             return
         self.log.info(f'spot price={spot_price}, action={spot_action}')
-        self.close_all()
+
+        if self.hold_action * spot_action <= 0:
+            # if hold action is different from spot action, close all positions.
+            self.log.info(f"hold action is different from spot action, close all positions,"
+                          f"hold_action={self.hold_action}, spot_action={spot_action}")
+            self.close_all()
         if spot_action == 0:
             self.log.info(f"spot action is 0, skip this.")
             return
+
         now = self.clock.utc_now() 
         self.log.info(f"now={now}")
         if (now.hour == 6 and now.minute > 30) or now.hour > 6:
@@ -92,70 +106,53 @@ class StrategyBuy(Strategy):
             self.log.info(f"now is before 9:40, skip this.")
             return
 
-        avail_opts = self.pick_available_options(now)
-        # self.log.info(f"avail_opts: {repr(avail_opts[['first_day', 'last_day', 'expiry_date']])}")
         # Buy Options
-        buy_cp = 1 if spot_action > 0 else -1
-        pick_opt = self.pick_atm_option(avail_opts, spot_price, buy_cp)
-        # other_opt = self.pick_atm_option(avail_opts, spot_price, -cp)
-        if pick_opt is None:
-            self.log.info("cannot pick opt, skip this.")
-            return
+        if self.hold_id is not None:
+            pick_opt = self.infos[self.id_inst[self.hold_id]]
+            inst = pick_opt.inst
+            if pick_opt.cp * spot_action < 0:
+                self.log.info(f"hold option is not suitable, close all positions.")
+                self.close_all()
+                return
+        
+        if self.hold_id is None:
+            avail_opts = self.pick_available_options(now)
+            buy_cp = 1 if spot_action > 0 else -1
+            pick_opt = self.pick_option_with_delta(avail_opts, buy_cp * 0.38)
+            if pick_opt is None:
+                self.log.info("cannot pick opt, skip this.")
+                return
+            inst: Instrument = pick_opt['inst']
+            last_quote = self.cache.quote_tick(inst.id)
+            askp = last_quote.ask_price.as_double()
+            if last_quote is None:
+                self.log.info("cannot read opt md, skip this.")
+                return
+            if last_quote.ask_price == 0:
+                self.log.info(f"last ask_price is zero, skip this, price={repr(last_quote)}")
+                return
+            full_size = (5_000 / askp) // 10000 * 10000
+            self.full_size = full_size
 
-        impv_ratio = 1
-
-        # pick_quote = self.cache.quote_tick(pick_opt['inst'].id)
-        # if pick_quote is None:
-        #     self.log.info("quote is none.")
-        #     return
-        # other_quote = self.cache.quote_tick(other_opt['inst'].id)
-        # atm_impv = (pick_quote.impv + other_quote.impv) / 2
-        # impv_amp = (self.config.impv_max - self.config.impv_min)
-        # impv_ratio = max(min((atm_impv - self.config.impv_min) / impv_amp, 1), 0)
-        # impv_ratio = round(impv_ratio, 1)
-        # self.log.info(f'atm_impv={atm_impv}, impv_ratio={impv_ratio}')
-        # if impv_ratio == 0:
-        #     return
-
-
-        # Make order 
-        inst = pick_opt['inst']
-        last_quote = self.cache.quote_tick(inst.id)
-        if last_quote is None:
-            self.log.info("cannot read opt md, skip this.")
-            return
-        if last_quote.ask_price == 0:
-            self.log.info(f"last ask_price is zero, skip this, price={repr(last_quote)}")
-            return
-
-        askp = last_quote.ask_price.as_double()
-        if self.size_mode == 1:
-            # mode 1
-            buy_size = self.get_cash() * 0.005 / askp // 10000 * 10000
-        elif self.size_mode == 2:
-            # mode 2
-            buy_size = (5_000 / askp) // 10000 * 10000
-        elif self.size_mode == 3:
-            # mode 3
-            buy_size = 300_000
-        elif self.size_mode == 4:
-            # mode 4
-            buy_size = min(500_000, (5_000 / askp) // 10000 * 10000)
+        hold_size = self.full_size * abs(spot_action) // 10000 * 10000
+        if self.hold_id is not None:
+            trade_size = hold_size - self.hold_size
         else:
-            raise RuntimeError(f"unknown size mode={self.size_mode}")
+            trade_size = hold_size
 
-        self.log.info(f"pick opt={pick_opt['inst'].id}, ask_price={askp}, size={buy_size}")
-        buy_size *= abs(spot_action)
-        if buy_size < 10000:
-            self.log.info(f"trade size is too small, skip this, size={buy_size}")
+        self.log.info(f"pick opt={inst.id}, hold_size={hold_size}, trade_size={trade_size}")
+        if abs(trade_size) < 10000:
+            self.log.info(f"trade size is too small, skip this, size={trade_size}")
             return
+
         self.hold_id = inst.id
         self.hold_from = now
         self.hold_action = spot_action
+        self.hold_size = hold_size
         order = self.order_factory.market(
             instrument_id=inst.id,
-            order_side=OrderSide.BUY,
-            quantity=inst.make_qty(buy_size * impv_ratio),
+            order_side=OrderSide.BUY if trade_size > 0 else OrderSide.SELL,
+            quantity=inst.make_qty(abs(trade_size)),
             time_in_force=TimeInForce.FOK,
         )
         self.submit_order(order)
@@ -166,11 +163,12 @@ class StrategyBuy(Strategy):
         opt_info: OptionInfo = self.infos[self.id_inst[tick_id]]
         if now.date() == opt_info.last_day:
             self.close_all()
-            # self.close_all_positions(tick.instrument_id)
-        if now.hour == 6 and now.minute > 40:
-            if self.hold_id is not None:
-                self.log.info(f"now is after 14:40, close daliy option position.")
-                self.close_all()
+
+        if self.size_mode % 2 == 1:
+            if now.hour == 6 and now.minute > 40:
+                if self.hold_id is not None:
+                    self.log.info(f"now is after 14:40, close daliy option position.")
+                    self.close_all()
 
         if (self.hold_id is not None and self.hold_id == tick_id
                 and self.hold_from + datetime.timedelta(days=self.config.hold_days_limit) < now):
@@ -196,10 +194,35 @@ class StrategyBuy(Strategy):
             return None
         return avail.iloc[0]
     
+    def pick_option_with_delta(self, avail: pd.DataFrame, target_delta: float):
+        if target_delta == 0 or avail.shape[0] == 0:
+            return None
+        if target_delta > 0:
+            avail = avail.loc[avail['cp'] == 1].copy()
+        else:
+            avail = avail.loc[avail['cp'] == -1].copy()
+        
+        def read_delta(inst: Instrument) -> float:
+            quote: MyQuoteTick = self.cache.quote_tick(inst.id)
+            if quote is None:
+                return None
+            if quote.delta == 0:
+                return None
+            return quote.delta
+
+        avail['delta'] = avail['inst'].apply(read_delta)
+        avail = avail.loc[~avail['delta'].isna()]
+        avail = avail.sort_values(by='delta', key=lambda x: abs(x - target_delta))
+        if (avail.shape[0] == 0):
+            return None
+        return avail.iloc[0]
+
     def close_all(self):
         if self.hold_id is None:
             return
         self.close_all_positions(self.hold_id)
         self.hold_id = None
         self.hold_action = 0
+        self.hold_size = 0
+        self.full_size = 0
 

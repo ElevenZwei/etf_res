@@ -28,6 +28,6 @@ def merge(spot: str):
     df = df.drop_duplicates(subset=['dt'], keep='first')
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     df.to_csv(f"{OUTPUT_DIR}/oi_{spot}.csv", index=False)
-    print(f"merged {len(fs)} files into {OUTPUT_DIR}/strike_oi_oi_{spot}.csv")
+    print(f"merged {len(fs)} files into {OUTPUT_DIR}/oi_{spot}.csv")
 
-merge('159915')
+merge('510500')

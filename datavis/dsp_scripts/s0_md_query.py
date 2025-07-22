@@ -101,6 +101,7 @@ def dl_oi_data(spot: str, expiry_date: datetime.date,
                     where dt > '{bg_date_str} {bg_time_str}' and dt < '{ed_date_str} {ed_time_str}'
                     and dt::time >= '09:30:00' and dt::time <= '15:00:00'
                     and spotcode = '{spot}' and expirydate = '{expiry_date_str}'
+                    and tradecode like '{spot}%%M%%'
                 ) as T
             )
             select oi.dt, oi.spotcode, oi.expirydate, oi.strike
@@ -127,14 +128,14 @@ def df_calc_open_diff(df: pd.DataFrame) -> pd.DataFrame:
     call_df = df[df['callput'] == 1]
     # call_df = call_df.rename(columns={'tradecode': 'code_c'})
     call_pivot = call_df.pivot(index='dt', columns='strike', values='oi')
-    call_pivot = call_pivot.astype('int64').ffill().bfill()
+    call_pivot = call_pivot.ffill().bfill().astype('int64')
     call_pivot = call_pivot - call_pivot.iloc[0]
     call_melt = call_pivot.melt(ignore_index=False, var_name='strike', value_name='oi_diff_c')
 
     put_df = df[df['callput'] == -1]
     # put_df = put_df.rename(columns={'tradecode': 'code_p'})
     put_pivot = put_df.pivot(index='dt', columns='strike', values='oi')
-    put_pivot = put_pivot.astype('int64').ffill().bfill()
+    put_pivot = put_pivot.ffill().bfill().astype('int64')
     put_pivot = put_pivot - put_pivot.iloc[0]
     put_melt = put_pivot.melt(ignore_index=False, var_name='strike', value_name='oi_diff_p')
 

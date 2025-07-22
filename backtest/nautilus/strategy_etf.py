@@ -62,6 +62,17 @@ class StrategyETF(Strategy):
         if spot_action is None:
             self.log.info(f"spot action is none.")
             return
+        if self.size_mode == 5 or self.size_mode == 6:
+            # long only mode
+            if spot_action < 0:
+                self.log.info(f"spot action is negative, skip this.")
+                spot_action = 0
+        if self.size_mode == 7 or self.size_mode == 8:
+            # short only mode
+            if spot_action > 0:
+                self.log.info(f"spot action is positive, skip this.")
+                spot_action = 0
+
         if self.hold_action == spot_action:
             self.log.info(f"hold action is same, skip this.")
             return
@@ -84,20 +95,7 @@ class StrategyETF(Strategy):
             return
 
         askp = last_quote.ask_price.as_double()
-        if self.size_mode == 1:
-            # mode 1
-            trade_size = self.get_cash() / askp // 10000 * 10000
-        elif self.size_mode == 2:
-            # mode 2
-            trade_size = (1_000_000 / askp) // 10000 * 10000
-        elif self.size_mode == 3:
-            # mode 3
-            trade_size = 500_000
-        elif self.size_mode == 4:
-            # mode 4
-            trade_size = min(500_000, (1_000_000 / askp) // 10000 * 10000)
-        else:
-            raise RuntimeError(f"unknown size mode={self.size_mode}")
+        trade_size = self.get_cash() / askp // 10000 * 10000
 
         trade_size *= abs(spot_action)
         if trade_size < 10000:

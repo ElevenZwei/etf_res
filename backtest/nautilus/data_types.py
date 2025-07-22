@@ -68,8 +68,9 @@ def df_to_my_quote(df, inst):
             ts_event=tup.epoch_ns,
             ts_init=tup.epoch_ns,
         )
-        if hasattr(tup, 'impv'):
-            tick.set_greeks(tup.impv, tup.delta)
+        if hasattr(tup, 'delta'):
+            impv = getattr(tup, 'impv', 0)
+            tick.set_greeks(impv, tup.delta)
         if hasattr(tup, 'action'):
             tick.set_action(tup.action)
         if hasattr(tup, 'oicp'):
@@ -131,14 +132,16 @@ def prepare_option_quote(csv_fpath, engine, venue, bgdt, eddt):
     se_dt = df.index.to_series().dt.date
     df = df[(se_dt >= bgdt) & (se_dt < eddt)]
     # df.to_csv('../input/tl_options_159915_clip.csv')
+    if df['rootcode'].dtype != str:
+        df['rootcode'] = df['rootcode'].astype('Int64').astype(str)
     codes = df['code'].unique()
     if 'tradecode' not in df.columns:
         df['tradecode'] = df['code']
     infos = {}
     for code in tqdm.tqdm(codes):
         df_clip = df[df['code'] == code].copy()
-        df_clip.loc[:, 'ask']= df_clip['closep'] # + 0.0001
-        df_clip.loc[:, 'bid'] = df_clip['closep']
+        df_clip.loc[:, 'ask']= df_clip['closep'] + 0.0004
+        df_clip.loc[:, 'bid'] = df_clip['closep'] - 0.0004
         id = df_clip['tradecode'].iloc[0]
         # print(id)
         cp = 1 if ('C2' in id or '-C-' in id) else -1

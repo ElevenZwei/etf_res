@@ -72,6 +72,17 @@ class StrategySell(Strategy):
         if spot_action is None:
             self.log.info(f"spot action is none.")
             return
+        if self.size_mode == 5 or self.size_mode == 6:
+            # long only mode
+            if spot_action < 0:
+                self.log.info(f"spot action is negative, skip this.")
+                spot_action = 0
+        if self.size_mode == 7 or self.size_mode == 8:
+            # short only mode
+            if spot_action > 0:
+                self.log.info(f"spot action is positive, skip this.")
+                spot_action = 0
+
         if self.hold_action == spot_action:
             self.log.info(f"hold action is same, skip this.")
             return
@@ -108,21 +119,7 @@ class StrategySell(Strategy):
             return
 
         sell_margin = self.calc_option_margin(inst.id)
-        
-        if self.size_mode == 1:
-            # mode 1
-            sell_size = self.get_cash() / sell_margin // 10000 * 10000
-        elif self.size_mode == 2:
-            # mode 2
-            sell_size = (1_000_000 / sell_margin) // 10000 * 10000
-        elif self.size_mode == 3:
-            # mode 3
-            sell_size = 500_000
-        elif self.size_mode == 4:
-            # mode 4
-            sell_size = min(500_000, (1_000_000 / sell_margin) // 10000 * 10000)
-        else:
-            raise RuntimeError(f"unknown size mode={self.size_mode}")
+        sell_size = self.get_cash() / sell_margin // 10000 * 10000
 
         bidp = sell_tick.bid_price.as_double()
         self.log.info(f"pick opt={pick_opt['inst'].id}, bid_price={bidp}, size={sell_size}")
@@ -147,7 +144,7 @@ class StrategySell(Strategy):
         opt_info: OptionInfo = self.infos[self.id_inst[tick_id]]
         if now.date() == opt_info.last_day:
             self.close_all()
-        if self.size_mode == 1:
+        if self.size_mode % 2 == 1:
             if now.hour == 6 and now.minute > 40:
                 if self.hold_id is not None:
                     self.log.info(f"now is after 14:40, close daliy option position.")

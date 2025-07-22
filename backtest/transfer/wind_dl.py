@@ -7,7 +7,9 @@ import calendar
 
 from WindPy import w
 import pandas as pd
+import numpy as np
 
+SAVE_DIR = '../data/db/'
 w.start()
 
 def wind2df(wddata):
@@ -47,8 +49,13 @@ def dl_opt_info(spot: str, date: str):
     opt_csv = opt_csv[['code', 'tradecode', 'contractunit', 'spotcode',
             'callput', 'strike', 'expirydate']]
     opt_csv['insertdt'] = ''
-    opt_csv.to_csv(f'db/ci_{spot}_{date}.csv', index=False)
-    return opt_info
+    opt_csv.to_csv(f'{SAVE_DIR}ci_{spot}_{date}.csv', index=False)
+    return opt_csv
+
+def filter_nearest_expiry(opt_csv: pd.DataFrame):
+    expiry_date = np.min(opt_csv['expirydate'])
+    opt_csv = opt_csv[opt_csv['expirydate'] == expiry_date]
+    return opt_csv
 
 def dl_opt_data(spotcode: str, opt_code: str, from_date: str, to_date: str):
     print(f"get opt data, spot={spotcode}, opt={opt_code}, from={from_date}, to={to_date}")
@@ -70,7 +77,7 @@ def dl_opt_data(spotcode: str, opt_code: str, from_date: str, to_date: str):
             'openp', 'highp', 'lowp', 'closep',
             'volume', 'openinterest']]
     # remove empty lines.
-    opt_data.to_csv(f'db/md_{spotcode}_{opt_code}_{from_date}_{to_date}.csv', index=False)
+    opt_data.to_csv(f'{SAVE_DIR}md_{spotcode}_{opt_code}_{from_date}_{to_date}.csv', index=False)
     return opt_data
 
 def get_last_day(year, month) -> date:
@@ -84,7 +91,7 @@ def dl_year_data(spotcode: str, year: str):
         last_day_str = get_last_day(year, month).strftime('%Y-%m-%d')
         dl_opt_data(spotcode, spotcode, first_day_str, last_day_str)
         near_expiry_date = date(year, month, 20).strftime('%Y-%m-%d')
-        opt_names = dl_opt_info(spotcode, near_expiry_date)['option_code']
+        opt_names = filter_nearest_expiry(dl_opt_info(spotcode, near_expiry_date))['code'].to_list()
         for opt_code in opt_names:
             dl_opt_data(spotcode, opt_code, first_day_str, last_day_str)
 
@@ -94,7 +101,7 @@ def main():
     # dl_year_data('159915.SZ', 2021)
     # dl_year_data('159915.SZ', 2022)
     # dl_year_data('159915.SZ', 2023)
-    dl_year_data('159915.SZ', 2024)
+    # dl_year_data('159915.SZ', 2025)
     dl_year_data('510500.SH', 2024)
     
 if __name__ == '__main__':

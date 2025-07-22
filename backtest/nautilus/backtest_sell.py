@@ -18,8 +18,10 @@ from backtest.nautilus.data_types import prepare_venue, prepare_spot_quote_from_
 from backtest.nautilus.strategy_sell import StrategySell, StrategySellConfig
 
 def run(size_mode: int, suffix: str, column: str = 'pcr_position'):
-    bgdt = datetime.date(2024, 1, 1)
-    eddt = datetime.date(2024, 10, 1)
+    # bgdt = datetime.date(2024, 1, 1)
+    # eddt = datetime.date(2024, 10, 1)
+    bgdt = datetime.date(2025, 1, 1)
+    eddt = datetime.date(2025, 4, 1)
 
     engine = BacktestEngine(config=BacktestEngineConfig(
         trader_id=TraderId('BT-001'),
@@ -27,7 +29,10 @@ def run(size_mode: int, suffix: str, column: str = 'pcr_position'):
     venue_name = 'sim'
     ven = prepare_venue(engine, venue_name)
 
-    spot_df = pd.read_csv(f'{DATA_DIR}/input/oi_spot_159915.csv')
+    # spot_df = pd.read_csv(f'{DATA_DIR}/input/oi_spot_159915.csv')
+    spot_df = pd.read_csv(f'{DATA_DIR}/input/spot_159915_2025_dsp.csv')
+    if spot_df['code'].dtype != str:
+        spot_df['code'] = spot_df['code'].astype('Int64').astype(str)
     spot_df['dt'] = pd.to_datetime(spot_df['dt'])
     spot_df = spot_df.set_index('dt')
 
@@ -41,7 +46,8 @@ def run(size_mode: int, suffix: str, column: str = 'pcr_position'):
     spot_inst = prepare_spot_quote_from_df(
         spot_df, action_df, engine, ven, bgdt, eddt)
     opt_info = prepare_option_quote(
-        f'{DATA_DIR}/input/tl_greeks_159915_all_fixed.csv',
+        # f'{DATA_DIR}/input/tl_greeks_159915_all_fixed.csv',
+        f'{DATA_DIR}/input/opt_159915_2025_0102_0527_greeks.csv',
         engine, ven, bgdt, eddt)
 
     suffix=f"sell_m{size_mode}_{suffix}"

@@ -18,8 +18,10 @@ from backtest.nautilus.data_types import prepare_venue, prepare_spot_quote_from_
 from backtest.nautilus.strategy_buy import StrategyBuy, StrategyBuyConfig
 
 def run(size_mode: int, suffix: str, column: str = 'pcr_position'):
-    bgdt = datetime.date(2024, 1, 1)
-    eddt = datetime.date(2024, 10, 1)
+    # bgdt = datetime.date(2024, 1, 1)
+    # eddt = datetime.date(2024, 10, 1)
+    bgdt = datetime.date(2025, 1, 1)
+    eddt = datetime.date(2025, 4, 1)
 
     engine = BacktestEngine(config=BacktestEngineConfig(
         trader_id=TraderId('BT-001'),
@@ -27,29 +29,33 @@ def run(size_mode: int, suffix: str, column: str = 'pcr_position'):
     venue_name = 'sim'
     ven = prepare_venue(engine, venue_name)
 
-    spot_df = pd.read_csv(f'{DATA_DIR}/input/oi_spot_159915.csv')
+    # spot_df = pd.read_csv(f'{DATA_DIR}/input/oi_spot_159915.csv')
+    spot_df = pd.read_csv(f'{DATA_DIR}/input/spot_159915_2025_dsp.csv')
+    if spot_df['code'].dtype != str:
+        spot_df['code'] = spot_df['code'].astype('Int64').astype(str)
     spot_df['dt'] = pd.to_datetime(spot_df['dt'])
     spot_df = spot_df.set_index('dt')
 
     # action_df = pd.read_csv(f'{DATA_DIR}/input/zxt_mask_position_changes.csv')
-    # action_df['dt'] = pd.to_datetime(action_df['dt'])
-    # action_df = action_df.set_index('dt')
-    
-    action_df = pd.read_parquet(f'{DATA_DIR}/input/zxt_mask_position.parquet', engine='pyarrow')
-    action_df['action'] = action_df[column]
+    action_df = pd.read_csv(f'{DATA_DIR}/input/zxt_stock_position.csv')
+    action_df['dt'] = pd.to_datetime(action_df['dt'])
+    action_df = action_df.set_index('dt')
+    # action_df = pd.read_parquet(f'{DATA_DIR}/input/zxt_mask_position.parquet', engine='pyarrow')
 
+    action_df['action'] = action_df[column]
+    
     spot_inst = prepare_spot_quote_from_df(
         spot_df, action_df, engine, ven, bgdt, eddt)
     opt_info = prepare_option_quote(
-        f'{DATA_DIR}/input/tl_greeks_159915_all_fixed.csv',
+        # f'{DATA_DIR}/input/tl_greeks_159915_all_fixed.csv',
+        f'{DATA_DIR}/input/opt_159915_2025_0102_0527_greeks.csv',
         engine, ven, bgdt, eddt)
 
     suffix=f"buy_m{size_mode}_{suffix}"
     buy_config = StrategyBuyConfig(
         spot=spot_inst, infos=opt_info, venue=ven,
         hold_days_limit=3,
-        size_mode=size_mode,
-        impv_min=0.2, impv_max=0.4)
+        size_mode=size_mode)
     buy_st = StrategyBuy(config=buy_config)
     engine.add_strategy(strategy=buy_st)
     result = engine.run()

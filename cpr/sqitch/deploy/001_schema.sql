@@ -3,6 +3,16 @@
 BEGIN;
 
 -- XXX Add DDLs here.
+
+create or replace function assert(condition boolean, message text)
+returns void as $$
+begin
+    if not condition then
+        raise exception 'assertion failed: %', message;
+    end if;
+end;
+$$ language plpgsql;
+
 create schema if not exists cpr;
 
 -- Create the option role if it does not exist.

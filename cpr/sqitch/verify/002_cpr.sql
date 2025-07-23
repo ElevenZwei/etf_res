@@ -3,15 +3,6 @@
 BEGIN;
 
 -- XXX Add verifications here.
-create or replace function assert(condition boolean, message text)
-returns void as $$
-begin
-    if not condition then
-        raise exception 'assertion failed: %', message;
-    end if;
-end;
-$$ language plpgsql;
-
 select 1 from cpr.cpr;
 
 insert into cpr.dataset (spotcode, expiry_priority, strike)

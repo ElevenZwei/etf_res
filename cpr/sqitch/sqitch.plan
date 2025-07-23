@@ -1,0 +1,6 @@
+%syntax-version=1.0.0
+%project=cpr
+
+001_schema 2025-07-22T07:17:20Z anon <anon@localhost> # Add schema for all cpr objects.
+002_cpr 2025-07-22T07:36:09Z anon <anon@localhost> # Add call put ratio data table.
+003_dist 2025-07-23T07:58:05Z anon <anon@localhost> # Add cpr distribution table.

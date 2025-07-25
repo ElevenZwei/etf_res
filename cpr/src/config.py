@@ -26,3 +26,10 @@ def get_engine():
         database=PG_DB_CONF.db,
     ))
 
+def upsert_on_conflict_skip(table, conn, keys, data_iter):
+    data = [dict(zip(keys, row)) for row in data_iter]
+    stmt = sqlalchemy.dialects.postgresql.insert(table.table).values(data)
+    stmt = stmt.on_conflict_do_nothing()
+    conn.execute(stmt)
+
+

@@ -1,4 +1,4 @@
--- Deploy cpr:002_cpr.sql to pg
+-- Deploy cpr:002_cpr to pg
 
 BEGIN;
 
@@ -25,7 +25,7 @@ create unique index on cpr.cpr (dt, dataset_id);
 
 select create_hypertable('cpr.cpr', 'dt',
     chunk_time_interval => interval '1 month',
-    create_default_indexes => true);
+    create_default_indexes => false);
 
 create table cpr.daily (
     dt timestamptz not null,
@@ -38,7 +38,7 @@ create unique index on cpr.daily (dt, dataset_id);
 create index on cpr.daily (ti, dt, dataset_id);
 select create_hypertable('cpr.daily', 'dt',
     chunk_time_interval => interval '1 month',
-    create_default_indexes => true);
+    create_default_indexes => false);
 
 create function cpr.update_daily (dt_arg date, dataset_id_arg integer)
 returns void as $$

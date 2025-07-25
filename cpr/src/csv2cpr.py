@@ -1,13 +1,14 @@
 import pandas as pd
 import sqlalchemy
 
-from config import get_engine
+from config import get_engine, upsert_on_conflict_skip
 
 INPUT_DIR = "../data/fact/"
 
 OI_CSV = {
         '159915': 'oi_159915_20250101_20250709.csv',
-        '510500': 'oi_510500_20250101_20250710.csv',
+        '510500': 'oi_510500.SH_2024.csv',
+        # '510500': 'oi_510500_20250101_20250710.csv',
 }
 
 engine = get_engine()
@@ -36,12 +37,6 @@ def get_dataset_id(spotcode: str, expiry_priority: int, strike: float):
     return dataset_id
 
 
-def upsert_on_conflict_skip(table, conn, keys, data_iter):
-    data = [dict(zip(keys, row)) for row in data_iter]
-    stmt = sqlalchemy.dialects.postgresql.insert(table.table).values(data)
-    stmt = stmt.on_conflict_do_nothing()
-    conn.execute(stmt)
-
 def downsample_time(df: pd.DataFrame, interval_sec: int):
     df = df.resample(f'{interval_sec}s').first()
     # 这里跳过没有开盘的时间
@@ -66,6 +61,6 @@ def upload_csv_to_cpr(spot: str, csv_file: str):
               chunksize=1000)
 
 
-upload_csv_to_cpr('159915', OI_CSV['159915'])
+# upload_csv_to_cpr('159915', OI_CSV['159915'])
 upload_csv_to_cpr('510500', OI_CSV['510500'])
 

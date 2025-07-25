@@ -11,6 +11,7 @@ import pandas as pd
 import sqlalchemy as sa
 from config import get_engine
 
+engine = get_engine()
 
 def load_ratio_data(spotcode: str, ti: time, d1: date, d2: date)-> pd.DataFrame:
     """
@@ -33,7 +34,7 @@ def load_ratio_data(spotcode: str, ti: time, d1: date, d2: date)-> pd.DataFrame:
         select dt, ratio, ratio_diff, spotcode, dataset_id
         from daily join cpr.dataset d on d.id = daily.dataset_id
     """)
-    with get_engine().connect() as conn:
+    with engine.connect() as conn:
         df = pd.read_sql(query, conn, params={
             'spotcode': spotcode,
             'ti': ti,
@@ -49,7 +50,7 @@ def load_range_id(ti: time, d1: date, d2: date) -> int:
     query = sa.text("""
         select cpr.get_or_create_dt_range(:d1, :d2, :t1, :t1) as id;
     """)
-    with get_engine().connect() as conn:
+    with engine.connect() as conn:
         result = conn.execute(query, {
             'd1': d1,
             'd2': d2,
@@ -66,7 +67,7 @@ def load_method_id(method: str, variation: str, args) -> int:
     query = sa.text("""
         select cpr.get_or_create_method(:method, :variation, :args, null) as id;
     """)
-    with get_engine().connect() as conn:
+    with engine.connect() as conn:
         result = conn.execute(query, {
             'method': method,
             'variation': variation,
@@ -89,7 +90,7 @@ def save_clip_to_db(clip: Dict[str, List[float]], dataset_id: int, range_id: int
         select cpr.get_or_create_clip(:dataset_id, :range_id, :method_id, :data) as id;
     """)
     datastr = json.dumps(clip)
-    with get_engine().connect() as conn:
+    with engine.connect() as conn:
         result = conn.execute(query, {
             'dataset_id': str(dataset_id),
             'range_id': str(range_id),
@@ -130,8 +131,9 @@ def norm_percentile(series: pd.Series) -> pd.Series:
 def norm_z_score(series: pd.Series) -> pd.Series:
     """
     Normalize a pandas Series using z-score normalization.
+    maps to (0, 1) normalization.
     """
-    return (series - series.mean()) / series.std()
+    return ((series - series.mean()) / series.std() + 1) / 2
 
 norm_methods = {
     'min_max': {
@@ -164,6 +166,37 @@ def load_save_clip(spotcode: str, ti: time, d1: date, d2: date):
             method_id = load_method_id(method_name, variation_name, variation['arg'])
             clip = make_ratio_clip(df, variation['func'])
             save_clip_to_db(clip, df['dataset_id'].iloc[0], range_id, method_id)
+    return df
 
 # print(load_ratio_data("159915", time(10, 15), date(2025, 1, 1), date(2025, 1, 31)))
-load_save_clip("159915", time(10, 15), date(2025, 1, 1), date(2025, 1, 31))
+# load_save_clip("159915", time(10, 15), date(2025, 1, 1), date(2025, 1, 31))
+
+def calculate_all_clips(spotcode: str, d1: date, d2: date):
+    """
+    Calculate all clips for a given spotcode and time interval.
+    """
+    days = [d for d in pd.date_range(d1 - timedelta(days=7), d2) if d.weekday() == 4]  # Only Fridays
+    intervals = [timedelta(days=x) for x in [-30, -60, -90, -120]]
+    tis = [
+            *pd.date_range(start="09:30", end="11:30", freq='1min').time,
+            *pd.date_range(start="13:00", end="14:55", freq='1min').time]
+    count = 0
+    for ti in tis:
+        for d in days:
+            for interval in intervals:
+                count += 1
+                bg = (d + interval).date()
+                ed = d.date()
+                try:
+                    df = load_save_clip(spotcode, ti, bg, ed)
+                    print(f"#{count} Clip for {spotcode} at {ti} from {bg} to {ed} samples {df.shape[0]} calculated successfully.")
+                except Exception as e:
+                    print(f"Error calculating clip for {spotcode} at {ti} from {bg} to {ed}: {e}")
+
+if __name__ == "__main__":
+    # TODO: recalculate 159915 after getting 2024 data.
+    calculate_all_clips("159915", date(2025, 1, 3), date(2025, 1, 4))
+    # calculate_all_clips("510500", date(2025, 1, 3), date(2025, 1, 4))
+    # calculate_all_clips("510500", date(2025, 1, 1), date(2025, 7, 9))
+    # calculate_all_clips("159915", date(2025, 1, 1), date(2025, 7, 9))
+

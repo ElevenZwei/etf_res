@@ -1,4 +1,4 @@
--- Revert cpr:002_cpr.sql from pg
+-- Revert cpr:002_cpr from pg
 
 BEGIN;
 

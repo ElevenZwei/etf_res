@@ -1,4 +1,4 @@
--- Verify cpr:002_cpr.sql on pg
+-- Verify cpr:002_cpr on pg
 
 BEGIN;
 

@@ -4,3 +4,6 @@
 001_schema 2025-07-22T07:17:20Z anon <anon@localhost> # Add schema for all cpr objects.
 002_cpr 2025-07-22T07:36:09Z anon <anon@localhost> # Add call put ratio data table.
 003_dist 2025-07-23T07:58:05Z anon <anon@localhost> # Add cpr distribution table.
+004_signal 2025-07-24T09:56:30Z anon <anon@localhost> # Add trade signal table.
+005_market 2025-07-24T16:43:05Z anon <anon@localhost> # Add market data table.
+006_pnl 2025-07-25T05:57:45Z anon <anon@localhost> # Add pnl table.

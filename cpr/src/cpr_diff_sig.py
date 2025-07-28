@@ -244,9 +244,13 @@ def signal_intra_day(spotcode: str, dat: date, args: SignalArgs):
     for tup in cpr.itertuples():
     # for tup in tqdm.tqdm(cpr.itertuples(), total=len(cpr), desc='Processing signals', leave=False):
         ti = tup.ti
-        if ti > time(14, 55) or ti == time(11, 30):
+        if ti > time(14, 55):
             cpr.at[tup.Index, 'is_trading'] = False
             continue  # no clip data after 14:55
+        if ti == time(11, 30):
+            cpr.at[tup.Index, 'is_trading'] = False
+            cpr.at[tup.Index, 'position'] = last_position
+            continue
 
         clip = load_clip_with_cache(ds_id, method_id, ti, bg, ed)
         clip_diff = clip['ratio_diff']
@@ -258,10 +262,6 @@ def signal_intra_day(spotcode: str, dat: date, args: SignalArgs):
         cpr.at[tup.Index, 'long_close'] = long_close
         cpr.at[tup.Index, 'short_open'] = short_open
         cpr.at[tup.Index, 'short_close'] = short_close
-
-        if ti < time(9, 35) or (ti > time(11, 25) and ti < time(12, 0)) or ti > time(14, 54):
-            cpr.at[tup.Index, 'is_trading'] = False
-            continue  # skip non-trading hours
 
         ratio_diff = tup.ratio_diff
         if ratio_diff <= long_open:
@@ -275,6 +275,14 @@ def signal_intra_day(spotcode: str, dat: date, args: SignalArgs):
         else:
             signal = 'close'
         cpr.at[tup.Index, 'signal'] = signal
+
+        if ti < time(9, 35) or () or ti > time(14, 54):
+            cpr.at[tup.Index, 'is_trading'] = False
+            continue
+        if ti > time(11, 25) and ti < time(12, 0):
+            cpr.at[tup.Index, 'is_trading'] = False
+            cpr.at[tup.Index, 'position'] = last_position
+            continue
 
         if last_position == 0.0:
             if signal in ['long_open']:
@@ -353,7 +361,7 @@ def test_signal_intra_day():
         long_open_threshold=-1000,
         long_close_threshold=0.0,
         short_open_threshold=0.3,
-        short_close_threshold=0.0
+        short_close_threshold=0.0,
     )
     df = signal_intra_day(spotcode, dat, args)
     # print(df.head(40))
@@ -455,7 +463,8 @@ def signal_intra_day_all(spotcode: str, bg: date, ed: date):
 
 
 if __name__ == '__main__':
-    signal_intra_day_all('510500', date(2025, 7, 1), date(2025, 7, 9))
+    # signal_intra_day_all('510500', date(2025, 7, 1), date(2025, 7, 9))
+    signal_intra_day_all('159915', date(2025, 7, 1), date(2025, 7, 9))
     # print(len([x.arg_variation for x in signal_args_generator()]))
     # test_signal_intra_day()
     # fo args in signal_args_generator():

@@ -18,6 +18,8 @@ create table if not exists cpr.clip_trade_profit(
 );
 create unique index if not exists cpr_clip_trade_profit_idx
     on cpr.clip_trade_profit (dataset_id, trade_args_id, dt_open);
+create index if not exists cpr_clip_trade_profit_trade_args_idx
+    on cpr.clip_trade_profit (trade_args_id, dt_open);
 
 -- 这里要写一个通过 clip_trade_backtest 和 market_minute 价格计算出当日 PNL 的函数。
 -- 原理是用 clip_trade_backtest.position 字段的每个 change 作为买卖时间点，计算每一笔交易的得失。

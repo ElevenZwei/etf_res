@@ -21,7 +21,8 @@ create table cpr.cpr (
     dataset_id integer not null references cpr.dataset(id) on delete cascade,
     call integer not null,
     put integer not null);
-create unique index on cpr.cpr (dt, dataset_id);
+create unique index if not exists cpr_cpr_idx on cpr.cpr (dt, dataset_id);
+create index if not exists cpr_cpr_dataset_idx on cpr.cpr (dataset_id);
 
 select create_hypertable('cpr.cpr', 'dt',
     chunk_time_interval => interval '1 month',
@@ -34,13 +35,34 @@ create table cpr.daily (
     ratio float8 not null,
     ratio_diff float8 not null
 );
-create unique index on cpr.daily (dt, dataset_id);
-create index on cpr.daily (ti, dt, dataset_id);
+create unique index if not exists cpr_daily_idx on cpr.daily (dt, dataset_id);
+create index if not exists cpr_daily_ti_idx on cpr.daily (dataset_id, ti, dt);
 select create_hypertable('cpr.daily', 'dt',
     chunk_time_interval => interval '1 month',
     create_default_indexes => false);
 
-create function cpr.update_daily (dt_arg date, dataset_id_arg integer)
+create or replace function cpr.get_or_create_dataset(
+    spotcode_arg text, expiry_priority_arg integer, strike_arg numeric(12, 4))
+    returns integer language plpgsql as $$
+declare
+    dataset_id integer;
+begin
+    select id into dataset_id from cpr.dataset
+        where spotcode = spotcode_arg and expiry_priority = expiry_priority_arg and strike = strike_arg;
+    if dataset_id is not null then
+        return dataset_id;
+    end if;
+    insert into cpr.dataset (spotcode, expiry_priority, strike)
+        values (spotcode_arg, expiry_priority_arg, strike_arg)
+        on conflict do nothing returning id into dataset_id;
+    if dataset_id is null then
+        select id into dataset_id from cpr.dataset
+            where spotcode = spotcode_arg and expiry_priority = expiry_priority_arg and strike = strike_arg;
+    end if;
+    return dataset_id;
+end; $$;
+
+create or replace function cpr.update_daily (dt_arg date, dataset_id_arg integer)
 returns void as $$
 declare
 bg timestamptz := dt_arg::timestamptz;
@@ -69,7 +91,7 @@ begin
 
 end $$ language plpgsql;
 
-create function cpr.update_daily(d1 date, d2 date, dataset_id_arg integer,
+create or replace function cpr.update_daily(d1 date, d2 date, dataset_id_arg integer,
     notice boolean default true)
 returns void as $$
 declare

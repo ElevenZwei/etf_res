@@ -26,17 +26,26 @@ create table cpr.clip_trade_backtest (
     short_close float8 not null
 );
 create unique index on cpr.clip_trade_backtest (dataset_id, trade_args_id, dt);
+create index if not exists cpr_clip_trade_backtest_trade_args_idx
+    on cpr.clip_trade_backtest (trade_args_id, dt);
 create index on cpr.clip_trade_backtest (dt, dataset_id);
 select create_hypertable('cpr.clip_trade_backtest', 'dt',
     chunk_time_interval => interval '1 week',
     create_default_indexes => false);
 
-create function cpr.get_or_create_clip_trade_args(
+create or replace function cpr.get_or_create_clip_trade_args(
     method_id_arg integer, date_interval_arg integer, variation_arg text, args_arg jsonb)
     returns integer language plpgsql as $$
 declare
     args_id integer;
 begin
+    select id into args_id from cpr.clip_trade_args
+    where method_id = method_id_arg and date_interval = date_interval_arg and variation = variation_arg;
+    if args_id is not null then
+        update cpr.clip_trade_args set args = args_arg where id = args_id;
+        return args_id;
+    end if;
+
     insert into cpr.clip_trade_args (method_id, date_interval, variation, args)
     values (method_id_arg, date_interval_arg, variation_arg, args_arg)
     on conflict (method_id, date_interval, variation) do update

@@ -76,7 +76,7 @@ begin
         select dt_open, dt_close, dataset_id, trade_args_id,
             price_open, price_close, amount,
             profit,
-            profit / greatest(price_open, 0.0001) / amount as profit_percent
+            profit / greatest(price_open, 0.0001) / abs(amount) as profit_percent
             from profits
     ), profit2 as (
         select

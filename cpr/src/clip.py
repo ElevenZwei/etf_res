@@ -194,9 +194,8 @@ def calculate_all_clips(spotcode: str, d1: date, d2: date):
                     print(f"Error calculating clip for {spotcode} at {ti} from {bg} to {ed}: {e}")
 
 if __name__ == "__main__":
-    # TODO: recalculate 159915 after getting 2024 data.
-    calculate_all_clips("159915", date(2025, 1, 3), date(2025, 1, 4))
+    # calculate_all_clips("159915", date(2025, 1, 3), date(2025, 1, 4))
     # calculate_all_clips("510500", date(2025, 1, 3), date(2025, 1, 4))
     # calculate_all_clips("510500", date(2025, 1, 1), date(2025, 7, 9))
-    # calculate_all_clips("159915", date(2025, 1, 1), date(2025, 7, 9))
+    calculate_all_clips("159915", date(2025, 1, 1), date(2025, 7, 9))
 

@@ -4,6 +4,7 @@
 # Input: spotcode, date, method, variation, clip time interval, open close threshold.
 # Output: Intra-day signal for the spotcode.
 
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass, asdict
 from datetime import time, date, datetime, timedelta
 from typing import Callable, Dict, List
@@ -250,9 +251,9 @@ def signal_intra_day(spotcode: str, dat: date, args: SignalArgs):
         clip = load_clip_with_cache(ds_id, method_id, ti, bg, ed)
         clip_diff = clip['ratio_diff']
         long_open = clip_diff[long_open_index] if long_enable else -1000.0
-        long_close = clip_diff[long_close_index]
+        long_close = clip_diff[long_close_index] if long_enable else 1000.0
         short_open = clip_diff[short_open_index] if short_enable else 1000.0
-        short_close = clip_diff[short_close_index]
+        short_close = clip_diff[short_close_index] if short_enable else -1000.0
         cpr.at[tup.Index, 'long_open'] = long_open
         cpr.at[tup.Index, 'long_close'] = long_close
         cpr.at[tup.Index, 'short_open'] = short_open
@@ -369,7 +370,7 @@ method_list = [
 
 date_interval_list = [30, 60, 90, 120]
 arg_open_list = [0.2, 0.3, 0.4, 1000]
-arg_close_list = [-0.1, 0, 0.1]
+arg_close_list = [-0.1, 0, 0.1, 1000]
 arg_center_list = [0.45, 0.5, 0.55]
 
 # date_interval_list = [30]
@@ -394,6 +395,13 @@ def signal_args_generator():
         if arg_long_open >= 1 and arg_short_open >= 1:
             # skip if both long and short open thresholds are off
             continue
+        if ((arg_long_open >= 1 and arg_long_close < 1)
+            or (arg_long_open < 1 and arg_long_close >= 1)
+            or (arg_short_open >= 1 and arg_short_close < 1)
+            or (arg_short_open < 1 and arg_short_close >= 1)):
+            # skip if long open is off but long close is not
+            # skip if short open is off but short close is not
+            continue
         arg = SignalArgs(
             method=method['method'],
             variation=method['variation'],
@@ -412,6 +420,22 @@ def signal_args_generator():
         yield arg
 
 
+def signal_intra_day_upload(spotcode: str, dat: date, args: SignalArgs):
+    try:
+        df = signal_intra_day(spotcode, dat, args)
+        if df is not None and not df.empty:
+            upload_trade_with_args(args, df)
+        else:
+            print(f"No output for {spotcode} on {dat} with args {args}")
+    except Exception as e:
+        print(f"Error processing {spotcode} on {dat} with args {args}: {e}")
+
+
+def init_worker():
+    global engine
+    engine = get_engine()  # Reinitialize the engine in each worker process
+
+
 def signal_intra_day_all(spotcode: str, bg: date, ed: date):
     date_range = pd.date_range(bg, ed, freq='B')  # Business days only
     signal_args = list(signal_args_generator())
@@ -425,19 +449,14 @@ def signal_intra_day_all(spotcode: str, bg: date, ed: date):
             print(f"No data for {spotcode} on {dat}")
             continue
 
-        for args in tqdm.tqdm(signal_args, desc='Processing signal args', leave=False):
-            try:
-                df = signal_intra_day(spotcode, dat, args)
-                if df is not None and not df.empty:
-                    upload_trade_with_args(args, df)
-                else:
-                    print(f"No output for {spotcode} on {dat} with args {args}")
-            except Exception as e:
-                print(f"Error processing {spotcode} on {dat} with args {args}: {e}")
+        with ProcessPoolExecutor(initializer=init_worker, max_workers=90) as executor:
+            futures = [executor.submit(
+                signal_intra_day_upload, spotcode, dat, args) for args in signal_args]
 
 
 if __name__ == '__main__':
-    signal_intra_day_all('510500', date(2025, 1, 1), date(2025, 7, 9))
+    signal_intra_day_all('510500', date(2025, 7, 1), date(2025, 7, 9))
+    # print(len([x.arg_variation for x in signal_args_generator()]))
     # test_signal_intra_day()
     # fo args in signal_args_generator():
     #     print(f"Processing args: {args}")

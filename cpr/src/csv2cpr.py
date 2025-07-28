@@ -6,9 +6,10 @@ from config import get_engine, upsert_on_conflict_skip
 INPUT_DIR = "../data/fact/"
 
 OI_CSV = {
+        # '159915': 'oi_159915.SZ_2024.csv',
+        # '510500': 'oi_510500.SH_2024.csv',
         '159915': 'oi_159915_20250101_20250709.csv',
-        '510500': 'oi_510500.SH_2024.csv',
-        # '510500': 'oi_510500_20250101_20250710.csv',
+        '510500': 'oi_510500_20250101_20250710.csv',
 }
 
 engine = get_engine()
@@ -61,6 +62,6 @@ def upload_csv_to_cpr(spot: str, csv_file: str):
               chunksize=1000)
 
 
-# upload_csv_to_cpr('159915', OI_CSV['159915'])
-upload_csv_to_cpr('510500', OI_CSV['510500'])
+upload_csv_to_cpr('159915', OI_CSV['159915'])
+# upload_csv_to_cpr('510500', OI_CSV['510500'])
 

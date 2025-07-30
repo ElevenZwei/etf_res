@@ -178,6 +178,7 @@ class SignalArgs:
     long_close_threshold: float = 0.0
     short_open_threshold: float = 0.3
     short_close_threshold: float = 0.0
+    noon_close: bool = False
 
 
 def upload_trade_args(args: SignalArgs):
@@ -281,7 +282,8 @@ def signal_intra_day(spotcode: str, dat: date, args: SignalArgs):
             continue
         if ti > time(11, 25) and ti < time(12, 0):
             cpr.at[tup.Index, 'is_trading'] = False
-            cpr.at[tup.Index, 'position'] = last_position
+            if not args.noon_close:
+                cpr.at[tup.Index, 'position'] = last_position
             continue
 
         if last_position == 0.0:
@@ -380,6 +382,8 @@ date_interval_list = [30, 60, 90, 120]
 arg_open_list = [0.2, 0.3, 0.4, 1000]
 arg_close_list = [-0.1, 0, 0.1, 1000]
 arg_center_list = [0.45, 0.5, 0.55]
+# arg_noon_close_list = [False, True]
+arg_noon_close_list = [False]
 
 # date_interval_list = [30]
 # arg_open_list = [0.3, 1000]
@@ -396,10 +400,12 @@ def signal_args_generator():
         arg_close_list,
         arg_open_list,
         arg_close_list,
+        arg_noon_close_list,
     )
     for method, date_interval, arg_center,\
             arg_long_open, arg_long_close,\
-            arg_short_open, arg_short_close in combinations:
+            arg_short_open, arg_short_close,\
+            arg_noon_close in combinations:
         if arg_long_open >= 1 and arg_short_open >= 1:
             # skip if both long and short open thresholds are off
             continue
@@ -418,12 +424,14 @@ def signal_args_generator():
                     + (f"_lo{int(arg_long_open * 100)}_lc{int(arg_long_close * 100)}"
                         if arg_long_open < 1 else "_loff")
                     + (f"_so{int(arg_short_open * 100)}_sc{int(arg_short_close * 100)}"
-                        if arg_short_open < 1 else "_soff")),
+                        if arg_short_open < 1 else "_soff")
+                    + ("_nc" if arg_noon_close else "")),
             zero_threshold=arg_center,
             long_open_threshold=-arg_long_open,
             long_close_threshold=-arg_long_close,
             short_open_threshold=arg_short_open,
             short_close_threshold=arg_short_close,
+            noon_close=arg_noon_close,
         )
         yield arg
 
@@ -463,8 +471,8 @@ def signal_intra_day_all(spotcode: str, bg: date, ed: date):
 
 
 if __name__ == '__main__':
-    # signal_intra_day_all('510500', date(2025, 7, 1), date(2025, 7, 9))
-    signal_intra_day_all('159915', date(2025, 7, 1), date(2025, 7, 9))
+    signal_intra_day_all('510500', date(2025, 1, 1), date(2025, 7, 9))
+    # signal_intra_day_all('159915', date(2025, 1, 1), date(2025, 7, 9))
     # print(len([x.arg_variation for x in signal_args_generator()]))
     # test_signal_intra_day()
     # fo args in signal_args_generator():

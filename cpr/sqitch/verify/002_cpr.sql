@@ -3,7 +3,7 @@
 BEGIN;
 
 -- XXX Add verifications here.
-select 1 from cpr.cpr;
+select 1 from cpr.cpr limit 1;
 
 insert into cpr.dataset (spotcode, expiry_priority, strike)
 values ('TESTCODE', 1, 100.00);

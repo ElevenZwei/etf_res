@@ -84,7 +84,7 @@ begin
             dt_open, dt_close,
             price_open, price_close, amount,
             profit, profit_percent,
-            log(greatest(profit_percent + 1, 0.0001)) as profit_logret
+            ln(greatest(profit_percent + 1, 0.0001)) as profit_logret
         from profits1
     )
     select * from profit2

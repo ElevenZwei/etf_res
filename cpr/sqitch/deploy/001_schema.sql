@@ -22,10 +22,10 @@ create role if not exists option with login
     valid until 'infinity';
 
 -- replace the database name with the actual database name.
-grant connect on database opt to option;
+grant connect, create, temporary on database opt to option;
 
 -- postgres need many grants to use the cpr schema.
-grant usage on schema cpr to option;
+grant usage, create on schema cpr to option;
 grant select, insert, update, delete on all tables in schema cpr to option;
 grant usage, update on all sequences in schema cpr to option;
 grant execute on all functions in schema cpr to option;

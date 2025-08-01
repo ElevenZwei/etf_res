@@ -14,7 +14,7 @@
 5. 运行脚本 `src/cpr_diff_sig.py` 这是一个高运算量的回测模拟脚本。  
 6. 运行脚本 `src/tick2bar.py` 它会读取 `data/fact` 文件并且储存 ETF 价格数据。  
 7. 运行函数 `update_intraday_spot_clip_profit_range` 它会用 ETF 价格来演算回测模拟的结果，然后得到完整的交易记录。  
-8. 统计几千组不同参数的交易记录的脚本在 DBeaver 里面，是非常简短的聚合函数。
+8. 统计几千组不同参数的交易记录的脚本在 DBeaver 以及 DadBod 里面，是非常简短的聚合函数。
 
 
 ## TODO  

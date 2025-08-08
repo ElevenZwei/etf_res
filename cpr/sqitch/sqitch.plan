@@ -8,3 +8,4 @@
 005_market 2025-07-24T16:43:05Z anon <anon@localhost> # Add market data table.
 006_pnl 2025-07-25T05:57:45Z anon <anon@localhost> # Add pnl table.
 007_pnl_stat 2025-08-01T02:15:45Z anon <anon@localhost> # Add pnl stat functions.
+008_roll 2025-08-05T08:14:22Z anon <anon@localhost> # Add rolling tables.

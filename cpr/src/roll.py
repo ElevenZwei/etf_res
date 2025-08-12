@@ -185,8 +185,9 @@ def roll_method_1_sort(profit_df_slice: pd.DataFrame,
     col = roll_method_args.get('sort_column', None)
     if col is None:
         raise ValueError("Cannot read sort key column")
-    profit_aggr = profit_aggr.sort_values(by='profit_logret', ascending=False)
     profit_aggr['id'] = profit_aggr.index
+    profit_aggr = profit_aggr.sort_values(
+            by=['profit_logret', 'id'], ascending=[False, True])
     profit_aggr['rank'] = range(1, len(profit_aggr) + 1)
     profit_aggr['weight'] = 1
     profit_aggr['score'] = profit_aggr['profit_logret']
@@ -256,6 +257,7 @@ class RollRunArgs:
     trade_args_from_id: int
     trade_args_to_id: int
     pick_count: int
+    train_only: bool  # 只做预测，不做验证集上的验证
 
 
 def roll_run_static_sort(run_args: RollRunArgs, profit_df: pd.DataFrame) -> pd.DataFrame:
@@ -268,8 +270,13 @@ def roll_run_static_sort(run_args: RollRunArgs, profit_df: pd.DataFrame) -> pd.D
     roll_sorter_args = run_args.roll_method_args.args
     sorted_slices = []
     for train_df, validate_df, train_from, train_to, validate_from, validate_to in profit_slice:
+        print(f"Sorting train from {train_from} to {train_to},"
+              f" validate from {validate_from} to {validate_to}")
         train_sorted = roll_sorter(train_df, roll_sorter_args)
-        validate_sorted = roll_sorter(validate_df, roll_sorter_args)
+        if not run_args.train_only:
+            validate_sorted = roll_sorter(validate_df, roll_sorter_args)
+        else:
+            validate_sorted = train_sorted[0:0].copy()
         sorted_slices.append((
             train_sorted, validate_sorted,
             train_from, train_to, validate_from, validate_to
@@ -294,7 +301,7 @@ def sort_slice_export(
         roll_result - for the final results of the rolling process
     """
     train_sorted, validate_sorted, train_from, train_to, validate_from, validate_to = slice
-    print(f"Train from {train_from} to {train_to}, Validate from {validate_from} to {validate_to}")
+    print(f"Export train from {train_from} to {train_to}, validate from {validate_from} to {validate_to}")
     print(f"Train sorted: \n{train_sorted.head()}")
     print(f"Validate sorted: \n{validate_sorted.head()}")
     # sorted dataframe has columns: id, rank, weight, score
@@ -355,11 +362,18 @@ def save_roll_output(run_args: RollRunArgs, rank_df: pd.DataFrame, result_df: pd
             method_id, run_args.dataset_id,
             run_args.trade_args_from_id, run_args.trade_args_to_id,
             run_args.pick_count)
-    rank_df['roll_args_id'] = roll_args_id
-    rank_df.to_sql('roll_rank', engine, schema='cpr',
-            if_exists='append', index=False,
-            method=upsert_on_conflict_skip,
-            chunksize=1000)
+
+    if not run_args.train_only:
+        print("uploading roll_rank to database.")
+        rank_df['roll_args_id'] = roll_args_id
+        rank_df.to_sql('roll_rank', engine, schema='cpr',
+                if_exists='append', index=False,
+                method=upsert_on_conflict_skip,
+                chunksize=1000)
+    else:
+        print("train only mode, skip roll_rank table.")
+
+    print("uploading roll_result to database.")
     result_df['roll_args_id'] = roll_args_id
     result_df.to_sql('roll_result', engine, schema='cpr',
             if_exists='append', index=False,

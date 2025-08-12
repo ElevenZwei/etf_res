@@ -24,10 +24,11 @@ roll_run_args_list = [
         roll_method_args=best_return1,
         dataset_id=3,
         date_from=date(2025, 1, 1),
-        date_to=date(2025, 1, 31),
+        date_to=date(2025, 7, 9),
         trade_args_from_id=1,
         trade_args_to_id=8092,
         pick_count=5000,
+        train_only=False,
     ),
 ]
 

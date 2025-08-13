@@ -34,8 +34,8 @@ language sql as $$
     ), dt_range as (
         select * from (
             select dt::date as dt_bg,
-                (dt + validate_intv * pick_intv_ratio - interval '1 day')::date as dt_ed,
-                (dt + validate_intv - interval '1 day')::date as dt_validate_ed
+                (dt + validate_intv * pick_intv_ratio)::date as dt_ed,
+                (dt + validate_intv)::date as dt_validate_ed
             from dt_series) as sub
         where dt_ed is not null
     ), dt_best_trade_args as (
@@ -64,7 +64,7 @@ language sql as $$
         from dt_best_agg d1 cross join dt_range d2
         where d1.dt_bg != d2.dt_bg
             and d1.dt_ed != d2.dt_ed
-            and d1.dt_ed < d2.dt_bg
+            and d1.dt_ed <= d2.dt_bg
         order by d1.dt_bg, d2.dt_bg
     ), dt_best_validate as (
         select dt_best_validate_range.*,

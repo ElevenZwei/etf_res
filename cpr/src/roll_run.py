@@ -1,3 +1,5 @@
+# 这个是运行 roll.py 里面滚动选取策略逻辑的运行器。
+
 from datetime import datetime, date
 
 from roll import RollMethodArgs, RollRunArgs, roll_run

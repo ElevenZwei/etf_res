@@ -1,5 +1,12 @@
 import sqlalchemy
 from dataclasses import dataclass
+from pathlib import Path
+
+def get_file_dir():
+    fpath = Path(__file__).resolve()
+    return fpath.parent
+
+DATA_DIR = get_file_dir() / '..' / 'data'
 
 @dataclass(frozen=True)
 class PgConfig:
@@ -32,4 +39,16 @@ def upsert_on_conflict_skip(table, conn, keys, data_iter):
     stmt = stmt.on_conflict_do_nothing()
     conn.execute(stmt)
 
+import json
+import numpy as np
+
+class NpEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        if isinstance(obj, np.floating):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super().default(obj)
 

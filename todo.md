@@ -94,7 +94,7 @@ id(int), rank(int), weight(int), score(float)
 
 我们先把上面说到的部分完成。
 
-### 08-07 ~ 08-12 Task  
+### 08-07 ~ 08-11 Task  
 现在主要的问题是需要为了实盘做准备，实盘十组参数会有十个开平仓的时间。  
 于是我需要一个叠加参数的，从实盘数据库抽出数据，读取叠加的参数，然后开出单子。  
 目前设计的工具流需要这样几个方向，先从总体的流程上思考。  
@@ -131,6 +131,107 @@ id(int), rank(int), weight(int), score(float)
 仔细判断一下现在数据流的输入问题，我们使用的数据如果和 Wind 下载的数据做一个对比？  
 
 
+### 08-12 Task  
+昨天搞定了 Position Merge 的代码，今天进一步思考实盘运行起来的必要条件。  
+实盘运行的方式现在暂定成 Export 所有需要的参数，然后新建一个脚本运行在 Record Server 上面。  
 
+Export 是一种整理信息的方式，即使不做 Export 在程序运行的时候差不多也要经历一个 Export 过程。  
+Export 需要的参数这个会真的很多很长。  
+比如说有十组参数，每一组都需要每一分钟的分布，  
+或者说每一分钟的触发阈值，所以说这需要一个 Dict 结构。  
+像是 cpr.clip_trade_backtest 表格里面的一样。  
+我们用这样的结构表示：  
 
+```json
+{
+    "dataset_id": 1,  
+    "input_dt_from": "2025-01-13 00:00:00",
+    "input_dt_to": "2025-01-14 23:59:59",
+    "interval": 60,  
+    "roll_args_id": 1,  
+    "roll_dt_from": "2025-01-13 00:00:00",
+    "roll_dt_to": "2025-01-19 00:00:00",
+    "roll_method_id": 1,
+    "roll_method_name": "best_return",  
+    "roll_method_variation": "logret_t1w_v1w",  
+    "roll_method_json": "<json dump>",  
+    "roll_trade_args_from_id": 1,  
+    "roll_trade_args_to_id": 8082,
+    "spotcode": "159915",
+    "top": 10,  
+    "trade_args": { "1000": 0.1, "1001": 0.1, ... }  
+    "trade_args_details": [  
+        {  
+            "trade_args_id": 1000,  
+            "trade_args_json": "<json dump>",  
+            "trade_args_thresholds": {  
+                "long_open_threshold": 0.3,  
+                ...  
+            },  
+            "trigger": [  
+                {  
+                    "time": "09:35:00",  
+                    "long_open": -0.002,  
+                    "long_close": 0,  
+                    "short_open": 0.002,  
+                    "short_close": 0,  
+                },  
+                { ... },
+            ],  
+        },  
+        { ... },
+    ],
+}
+```
+
+交易程序读取里面的 trade_trigger 数组，然后把它转换成 DataFrame，存放在指定的 spotcode 名下。  
+当触发 spotcode 的新行情的时候，检查这些 DataFrame，如果这个 DataFrame 里面有分钟数字对齐的条目，那么接着检查这个 DataFrame 的 open close 数字，和当前行情的 `(c-p)/(c+p)` 的日内变化量做比较。如果触发的话，表示这个 trade_args_id 需要变换仓位。  
+每个 trade_args_id 的仓位从 0 到 1 到 -1 ，在输出的时候再按照权重加权计算总和。  
+
+触发 spotcode 新行情的方案，按照 interval 字段的间隔触发，不过为了和回测对齐，在触发的时候应当尽可能贴近分钟开始的时候，考虑到延迟等等情况，我们可以在 5 秒的时候检查数据库里面是不是有新的行情。或者说经常查看行情数据库，在看到新的行情和上一次触发时间之间的时间差满足条件的时候就触发。  
+
+每次检查触发的最后，给当前的状态 DataFrame 新增一行每个 trade_args_id 的检查结果，并且把这个 DataFrame 保存到 csv 文件里面。csv 文件的命名不能重复，例如用启动时间加上 spotcode 命名。  
+
+```text
+CSV 数据格式表达。
+filename: cpr_pos_spot_159915_dt_20250808_092000.csv
+csv header: dt, spotcode, position, ta_1234, ta_1235, ...
+```
+
+这个记录储存在数据库里面的话就需要使用一个转轴的写法了：  
+
+``` text
+SQL 数据格式表达。
+dt, spotcode, trade_args_id, position, weight  
+其中 trade_args_id is null 并且 weight = 1 的数据行表示仓位总和。
+```
+
+检查触发之后还需要其他的形式通知交易软件，要是交易软件每次都去读取文件 File Descriptor 的变化那就有一点太复杂了。那不如我们单独搞一个数据库，例如 Redis 共享 Dict 的方式，或者 SQL 查询最新一行的方式。  
+
+于是今天我们把配置导出和读取市场数据的这样两步给解决了。  
+
+Export 脚本需要读取 Roll Result 表格的数据，然后查询每个 trade_args_id 的详细配置，再从 cpr.clip 里面读取对应的分布情况。好像相当复杂。  
+这个脚本有很大一部分功能和 `cpr_diff_sig.py` 是重叠的。  
+Export 脚本为了得到触发表格，它的日期范围只能限制在同一个星期里面，用日期加上 trade_args 里面的 date_interval 数字得到分布采样的日期范围。然后再加每一分钟得到 dt_range_id。然后再查询 `cpr.clip` 表格得到采样数据。用这个采样数据和 `cpr.clip_trade_args` 里面的触发条件做比较，得到具体的触发阈值。  
+
+现在 `clip_trade_args` 里面的 args json 是这个形式。
+```json
+{
+  "method": "min_max",
+  "variation": "default",
+  "arg_variation": "c45_lo30_lc10_so20_sc0",
+  "date_interval": 90,
+  "zero_threshold": 0.45,
+  "long_open_threshold": -0.3,
+  "long_close_threshold": -0.1,
+  "short_open_threshold": 0.2,
+  "short_close_threshold": 0
+}
+```
+
+### 08-13 Task  
+
+Export 得到的阈值首先需要和 clip_trade_backtest 里面的数列进行对比，确定得到的触发边界是不是一致的。嗯，验证过了，是相同的。  
+
+Export 的脚本终于搞定了之后，下一步是需要解决这个脚本的运行机制，它需要可以从数据库里面读取指定时间的 Open Interest 数据，自行计算仓位变化的信号，然后我需要把这个仓位变化的信号和我的 roll_merge 表格里面的数据对比。
 

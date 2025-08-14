@@ -19,7 +19,7 @@ language sql as $$
         and dataset_id = dataset_id_arg
         and trade_args_id <= 8082
     group by trade_args_id
-    order by spl desc
+    order by spl desc, trade_args_id asc
     limit cnt;
 $$;
 

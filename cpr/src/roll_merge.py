@@ -71,6 +71,8 @@ def load_roll_result(roll_args_id: int, top: int, dt_from: date, dt_to: date) ->
             "dt_from": dt_from,
             "dt_to": dt_to,
         })
+    if df.empty:
+        raise ValueError(f"No roll result found for roll_args_id: {roll_args_id}, top: {top}, from: {dt_from}, to: {dt_to}")
     return df
 
 
@@ -153,6 +155,8 @@ def merge_range_weights(dataset_id: int, range_weights: RangeWeightsType) -> pd.
             for trade_args_id in trade_args_ids ]
     # multiply each DataFrame by its corresponding weight
     for df in df_list:
+        if df.empty:
+            continue
         trade_args_id = df['trade_args_id'].iloc[0]
         weight = weights.get(trade_args_id, 0)
         if weight > 0:

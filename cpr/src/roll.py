@@ -230,7 +230,7 @@ def roll_static_slice(
         # 因为是 datetime 对象，所以最后不要减去一天，时间到零点为止，最后一天自然不会包含在内
         train_from = dt_from + timedelta(days=i * validate_days)
         train_to = train_from + timedelta(days=train_days)
-        validate_from = train_to + timedelta(days=1)
+        validate_from = train_to
         validate_to = validate_from + timedelta(days=validate_days)
         slices.append((
             profit_df[(profit_df['dt_open'] >= train_from) & (profit_df['dt_close'] <= train_to)],

@@ -6,7 +6,7 @@ import silent_dsp as dsp
 
 class FinalSakanaScheduler:
     """
-    这个是 AI 生成的类似于 crontab 的定时器类型，里面的 bug 我改了好多。
+    这个是 AI 生成的类似于 crontab 的定时器类型
     """
     def __init__(self,
                  interval_seconds: int = 60,

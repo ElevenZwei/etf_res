@@ -174,6 +174,7 @@ def load_save_clip(spotcode: str, ti: time, d1: date, d2: date):
 def calculate_all_clips(spotcode: str, d1: date, d2: date):
     """
     Calculate all clips for a given spotcode and time interval.
+    d2 is inclusive.
     """
     days = [d for d in pd.date_range(d1 - timedelta(days=7), d2) if d.weekday() == 4]  # Only Fridays
     intervals = [timedelta(days=x) for x in [-30, -60, -90, -120]]
@@ -197,5 +198,6 @@ if __name__ == "__main__":
     # calculate_all_clips("159915", date(2025, 1, 3), date(2025, 1, 4))
     # calculate_all_clips("510500", date(2025, 1, 3), date(2025, 1, 4))
     # calculate_all_clips("510500", date(2025, 1, 1), date(2025, 7, 9))
-    calculate_all_clips("159915", date(2025, 1, 1), date(2025, 7, 9))
+    # calculate_all_clips("159915", date(2025, 1, 1), date(2025, 7, 9))
+    calculate_all_clips("159915", date(2025, 7, 9), date(2025, 8, 15))
 

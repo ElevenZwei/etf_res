@@ -8,8 +8,9 @@ INPUT_DIR = "../data/fact/"
 # 从期权数据里面提取不是很稳定，因为可能有一分钟期权完全不交易。
 # 最好还是从 market_data_tick 里面提取。
 OI_CSV = {
-        '159915': 'oi_159915_20250101_20250709.csv',
-        '510500': 'oi_510500_20250101_20250710.csv',
+        # '159915': 'oi_159915_20250101_20250709.csv',
+        # '510500': 'oi_510500_20250101_20250710.csv',
+        '159915': 'oi_merge/oi_159915.csv',
 }
 
 def tick2bar(series: pd.Series) -> pd.DataFrame:
@@ -44,4 +45,4 @@ def convert_csv_to_bars(spot: str, csv_file: str):
 
 if __name__ == "__main__":
     convert_csv_to_bars('159915', OI_CSV['159915'])
-    convert_csv_to_bars('510500', OI_CSV['510500'])
+    # convert_csv_to_bars('510500', OI_CSV['510500'])

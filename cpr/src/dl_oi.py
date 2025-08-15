@@ -205,7 +205,7 @@ def calc_oi(df: pd.DataFrame):
     return df2.reset_index()
 
 
-def dl_calc_oi(spot: str, dt: datetime.date, refresh: bool = False):
+def dl_calc_oi(spot: str, dt: datetime.date, refresh: bool = False) -> pd.DataFrame:
     """
     计算 oi 数据。
     """
@@ -250,15 +250,19 @@ def init_worker():
     engine = get_engine(PG_OI_DB_CONF)
 
 
-def dl_calc_oi_range(spot: str, bg_date: datetime.date, ed_date: datetime.date):
+def dl_calc_oi_range(
+        spot: str, bg_date: datetime.date, ed_date: datetime.date) -> pd.DataFrame:
     """
     下载并计算一段时间内的 oi 数据。
     """
     dt_list = date_range(bg_date, ed_date)
+    df_list = []
     # for dt in dt_list:
     #     dt = dt.date()
     #     try:
-    #         dl_calc_oi(spot, dt, refresh=True)
+    #         df = dl_calc_oi(spot, dt, refresh=True)
+    #         print(f"Successfully processed {spot} on {dt}")
+    #         df_list.append(df)
     #     except Exception as e:
     #         print(f"Error processing {spot} on {dt}: {e}")
     #       # raise e
@@ -268,10 +272,13 @@ def dl_calc_oi_range(spot: str, bg_date: datetime.date, ed_date: datetime.date):
         for future in as_completed(futures):
             dt = futures[future]
             try:
-                future.result()  # 获取结果，可能会抛出异常
+                df = future.result()  # 获取结果，可能会抛出异常
                 print(f"Successfully got oi {spot} on {dt}")
+                df_list.append(df)
             except Exception as e:
                 print(f"Error getting oi {spot} on {dt}: {e}")
+    df = pd.concat(df_list, ignore_index=True)
+    return df
 
 
 def oi_csv_merge(spot: str):

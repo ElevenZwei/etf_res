@@ -64,6 +64,7 @@ def load_trade_profits(dataset_id: int, trade_args_ids: List[int],
                        from_dt: date, to_dt: date) -> pd.DataFrame:
     """
     Load trade profits for a given list of trade argument IDs.
+    `to_dt` day is exclusive.
     """
     if not trade_args_ids:
         return pd.DataFrame(columns=['trade_args_id', 'profit'])
@@ -77,7 +78,7 @@ def load_trade_profits(dataset_id: int, trade_args_ids: List[int],
         from cpr.clip_trade_profit
         where
             dataset_id = :dataset_id
-            and dt_open >= :from_dt and dt_close <= :to_dt
+            and dt_open >= :from_dt and dt_close < :to_dt
             and trade_args_id in :trade_args_ids
         order by trade_args_id, dt_open
     """)
@@ -206,8 +207,24 @@ roll_methods = {
 
 def roll_static_slice(
         profit_df: pd.DataFrame, dt_from: date, dt_to: date,
-        validate_days: int, train_days_factor: int
+        validate_days: int, train_days_factor: int,
+        train_only: bool
         ) -> List[Tuple[pd.DataFrame, pd.DataFrame, date, date, date, date]]:
+    """
+    Make a rolling slice of the profit dataframe.
+    `dt_from` and `dt_to` are the start and end dates of the rolling process.
+    `dt_to` is exclusive, meaning the last day is not included in the slice.
+    `validate_days` is the number of days for the validation set.
+    `train_days_factor` is the factor to multiply `validate_days` to get the training set size.
+    `train_only` is a flag to indicate whether to only train and not validate.
+    Returns a list of tuples, each tuple contains:
+        - train_df: DataFrame for training data
+        - validate_df: DataFrame for validation data
+        - train_from: start date of training data
+        - train_to: end date of training data
+        - validate_from: start date of validation data
+        - validate_to: end date of validation data
+    """
     if dt_from is None:
         raise ValueError("No data to roll")
     if validate_days <= 0 or train_days_factor <= 0:
@@ -222,6 +239,8 @@ def roll_static_slice(
     print(f"Rolling from {dt_from} to {dt_to} with validate_days={validate_days}, train_days_factor={train_days_factor}")
     train_days = validate_days * train_days_factor
     slice_count = ((dt_to - dt_from).days - train_days) // validate_days
+    if train_only:
+        slice_count += 1
     slices = []
     # convert dt_from and dt_to to datetime objects with local timezone
     dt_from = pd.Timestamp(dt_from).tz_localize('Asia/Shanghai')
@@ -233,8 +252,8 @@ def roll_static_slice(
         validate_from = train_to
         validate_to = validate_from + timedelta(days=validate_days)
         slices.append((
-            profit_df[(profit_df['dt_open'] >= train_from) & (profit_df['dt_close'] <= train_to)],
-            profit_df[(profit_df['dt_open'] >= validate_from) & (profit_df['dt_close'] <= validate_to)],
+            profit_df[(profit_df['dt_open'] >= train_from) & (profit_df['dt_close'] < train_to)],
+            profit_df[(profit_df['dt_open'] >= validate_from) & (profit_df['dt_close'] < validate_to)],
             train_from, train_to, validate_from, validate_to
         ))
     return slices
@@ -266,7 +285,8 @@ def roll_run_static_sort(run_args: RollRunArgs, profit_df: pd.DataFrame) -> pd.D
     profit_slice = roll_static_slice(
             profit_df, run_args.date_from, run_args.date_to,
             range_args.get('validate_days', 7),
-            range_args.get('train_days_factor', 1))
+            range_args.get('train_days_factor', 1),
+            train_only=run_args.train_only)
     roll_sorter = roll_methods[run_args.roll_method_args.method]['sort']
     roll_sorter_args = run_args.roll_method_args.args
     sorted_slices = []

@@ -318,6 +318,8 @@ def is_in_same_week(dt1: date, dt2: date) -> bool:
 
 
 def roll_export(roll_args_id: int, top: int, dt_from: date, dt_to: date):
+    # TODO 其实不一定是同一个星期，而是要根据 roll_args_id roll_result
+    # 的时间范围来判断。同一个星期是为了采样区间。
     if not is_in_same_week(dt_from, dt_to):
         raise ValueError("dt_from and dt_to must be in the same week.")
     info = load_roll_export_info()
@@ -344,11 +346,41 @@ def roll_export(roll_args_id: int, top: int, dt_from: date, dt_to: date):
     return info
 
 
+def roll_export_save_db(info: any) -> int:
+    """
+    Register the roll export information in the database.
+    Returns the ID of the created roll export entry.
+    """
+    roll_args_id = info['roll_args_id']
+    top = info['roll_top']
+    dt_from = info['input_dt_from']
+    dt_to = info['input_dt_to']
+    query = sa.text("""
+        select cpr.get_or_create_roll_export(
+            :roll_args_id, :top, :dt_from, :dt_to, :info) as id;
+    """)
+    with engine.connect() as conn:
+        res = conn.execute(query, {
+            'roll_args_id': int(roll_args_id),
+            'top': int(top),
+            'dt_from': (dt_from),
+            'dt_to': (dt_to),
+            'info': json.dumps(info, cls=NpEncoder),
+        })
+        conn.commit()
+        df = pd.DataFrame(res.fetchall(), columns=res.keys())
+    if df.empty:
+        raise ValueError(f"Failed to save roll export for"
+                         f" roll_args_id: {roll_args_id}, top: {top}, "
+                         f"date range: {dt_from} to {dt_to}")
+    return df.iloc[0]['id']
+
+
 @click.command()
 @click.option('-r', '--roll_args_id', type=int, required=True, help='Roll arguments ID to export.')
 @click.option('-t', '--top', type=int, required=True, help='Top count of parameters to export.')
-@click.option('-b', '--dt_from', type=str, required=True, help='Start date (YYYY-MM-DD).')
-@click.option('-e', '--dt_to', type=str, required=True, help='End date (YYYY-MM-DD).')
+@click.option('-b', '--dt_from', type=str, required=True, help='Start date (YYYY-MM-DD), inclusive.')
+@click.option('-e', '--dt_to', type=str, required=True, help='End date (YYYY-MM-DD), inclusive.')
 def click_main(roll_args_id: int, top: int, dt_from: str, dt_to: str):
     """
     Command line interface for exporting roll parameters.
@@ -357,6 +389,7 @@ def click_main(roll_args_id: int, top: int, dt_from: str, dt_to: str):
     dt_to_date = datetime.strptime(dt_to, '%Y-%m-%d').date()
     result = roll_export(roll_args_id, top, dt_from_date, dt_to_date)
     print(json.dumps(result, indent=2, cls=NpEncoder))
+    roll_export_id = roll_export_save_db(result)
 
 
 if __name__ == "__main__":

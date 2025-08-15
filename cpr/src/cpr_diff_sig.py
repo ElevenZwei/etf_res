@@ -453,6 +453,10 @@ def init_worker():
 
 
 def signal_intra_day_all(spotcode: str, bg: date, ed: date):
+    """
+    Process all intra-day signals for a given spotcode and date range. 
+    ed is inclusive.
+    """
     date_range = pd.date_range(bg, ed, freq='B')  # Business days only
     signal_args = list(signal_args_generator())
 
@@ -471,8 +475,9 @@ def signal_intra_day_all(spotcode: str, bg: date, ed: date):
 
 
 if __name__ == '__main__':
-    signal_intra_day_all('510500', date(2025, 1, 1), date(2025, 7, 9))
+    # signal_intra_day_all('510500', date(2025, 1, 1), date(2025, 7, 9))
     # signal_intra_day_all('159915', date(2025, 1, 1), date(2025, 7, 9))
+    signal_intra_day_all('159915', date(2025, 7, 9), date(2025, 8, 15))
     # print(len([x.arg_variation for x in signal_args_generator()]))
     # test_signal_intra_day()
     # fo args in signal_args_generator():

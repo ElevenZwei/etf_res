@@ -33,8 +33,27 @@
 载入计算回测收益需要的 ETF 价格是另一个脚本 `src/tick2bar.py` 这个脚本会把 etf tick price 转换成 minute bar ，然后储存在 `cpr.market_minute` 表格里面。  
 
 ### 统计切片和运行回测  
+
 在 `cpr.update_daily` 得到了日内变化量之后，我们需要一个脚本进行日期上的切片统计和分布归一化。这个脚本是 `src/clip.py` 它会按照预设的 30 60 90 天等等进行采样和插值归一化。然后结果储存在 `cpr.clip` 表格里面。  
-得到采样之后可以用来计算历史的交易仓位，
+运行这个采样需要几分钟的时间，这是数据 IO 比较大的运算。  
+
+得到采样之后可以用来计算历史的交易仓位，这个脚本是 `src/cpr_diff_sig.py` 。  
+这是一个多核心高运算量的任务。  
+
+计算完成之后可以运行 `src/roll_run.py` 得到参数轮换的评估结果。储存在 `cpr.roll_args` `cpr.roll_rank` `cpr.roll_result` 里面。  
+`src/roll_merge.py` 会把轮换的参数组合成参数轮换中的历史仓位，它读取上一步的几个 roll 表格，把结果储存在 `cpr.roll_merged` 里面。  
+`cpr.roll_merged` 表格里面的历史仓位数据可以用来驱动 nautilus 框架回测，得到更加准确的营收报告。
+
+对于轮换之前每个参数的收益情况，用来统计的 SQL 函数是 `select cpr.update_intraday_spot_clip_profit_range(dataset_id, 1, 8082, date_from, date_to, notice=>true);` ，它会读取 `cpr.clip_trade_backtest` 表格，然后把每个参数的逐笔收益储存在 `cpr.clip_trade_profit` 表格里面。  
+
+### 实盘信号  
+
+实盘得出信号需要的参数导出脚本是 `src/roll_export.py` ，这个脚本读取表格 `cpr.roll_result` 以及之前回测中用到的切片样本等等数据，输出一个 json 文件。  
+
+这个 json 文件
+
+
+
 
 
 

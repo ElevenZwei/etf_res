@@ -143,7 +143,7 @@ def merge_trade_trigger(trade_weight: Dict[int, float],
     merged_df['time'] = merged_df['time'].astype('category')
     merged_df.set_index(['time', 'trade_args_id'], inplace=True, drop=False)
     merged_df.sort_index(inplace=True)
-    print(f"Merged trade trigger DataFrame:\n{merged_df.head(20)}")
+    # print(f"Merged trade trigger DataFrame:\n{merged_df.head(20)}")
     return merged_df
 
 

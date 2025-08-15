@@ -3,21 +3,25 @@
 附带可以把多个 CSV 文件合并成一个 CSV 文件的功能。
 """
 
-from typing import Optional
-from collections import deque
 import click
 import datetime
-from dateutil.relativedelta import relativedelta
+import glob
 import io
 import os
-import sqlalchemy
+import sqlalchemy as sa
 import pandas as pd
+from typing import Optional
+from collections import deque
+from dateutil.relativedelta import relativedelta
 
-from dsp_config import DATA_DIR, PG_OI_DB_CONF, get_engine
+from config import DATA_DIR, PG_OI_DB_CONF, get_engine
 
-OI_DIR = '{DATA_DIR}/fact/oi_daily/'
+OI_DIR = f'{DATA_DIR}/fact/oi_daily/'
+OI_MERGE_DIR = f'{DATA_DIR}/fact/oi_merge/'
 if not os.path.exists(OI_DIR):
     os.makedirs(OI_DIR, exist_ok=True)
+if not os.path.exists(OI_MERGE_DIR):
+    os.makedirs(OI_MERGE_DIR, exist_ok=True)
 
 engine = get_engine(PG_OI_DB_CONF)
 
@@ -38,15 +42,19 @@ def read_last_row(csv_path: str, encoding: str = "utf-8") -> pd.Series:
 def dl_expiry_date(spot: str, year: int, month: int) -> Optional[datetime.date]:
     d_from = datetime.datetime(year, month, 1)
     d_to = datetime.datetime(year, month, 28)
-    query = f"""
-        select min(expirydate) as expirydate
-        from contract_info ci
-        where spotcode like '{spot}%%'
-        and expirydate >= '{d_from.strftime('%Y-%m-%d')}'
-        and expirydate <= '{d_to.strftime('%Y-%m-%d')}'
-    """
+    query = sa.text("""
+            select min(expirydate) as expirydate
+            from contract_info ci
+            where spotcode like :spot_code
+            and expirydate >= :d_from
+            and expirydate <= :d_to
+    """)
     with engine.connect() as conn:
-        df = pd.read_sql(query, conn)
+        df = pd.read_sql(query, conn, params={
+            'spot_code': f'{spot}%',
+            'd_from': d_from.strftime('%Y-%m-%d'),
+            'd_to': d_to.strftime('%Y-%m-%d'),
+        })
     if df.shape[0] == 0:
         return None
     return df['expirydate'].iloc[0]
@@ -55,13 +63,12 @@ def dl_expiry_date(spot: str, year: int, month: int) -> Optional[datetime.date]:
 def dl_oi_data(spot: str, expiry_date: datetime.date,
         bg_date: datetime.date, ed_date: datetime.date,
         bg_time: datetime.time = datetime.time(9, 30, 0),
-        ed_time: datetime.time = datetime.time(15, 0, 0),) -> pd.DataFrame:
-    expiry_date_str = expiry_date.strftime('%Y-%m-%d')
+        ed_time: datetime.time = datetime.time(15, 0, 0)) -> pd.DataFrame:
     bg_date_str = bg_date.strftime('%Y-%m-%d')
     ed_date_str = ed_date.strftime('%Y-%m-%d')
     bg_time_str = bg_time.strftime('%H:%M:%S')
     ed_time_str = ed_time.strftime('%H:%M:%S')
-    query = f"""
+    query = sa.text("""
         set enable_nestloop=false;
         with OI as (
             select *
@@ -70,23 +77,30 @@ def dl_oi_data(spot: str, expiry_date: datetime.date,
                     dt, spotcode, expirydate, callput, strike, tradecode,
                     open_interest as oi
                 from market_data_tick mdt join contract_info ci using(code)
-                where dt > '{bg_date_str} {bg_time_str}' and dt < '{ed_date_str} {ed_time_str}'
+                where mdt.dt > :bg_datetime and mdt.dt < :ed_datetime
                 and dt::time >= '09:30:00' and dt::time <= '15:00:00'
-                and spotcode = '{spot}' and expirydate = '{expiry_date_str}'
+                and spotcode = :spot and expirydate = :expiry_date
             ) as T
         )
         select oi.dt, oi.spotcode, oi.expirydate, oi.strike
             , oi.callput, oi.tradecode, oi.oi, mdt.last_price as spot_price
         from OI join market_data_tick mdt using (dt)
-        where dt > '{bg_date_str} {bg_time_str}' and dt < '{ed_date_str} {ed_time_str}'
+        where mdt.dt > :bg_datetime and mdt.dt < :ed_datetime
         and mdt.code = oi.spotcode
         order by dt asc;
-    """
+    """)
     with engine.connect() as conn:
-        df = pd.read_sql(query, conn)
+        df = pd.read_sql(query, conn, params={
+            'spot': spot,
+            'expiry_date': expiry_date.strftime('%Y-%m-%d'),
+            'bg_datetime': f'{bg_date_str} {bg_time_str}',
+            'ed_datetime': f'{ed_date_str} {ed_time_str}',
+        })
     if df.shape[0] == 0:
         return df
     df['dt'] = df['dt'].dt.tz_convert('Asia/Shanghai')
+    # 将时间戳转换为字符串格式，因为自动转换有的带微秒，有的微秒恰好是 0 ，格式里面会有差异。
+    df['dt'] = df['dt'].dt.strftime('%Y-%m-%dT%H:%M:%S%z')
     return df
 
 
@@ -99,28 +113,30 @@ def save_fpath(spot: str, tag: str,
     date_suffix = bg_date_str if bg_date == ed_date else f'{bg_date_str}_{ed_date_str}'
     expiry_date_str = expiry_date.strftime('%Y%m%d')
     suffix = f'exp{expiry_date_str}_date{date_suffix}'
-    fname = f'strike_oi_{tag}_{spot}_{suffix}.csv'
+    fname = f'{tag}_{spot}_{suffix}.csv'
     fpath = f'{OI_DIR}/{fname}'
     return fpath
 
 
 def dl_save_range_oi(spot: str, expiry_date: datetime.date,
-        bg_date: datetime.date, ed_date: datetime.date,
-        ):
+        bg_date: datetime.date, ed_date: datetime.date):
     fpath = save_fpath(spot, 'raw', bg_date, ed_date, expiry_date)
     bg_time = datetime.time(9, 30, 0)
     df1 = pd.DataFrame()
     # 如果文件存在，读取最后一行的时间戳
     if os.path.exists(fpath):
-        df1 = pd.read_csv(fpath)
+        last_row = read_last_row(fpath)
         # check format
-        if 'tradecode' in df1.columns:
-            last_row = df1.iloc[-1]
+        if 'tradecode' in last_row:
             last_dt = pd.to_datetime(last_row['dt'])
             bg_date = last_dt.date()
             bg_time = (last_dt + datetime.timedelta(seconds=1)).time()
         if bg_time > datetime.time(14, 59, 0):
-            return df1
+            print(f"Loading existing data for {spot} on {bg_date}, "
+                  f"expiry date: {expiry_date}")
+            return pd.read_csv(fpath)
+    print(f"Downloading raw data for {spot} on {bg_date}"
+          f", expiry date: {expiry_date}")
     df2 = dl_oi_data(spot, expiry_date,
             bg_date, ed_date,
             bg_time=bg_time,
@@ -218,8 +234,50 @@ def dl_calc_oi_range(spot: str, bg_date: datetime.date, ed_date: datetime.date):
     dt_list = pd.date_range(bg_date, ed_date).to_list()
     for dt in dt_list:
         dt = dt.date()
+        if dt.weekday() >= 5:  # skip weekend
+            continue
+        holidays = [
+            '2025-01-28', '2025-01-29', '2025-01-30', '2025-01-31',
+            '2025-02-01', '2025-02-02', '2025-02-03', '2025-02-04',
+            '2025-04-04',
+            '2025-05-01', '2025-05-02', '2025-05-03', '2025-05-04', '2025-05-05',
+            '2025-06-02']
+        if dt.strftime('%Y-%m-%d') in holidays:
+            continue
         try:
             dl_calc_oi(spot, dt, refresh=True)
         except Exception as e:
             print(f"Error processing {spot} on {dt}: {e}")
+            # raise e
+
+
+def oi_csv_merge(spot: str):
+    fs = glob.glob(f"{OI_DIR}/oi_{spot}*.csv")
+    dfs = [pd.read_csv(f) for f in fs]
+    df = pd.concat(dfs, ignore_index=True)
+    print(df.head())
+    df['dt'] = pd.to_datetime(df['dt'], utc=True, errors='coerce')
+    df = df.sort_values(by=['dt'])
+    df = df.drop_duplicates(subset=['dt'], keep='first')
+    df.to_csv(f"{OI_MERGE_DIR}/oi_{spot}.csv", index=False)
+    print(f"merged {len(fs)} files into {OI_MERGE_DIR}/oi_{spot}.csv")
+
+
+@click.command()
+@click.option('-s', '--spot', type=str, required=True, help="Spot code: e.g., 159915 510050")
+@click.option('-b', '--begin', type=str, help="Begin date in format YYYYMMDD")
+@click.option('-e', '--end', type=str, help="End date in format YYYYMMDD")
+def click_main(spot: str, begin: str, end: str):
+    """
+    下载并计算 oi 数据。
+    """
+    begin_date = datetime.datetime.strptime(begin, '%Y%m%d').date() if begin else datetime.date.today()
+    end_date = datetime.datetime.strptime(end, '%Y%m%d').date() if end else datetime.date.today()
+    dl_calc_oi_range(spot, begin_date, end_date)
+    oi_csv_merge(spot)
+
+
+if __name__ == '__main__':
+    click_main()
+
 

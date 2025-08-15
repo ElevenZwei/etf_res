@@ -32,14 +32,18 @@ PG_OI_DB_CONF = PgConfig(
         db='opt',
 )
 
-def get_engine(config: PgConfig = PG_DB_CONF):
+def get_engine(config: PgConfig = PG_DB_CONF, timeout: int = 40):
     return sqlalchemy.create_engine(sqlalchemy.URL.create(
-        'postgresql+psycopg2',
+        'postgresql',
         username=config.user,
         password=config.pw,
         host=config.host,
         port=config.port,
         database=config.db,
+        query={
+            'sslmode': 'require' if config.host != 'localhost' else 'disable',
+            'connect_timeout': str(timeout),
+        },
     ))
 
 def upsert_on_conflict_skip(table, conn, keys, data_iter):

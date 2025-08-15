@@ -26,7 +26,7 @@ def read_last_row(csv_path: str, encoding: str = "utf-8") -> pd.Series:
 
 def get_engine():
     return sqlalchemy.create_engine(sqlalchemy.URL.create(
-        'postgresql+psycopg2',
+        'postgresql',
         username=PG_DB_CONF.user,
         password=PG_DB_CONF.pw,
         host=PG_DB_CONF.host,

@@ -10,9 +10,10 @@ import io
 import os
 import sqlalchemy as sa
 import pandas as pd
-from typing import Optional
+from typing import Optional, List
 from collections import deque
 from dateutil.relativedelta import relativedelta
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 from config import DATA_DIR, PG_OI_DB_CONF, get_engine
 
@@ -227,28 +228,50 @@ def dl_calc_oi(spot: str, dt: datetime.date, refresh: bool = False):
     return df
 
 
+def date_range(bg_date: datetime.date, ed_date: datetime.date) -> List[datetime.date]:
+    dt_list: List[np.datetime64] = pd.date_range(bg_date, ed_date).to_list()
+    holidays = [
+        '2025-01-28', '2025-01-29', '2025-01-30', '2025-01-31',
+        '2025-02-01', '2025-02-02', '2025-02-03', '2025-02-04',
+        '2025-04-04',
+        '2025-05-01', '2025-05-02', '2025-05-03', '2025-05-04', '2025-05-05',
+        '2025-06-02']
+    dt_list = [dt for dt in dt_list if dt.weekday() < 5]  # skip weekend
+    dt_list = [dt for dt in dt_list if dt.strftime('%Y-%m-%d') not in holidays]  # skip holidays
+    dt_list = [dt.date() for dt in dt_list]  # convert to date
+    return dt_list
+
+
+def init_worker():
+    """
+    初始化工作进程，设置数据库连接等。
+    """
+    global engine
+    engine = get_engine(PG_OI_DB_CONF)
+
+
 def dl_calc_oi_range(spot: str, bg_date: datetime.date, ed_date: datetime.date):
     """
     下载并计算一段时间内的 oi 数据。
     """
-    dt_list = pd.date_range(bg_date, ed_date).to_list()
-    for dt in dt_list:
-        dt = dt.date()
-        if dt.weekday() >= 5:  # skip weekend
-            continue
-        holidays = [
-            '2025-01-28', '2025-01-29', '2025-01-30', '2025-01-31',
-            '2025-02-01', '2025-02-02', '2025-02-03', '2025-02-04',
-            '2025-04-04',
-            '2025-05-01', '2025-05-02', '2025-05-03', '2025-05-04', '2025-05-05',
-            '2025-06-02']
-        if dt.strftime('%Y-%m-%d') in holidays:
-            continue
-        try:
-            dl_calc_oi(spot, dt, refresh=True)
-        except Exception as e:
-            print(f"Error processing {spot} on {dt}: {e}")
-            # raise e
+    dt_list = date_range(bg_date, ed_date)
+    # for dt in dt_list:
+    #     dt = dt.date()
+    #     try:
+    #         dl_calc_oi(spot, dt, refresh=True)
+    #     except Exception as e:
+    #         print(f"Error processing {spot} on {dt}: {e}")
+    #       # raise e
+    with ProcessPoolExecutor(initializer=init_worker, max_workers=10) as executor:
+        futures = {executor.submit(dl_calc_oi, spot, dt, True): dt
+                   for dt in dt_list}
+        for future in as_completed(futures):
+            dt = futures[future]
+            try:
+                future.result()  # 获取结果，可能会抛出异常
+                print(f"Successfully got oi {spot} on {dt}")
+            except Exception as e:
+                print(f"Error getting oi {spot} on {dt}: {e}")
 
 
 def oi_csv_merge(spot: str):

@@ -262,7 +262,7 @@ def load_clips_for_trade_args(
         ) -> Dict[time, List[float]]:
     d1, d2 = date_range_of_trade_args(today, trade_args_info['trade_args_date_interval'])
     time_intervals = [
-            *iterate_minute(time(9, 35), time(11, 25)),
+            *iterate_minute(time(9, 35), time(11, 28)),
             *iterate_minute(time(13, 0), time(14, 54)),
     ]
     res = {}
@@ -318,6 +318,8 @@ def is_in_same_week(dt1: date, dt2: date) -> bool:
 
 
 def roll_export(roll_args_id: int, top: int, dt_from: date, dt_to: date):
+    if not is_in_same_week(dt_from, dt_to):
+        raise ValueError("dt_from and dt_to must be in the same week.")
     info = load_roll_export_info()
     info.update(load_roll_args_info(roll_args_id))
     tz = pytz.timezone('Asia/Shanghai')
@@ -327,6 +329,7 @@ def roll_export(roll_args_id: int, top: int, dt_from: date, dt_to: date):
     info.update(roll_result_to_dict(df))
     info['input_dt_from'] = dt_from_datetime.strftime('%Y-%m-%d %H:%M:%S')
     info['input_dt_to'] = dt_to_datetime.strftime('%Y-%m-%d %H:%M:%S')
+    info['roll_top'] = top
 
     trade_args_list = list(info['trade_args'].keys())
     trade_args_details = [

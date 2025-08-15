@@ -43,7 +43,6 @@ def calc_oi(df: pd.DataFrame):
         'call_oi_sum': call_sum,
         'put_oi_sum': put_sum,
     })
-    df2['pc'] = df2['put_oi_sum'] - df2['call_oi_sum']
     spot_price = df[['dt', 'spot_price']].drop_duplicates()
     spot_price = spot_price.set_index('dt')
     df2 = pd.merge(df2, spot_price, left_index=True, right_index=True, how='inner')

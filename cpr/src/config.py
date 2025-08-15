@@ -23,14 +23,23 @@ PG_DB_CONF = PgConfig(
         port=5432,
         db='opt',
 )
-def get_engine():
+
+PG_OI_DB_CONF = PgConfig(
+        user='option',
+        pw='option',
+        host='localhost',
+        port=15432,
+        db='opt',
+)
+
+def get_engine(config: PgConfig = PG_DB_CONF):
     return sqlalchemy.create_engine(sqlalchemy.URL.create(
         'postgresql+psycopg2',
-        username=PG_DB_CONF.user,
-        password=PG_DB_CONF.pw,
-        host=PG_DB_CONF.host,
-        port=PG_DB_CONF.port,
-        database=PG_DB_CONF.db,
+        username=config.user,
+        password=config.pw,
+        host=config.host,
+        port=config.port,
+        database=config.db,
     ))
 
 def upsert_on_conflict_skip(table, conn, keys, data_iter):

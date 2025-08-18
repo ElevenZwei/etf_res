@@ -224,7 +224,7 @@ def join_oi_trigger(oi_df: pd.DataFrame,
     merged_df = oi_df.join(trigger_df, how='left', lsuffix='_oi', rsuffix='_trigger')
     merged_df.reset_index(inplace=True, drop=True)
     merged_df.sort_values(by=['dt'], inplace=True)
-    # print(f"Joined OI and Trigger DataFrame:\n{merged_df.head(20)}")
+    print(f"Joined OI and Trigger DataFrame:\n{merged_df.head(20)}")
     return merged_df
 
 
@@ -240,8 +240,13 @@ def split_trade_args(merged_df: pd.DataFrame) -> Dict[int, pd.DataFrame]:
         if trade_args_id is None or pd.isna(trade_args_id):
             continue
         trade_df = merged_df.loc[trade_args_id].copy()
-        nan_rows = merged_df.loc[np.nan].copy()
-        trade_df = pd.concat([trade_df, nan_rows], ignore_index=True)
+        if isinstance(trade_df, pd.Series):
+            trade_df = trade_df.to_frame().T
+        if np.nan in merged_df.index:
+            nan_rows = merged_df.loc[np.nan].copy()
+            if isinstance(nan_rows, pd.Series):
+                nan_rows = nan_rows.to_frame().T
+            trade_df = pd.concat([trade_df, nan_rows], ignore_index=True)
         trade_df.reset_index(drop=True, inplace=True)
         trade_df.sort_values(by='dt', inplace=True)
         trade_args_dict[trade_args_id] = trade_df
@@ -262,6 +267,8 @@ def split_trade_cycle(trade_df: pd.DataFrame) -> List[pd.DataFrame]:
     result = []
     for dt_date in trade_df['dt_date'].unique():
         trade_cycle_df = trade_df.loc[dt_date].copy()
+        if isinstance(trade_cycle_df, pd.Series):
+            trade_cycle_df = trade_cycle_df.to_frame().T
         result.append(trade_cycle_df)
     return result
 

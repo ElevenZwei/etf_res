@@ -27,19 +27,6 @@ if not os.path.exists(OI_MERGE_DIR):
 engine = get_engine(PG_OI_DB_CONF)
 
 
-def read_last_row(csv_path: str, encoding: str = "utf-8") -> pd.Series:
-    """
-    高效读取 CSV 文件的最后一行（包括 header 解析）。
-    适合大文件。
-    """
-    with open(csv_path, "r", encoding=encoding) as f:
-        header = next(f)                          # 第一行是列名
-        last_line = deque(f, maxlen=1)[0]         # 只保留最后一行
-    csv_fragment = header + last_line
-    df = pd.read_csv(io.StringIO(csv_fragment))
-    return df.iloc[0]  # 返回 Series 类型的一行
-
-
 def dl_expiry_date(spot: str, year: int, month: int) -> Optional[datetime.date]:
     d_from = datetime.datetime(year, month, 1)
     d_to = datetime.datetime(year, month, 28)
@@ -99,9 +86,6 @@ def dl_oi_data(spot: str, expiry_date: datetime.date,
         })
     if df.shape[0] == 0:
         return df
-    df['dt'] = df['dt'].dt.tz_convert('Asia/Shanghai')
-    # 将时间戳转换为字符串格式，因为自动转换有的带微秒，有的微秒恰好是 0 ，格式里面会有差异。
-    df['dt'] = df['dt'].dt.strftime('%Y-%m-%dT%H:%M:%S%z')
     return df
 
 
@@ -126,7 +110,8 @@ def dl_save_range_oi(spot: str, expiry_date: datetime.date,
     df1 = pd.DataFrame()
     # 如果文件存在，读取最后一行的时间戳
     if os.path.exists(fpath):
-        last_row = read_last_row(fpath)
+        df1 = pd.read_csv(fpath, parse_dates=['dt'])
+        last_row = df1.iloc[-1] if not df1.empty else None
         # check format
         if 'tradecode' in last_row:
             last_dt = pd.to_datetime(last_row['dt'])
@@ -136,18 +121,22 @@ def dl_save_range_oi(spot: str, expiry_date: datetime.date,
             print(f"Loading existing data for {spot} on {bg_date}, "
                   f"expiry date: {expiry_date}")
             return pd.read_csv(fpath)
-    print(f"Downloading raw data for {spot} on {bg_date}"
+    print(f"Downloading raw data for {spot} on {bg_date} {ed_date}"
           f", expiry date: {expiry_date}")
     df2 = dl_oi_data(spot, expiry_date,
             bg_date, ed_date,
             bg_time=bg_time,
             ed_time=datetime.time(15, 0, 0))
+    df1['dt'] = df1['dt'].dt.tz_convert('Asia/Shanghai')
+    df2['dt'] = df2['dt'].dt.tz_convert('Asia/Shanghai')
     dfs = [x for x in [df1, df2] if x.shape[0] != 0]
     if dfs == []:
         raise RuntimeError("db is empty.")
     df = pd.concat(dfs, ignore_index=True)
     if df.shape[0] == 0:
         raise RuntimeError("db is empty.")
+    # 将时间戳转换为字符串格式，因为自动转换有的带微秒，有的微秒恰好是 0 ，格式里面会有差异。
+    df['dt'] = df['dt'].dt.strftime('%Y-%m-%dT%H:%M:%S%z')
     df.to_csv(fpath, index=False)
     return df
 
@@ -274,9 +263,14 @@ def dl_calc_oi_range(
             try:
                 df = future.result()  # 获取结果，可能会抛出异常
                 print(f"Successfully got oi {spot} on {dt}")
+                print(df.head())
+                print(df.tail())
                 df_list.append(df)
             except Exception as e:
                 print(f"Error getting oi {spot} on {dt}: {e}")
+                raise e
+    if df_list == []:
+        raise RuntimeError("No data downloaded.")
     df = pd.concat(df_list, ignore_index=True)
     return df
 
@@ -286,7 +280,7 @@ def oi_csv_merge(spot: str):
     dfs = [pd.read_csv(f) for f in fs]
     df = pd.concat(dfs, ignore_index=True)
     print(df.head())
-    df['dt'] = pd.to_datetime(df['dt'], utc=True, errors='coerce')
+    df['dt'] = pd.to_datetime(df['dt'], utc=True)
     df = df.sort_values(by=['dt'])
     df = df.drop_duplicates(subset=['dt'], keep='first')
     df.to_csv(f"{OI_MERGE_DIR}/oi_{spot}.csv", index=False)

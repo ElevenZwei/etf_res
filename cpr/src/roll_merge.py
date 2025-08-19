@@ -3,7 +3,7 @@
 # 以及每组参数在 cpr.clip_trade_backtest 表格的仓位历史记录，
 # 总结出合并之后的仓位历史记录。
 # 储存到 cpr.roll_merge 表格中。
-
+# 
 # 这里的仓位合成是指将不同交易参数的仓位历史记录按照权重进行加权平均，
 # 以得到一个综合的仓位历史记录。
 # 这个过程可以帮助我们更好地理解不同交易参数的浮动表现。
@@ -155,6 +155,7 @@ def merge_range_weights(dataset_id: int, range_weights: RangeWeightsType) -> pd.
             for trade_args_id in trade_args_ids ]
     # multiply each DataFrame by its corresponding weight
     for df in df_list:
+        df['weight'] = 0.0
         if df.empty:
             continue
         trade_args_id = df['trade_args_id'].iloc[0]
@@ -164,8 +165,15 @@ def merge_range_weights(dataset_id: int, range_weights: RangeWeightsType) -> pd.
             df['position'] *= weight
         else:
             df['position'] = 0.0
+    # Remove empty DataFrames
+    # df_list can't be empty here.
+    df_1 = df_list[0]
+    df_list = [df for df in df_list if not df.empty]
+    if not df_list:
+        return df_1
     # Concatenate all DataFrames into one
     df = pd.concat(df_list, ignore_index=True)
+    # print(df.head())
     # Group by date and sum the positions
     df = df.groupby(['dt', 'dataset_id']).agg({
         'position': 'sum',
@@ -182,6 +190,8 @@ def calculate_merged_positions(roll_args_id: int, top: int, dt_from: date, dt_to
     roll_result = load_roll_result(roll_args_id, top, dt_from, dt_to)
     # Get range weights
     range_weights = roll_result_range_weights(roll_result)
+    if not range_weights:
+        raise ValueError(f"No range weights found for roll_args_id: {roll_args_id}, top: {top}, from: {dt_from}, to: {dt_to}")
     # Merge positions for each range
     merged_positions_list = [
         merge_range_weights(dataset_id, rw) for rw in range_weights
@@ -222,8 +232,8 @@ if __name__ == "__main__":
     merged_positions = calculate_merged_positions(
             roll_args_id=1,
             top=10,
-            dt_from=date(2025, 1, 1),
-            dt_to=date(2025, 7, 31))
+            dt_from=date(2025, 7, 1),
+            dt_to=date(2025, 8, 31))
     save_merged_positions(merged_positions)
 
 

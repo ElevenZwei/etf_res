@@ -1,3 +1,4 @@
+import click
 from export_run import RollExportFrom, run_roll_export_from, aggr_filter_diff
 from sakana import SakanaScheduler
 from datetime import datetime, timedelta, date
@@ -16,6 +17,7 @@ def task_callback(today: Optional[date] = None):
             ), 'db', today, today)
     diff_df = aggr_filter_diff(df)
     print(f"Task result:\n{diff_df}")
+    # print(df)
 
 
 def main():
@@ -28,8 +30,18 @@ def main():
     scheduler.set_callback(task_callback)
     scheduler.run()
 
+@click.command()
+@click.option('-d', '--date', type=click.DateTime(formats=["%Y-%m-%d"]), default=None, help='Run the task for a specific date')
+@click.option('-s', '--scheduler', is_flag=True, help='Run the task in scheduler mode')
+def click_main(date: Optional[datetime], scheduler: bool):
+    if scheduler:
+        main()
+    else:
+        task_callback(today=date.date() if date else None)
+
+
 if __name__ == '__main__':
-    main()
+    click_main()
     # For testing purposes, run the task directly
     # task_callback(date(2025, 8, 18))
 

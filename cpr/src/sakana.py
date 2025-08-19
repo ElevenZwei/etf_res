@@ -1,4 +1,5 @@
 import time
+import traceback
 import pytz
 from datetime import datetime, timedelta
 
@@ -84,4 +85,5 @@ class SakanaScheduler:
                     self.cb()
                 except Exception as e:
                     print(f"[BOOM] Error: {e}")
+                    print(traceback.format_exc())
 

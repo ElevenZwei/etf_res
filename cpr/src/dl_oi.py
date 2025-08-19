@@ -107,7 +107,7 @@ def dl_save_range_oi(spot: str, expiry_date: datetime.date,
         bg_date: datetime.date, ed_date: datetime.date):
     fpath = save_fpath(spot, 'raw', bg_date, ed_date, expiry_date)
     bg_time = datetime.time(9, 30, 0)
-    df1 = pd.DataFrame()
+    df1 = None
     # 如果文件存在，读取最后一行的时间戳
     if os.path.exists(fpath):
         df1 = pd.read_csv(fpath, parse_dates=['dt'])
@@ -127,6 +127,8 @@ def dl_save_range_oi(spot: str, expiry_date: datetime.date,
             bg_date, ed_date,
             bg_time=bg_time,
             ed_time=datetime.time(15, 0, 0))
+    if df1 is None:
+        df1 = df2[0:0].copy()  # 初始化 df1 为一个空 DataFrame
     df1['dt'] = df1['dt'].dt.tz_convert('Asia/Shanghai')
     df2['dt'] = df2['dt'].dt.tz_convert('Asia/Shanghai')
     dfs = [x for x in [df1, df2] if x.shape[0] != 0]

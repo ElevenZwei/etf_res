@@ -5,6 +5,13 @@ from backtest.scripts.black_scholes import calculate_d1, calculate_delta, calcul
 
 tqdm.pandas(desc="Processing")
 
+OPT_INPUT_FILE = f'{DATA_DIR}/input/opt_159915_2025_0101_0815.csv'
+OPT_DSP_OUTPUT_FILE = f'{DATA_DIR}/input/opt_159915_2025_0101_0815_dsp.csv'
+SPOT_INPUT_FILE = f'{DATA_DIR}/input/spot_159915_2025_0101_0815.csv'
+SPOT_DSP_OUTPUT_FILE = f'{DATA_DIR}/input/spot_159915_2025_0101_0815_dsp.csv'
+OPT_GREEKS_OUTPUT_FILE = f'{DATA_DIR}/input/opt_159915_2025_0101_0815_greeks.csv'
+
+
 def downsample_time(df: pd.DataFrame, interval_sec: int):
     df = df.resample(f'{interval_sec}s').first()
     # 这里跳过没有开盘的时间
@@ -47,7 +54,7 @@ def df_delta(df: pd.DataFrame):
     return df
 
 def proc_opt():
-    df = pd.read_csv(f'{DATA_DIR}/input/opt_159915_2025_0401_0709.csv', thousands=',')
+    df = pd.read_csv(INPUT_FILE, thousands=',')
     df['dt'] = pd.to_datetime(df['dt'])
 
     # extract option info
@@ -81,19 +88,19 @@ def proc_opt():
     })
     df = df[['dt', 'code', 'tradecode', 'closep', 
              'rootcode', 'strike', 'expirydate', 'cp']]
-    df.to_csv(f'{DATA_DIR}/input/opt_159915_2025_0401_0709_dsp.csv', index=False)
+    df.to_csv(OPT_DSP_OUTPUT_FILE, index=False)
     print(df.head())
     print(df.tail())
     return df
 
 def proc_opt_greeks():
-    df = pd.read_csv(f'{DATA_DIR}/input/opt_159915_2025_0401_0709_dsp.csv')
+    df = pd.read_csv(OPT_DSP_OUTPUT_FILE)
     df['dt'] = pd.to_datetime(df['dt'])
     df['expirydate'] = pd.to_datetime(df['expirydate'])
     # df['cp'] = df['tradecode'].str[6].map({'C': 1, 'P': -1})
     df['cp'] = df['cp'].astype(int)
 
-    spot_df = pd.read_csv(f'{DATA_DIR}/input/spot_159915_2025_dsp.csv')
+    spot_df = pd.read_csv(SPOT_DSP_OUTPUT_FILE)
     spot_df['dt'] = pd.to_datetime(spot_df['dt'])
     spot_df = spot_df[['dt', 'price']]
     spot_df = spot_df.rename(columns={'price': 'spot_price'})
@@ -108,12 +115,12 @@ def proc_opt_greeks():
     # 保存结果
     # save with at most 6 decimal places
     df['delta'] = df['delta'].round(6)
-    df.to_csv(f'{DATA_DIR}/input/opt_159915_2025_0401_0709_greeks.csv', index=False)
+    df.to_csv(OPT_GREEKS_OUTPUT_FILE, index=False)
     print(df.head())
     print(df.tail())
 
 def proc_spot():
-    df = pd.read_csv(f'{DATA_DIR}/input/spot_159915_2025.csv')
+    df = pd.read_csv(SPOT_INPUT_FILE)
     df['dt'] = pd.to_datetime(df['dt'])
     df = df.set_index('dt')
     df = downsample_time(df, interval_sec=60)
@@ -125,7 +132,7 @@ def proc_spot():
 
     df = df.rename(columns={'last_price': 'price'})
     df = df[['dt', 'code', 'price']]
-    df.to_csv(f'{DATA_DIR}/input/spot_159915_2025_p2_dsp.csv', index=False)
+    df.to_csv(SPOT_DSP_OUTPUT_FILE, index=False)
     print(df.head())
     print(df.tail())
 
@@ -133,3 +140,4 @@ if __name__ == '__main__':
     # proc_opt()
     # proc_spot()
     proc_opt_greeks()
+

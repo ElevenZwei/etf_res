@@ -127,10 +127,10 @@ def dl_save_range_oi(spot: str, expiry_date: datetime.date,
             bg_date, ed_date,
             bg_time=bg_time,
             ed_time=datetime.time(15, 0, 0))
-    if df1 is None:
-        df1 = df2[0:0].copy()  # 初始化 df1 为一个空 DataFrame
-    df1['dt'] = df1['dt'].dt.tz_convert('Asia/Shanghai')
-    df2['dt'] = df2['dt'].dt.tz_convert('Asia/Shanghai')
+    if df1 is not None and not df1.empty:
+        df1['dt'] = df1['dt'].dt.tz_convert('Asia/Shanghai')
+    if df2 is not None and not df2.empty:
+        df2['dt'] = df2['dt'].dt.tz_convert('Asia/Shanghai')
     dfs = [x for x in [df1, df2] if x.shape[0] != 0]
     if dfs == []:
         raise RuntimeError("db is empty.")

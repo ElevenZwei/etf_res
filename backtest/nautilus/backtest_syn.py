@@ -17,7 +17,7 @@ from backtest.config import DATA_DIR
 from backtest.nautilus.data_types import prepare_venue, prepare_spot_quote_from_df, prepare_option_quote
 from backtest.nautilus.strategy_syn import StrategySyn, StrategySynConfig
 
-def run(size_mode: int, suffix: str, column: str = 'pcr_position'):
+def run(size_mode: int, suffix: str, column: str = 'position'):
     bgdt = datetime.date(2025, 1, 1)
     eddt = datetime.date(2025, 4, 1)
 
@@ -34,7 +34,8 @@ def run(size_mode: int, suffix: str, column: str = 'pcr_position'):
     spot_df['dt'] = pd.to_datetime(spot_df['dt'])
     spot_df = spot_df.set_index('dt')
 
-    action_df = pd.read_csv(f'{DATA_DIR}/input/zxt_stock_position.csv')
+    # action_df = pd.read_csv(f'{DATA_DIR}/input/zxt_stock_position.csv')
+    action_df = pd.read_csv(f'{DATA_DIR}/cpr/roll_merged_1.csv')
     action_df['dt'] = pd.to_datetime(action_df['dt'])
     action_df = action_df.set_index('dt')
     

@@ -21,11 +21,13 @@ best_return1 = RollMethodArgs(
     description="Best return with log returns, previous week to predict this week",
 )
 
+# 这里的 date_from 和 date_to 是滚动选取的时间范围，
+# date_from 要写的比回测的开始时间早一些，因为她需要包含训练的时间范围。
 roll_run_args_list = [
     RollRunArgs(
         roll_method_args=best_return1,
         dataset_id=3,
-        date_from=date(2025, 7, 9),
+        date_from=date(2025, 6, 1),
         date_to=date(2025, 8, 18),
         trade_args_from_id=1,
         trade_args_to_id=8092,

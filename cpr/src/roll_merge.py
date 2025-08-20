@@ -62,8 +62,8 @@ def load_roll_result(roll_args_id: int, top: int, dt_from: date, dt_to: date) ->
             FROM cpr.roll_result
             WHERE roll_args_id = :roll_args_id
             AND predict_rank <= :top
-            AND dt_from >= :dt_from
-            AND dt_to <= :dt_to
+            AND dt_to >= :dt_from
+            AND dt_from <= :dt_to
         """)
         df = pd.read_sql(query, conn, params={
             "roll_args_id": roll_args_id,
@@ -233,7 +233,7 @@ if __name__ == "__main__":
             roll_args_id=1,
             top=10,
             dt_from=date(2025, 7, 1),
-            dt_to=date(2025, 8, 31))
+            dt_to=date(2025, 8, 17))
     save_merged_positions(merged_positions)
 
 

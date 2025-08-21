@@ -131,7 +131,7 @@ def dl_save_range_oi(spot: str, expiry_date: datetime.date,
         df1['dt'] = df1['dt'].dt.tz_convert('Asia/Shanghai')
     if df2 is not None and not df2.empty:
         df2['dt'] = df2['dt'].dt.tz_convert('Asia/Shanghai')
-    dfs = [x for x in [df1, df2] if x.shape[0] != 0]
+    dfs = [x for x in [df1, df2] if x is not None and x.shape[0] != 0]
     if dfs == []:
         raise RuntimeError("db is empty.")
     df = pd.concat(dfs, ignore_index=True)

@@ -27,7 +27,7 @@ class StrategySell(Strategy):
 
         self.hold_id = None
         self.hold_from: datetime.datetime = None
-        self.hold_action = None
+        self.hold_action = 0
         
         info_list = [{
             'inst': x.inst,
@@ -75,65 +75,81 @@ class StrategySell(Strategy):
         if self.size_mode == 5 or self.size_mode == 6:
             # long only mode
             if spot_action < 0:
-                self.log.info(f"spot action is negative, skip this.")
+                self.log.info(f"spot action is negative, align to 0.")
                 spot_action = 0
         if self.size_mode == 7 or self.size_mode == 8:
             # short only mode
             if spot_action > 0:
-                self.log.info(f"spot action is positive, skip this.")
+                self.log.info(f"spot action is positive, align to 0.")
                 spot_action = 0
 
         if self.hold_action == spot_action:
             self.log.info(f"hold action is same, skip this.")
             return
         self.log.info(f'spot price={spot_price}, action={spot_action}')
-        self.close_all()
+
+        if self.hold_action * spot_action <= 0:
+            self.log.info(f"hold action is different from spot action, close all positions,"
+                          f"hold_action={self.hold_action}, spot_action={spot_action}")
+            self.close_all()
         if spot_action == 0:
             self.log.info(f"spot action is 0, skip this.")
             return
+
         now = self.clock.utc_now() 
         self.log.info(f"now={now}")
-        if (now.hour == 6 and now.minute > 30) or now.hour > 6:
-            self.log.info(f"now is after 14:30, skip this.")
-            return
-        if (now.hour == 1 and now.minute < 40):
-            self.log.info(f"now is before 9:40, skip this.")
+        # if (now.hour == 6 and now.minute > 30) or now.hour > 6:
+        #     self.log.info(f"now is after 14:30, skip this.")
+        #     return
+        # if (now.hour == 1 and now.minute < 40):
+        #     self.log.info(f"now is before 9:40, skip this.")
+        #     return
+
+        if self.hold_id is not None:
+            pick_opt = self.infos[self.id_inst[self.hold_id]]
+            inst = pick_opt.inst
+            if pick_opt.cp * spot_action > 0:
+                self.log.info(f"hold option is not suitable, close all positions.")
+                self.close_all()
+                return
+
+        if self.hold_id is None:
+            avail_opts = self.pick_available_options(now)
+            sell_cp = -1 if spot_action > 0 else 1
+            pick_opt = self.pick_option_with_delta(avail_opts, sell_cp * self.config.sell_delta)
+            if pick_opt is None:
+                self.log.info("cannot pick opt, skip this.")
+                return
+            inst = pick_opt['inst']
+            sell_tick = self.cache.quote_tick(inst.id)
+            if sell_tick is None:
+                self.log.info("cannot read opt md, skip this.")
+                return
+            if sell_tick.bid_price == 0:
+                self.log.info(f"last ask_price is zero, skip this, price={repr(sell_tick)}")
+                return
+            sell_margin = self.calc_option_margin(inst.id)
+            self.full_size = 1_000_000 / sell_margin // 10000 * 10000
+
+        hold_size = self.full_size * abs(spot_action) // 10000 * 10000
+        if self.hold_id is not None:
+            trade_size = hold_size - self.hold_size
+        else:
+            trade_size = hold_size
+
+        self.log.info(f"pick opt={inst.id}, hold_size={hold_size}, trade_size={trade_size}")
+        if abs(trade_size) < 10000:
+            self.log.info(f"trade size is too small, skip this, size={trade_size}")
             return
 
-        avail_opts = self.pick_available_options(now)
-        # Sell Options
-        sell_cp = -1 if spot_action > 0 else 1
-        pick_opt = self.pick_option_with_delta(avail_opts, sell_cp * self.config.sell_delta)
-        if pick_opt is None:
-            self.log.info("cannot pick opt, skip this.")
-            return
-
-        # Make order 
-        inst = pick_opt['inst']
-        sell_tick = self.cache.quote_tick(inst.id)
-        if sell_tick is None:
-            self.log.info("cannot read opt md, skip this.")
-            return
-        if sell_tick.bid_price == 0:
-            self.log.info(f"last ask_price is zero, skip this, price={repr(sell_tick)}")
-            return
-
-        sell_margin = self.calc_option_margin(inst.id)
-        sell_size = self.get_cash() / sell_margin // 10000 * 10000
-
-        bidp = sell_tick.bid_price.as_double()
-        self.log.info(f"pick opt={pick_opt['inst'].id}, bid_price={bidp}, size={sell_size}")
-        sell_size *= abs(spot_action)
-        if sell_size < 10000:
-            self.log.info(f"trade size is too small, skip this, size={sell_size}")
-            return
         self.hold_id = inst.id
         self.hold_from = now
         self.hold_action = spot_action
+        self.hold_size = hold_size
         order = self.order_factory.market(
             instrument_id=inst.id,
-            order_side=OrderSide.SELL,
-            quantity=inst.make_qty(sell_size),
+            order_side=OrderSide.SELL if trade_size > 0 else OrderSide.BUY,
+            quantity=inst.make_qty(abs(trade_size)),
             time_in_force=TimeInForce.FOK,
         )
         self.submit_order(order)
@@ -189,6 +205,7 @@ class StrategySell(Strategy):
         self.close_all_positions(self.hold_id)
         self.hold_id = None
         self.hold_action = 0
+        self.hold_size = 0
 
     def calc_option_margin(self, inst_id):
         # 计算期权的保证金

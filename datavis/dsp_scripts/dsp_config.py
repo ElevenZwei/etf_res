@@ -38,8 +38,8 @@ class PgConfig:
 PG_DB_CONF = PgConfig(
         user='option',
         pw='option',
-        host='localhost',
-        port=15432,
+        host='124.222.94.46',
+        port=19005,
         db='opt',
 )
 ENABLE_PG_DB_UPLOAD = False

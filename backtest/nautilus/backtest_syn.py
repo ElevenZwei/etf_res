@@ -19,7 +19,7 @@ from backtest.nautilus.strategy_syn import StrategySyn, StrategySynConfig
 
 def run(size_mode: int, suffix: str, column: str = 'position'):
     bgdt = datetime.date(2025, 1, 1)
-    eddt = datetime.date(2025, 4, 1)
+    eddt = datetime.date(2025, 8, 19)
 
     engine = BacktestEngine(config=BacktestEngineConfig(
         trader_id=TraderId('BT-001'),
@@ -46,7 +46,7 @@ def run(size_mode: int, suffix: str, column: str = 'position'):
         spot_df, action_df, engine, ven, bgdt, eddt)
     opt_info = prepare_option_quote(
         # f'{DATA_DIR}/input/tl_greeks_159915_all_fixed.csv',
-        f'{DATA_DIR}/input/opt_159915_2025_0102_0527_greeks.csv',
+        f'{DATA_DIR}/input/opt_159915_2025_greeks.csv',
         engine, ven, bgdt, eddt)
 
     suffix=f"syn_m{size_mode}_{suffix}"
@@ -67,7 +67,7 @@ def run(size_mode: int, suffix: str, column: str = 'position'):
 @click.option('-m', '--size-mode', type=int, help='size mode: 1 2 3 4')
 @click.option('-s', '--suffix', type=str, default='',)
 def click_main(size_mode: int, suffix: str):
-    run(size_mode, suffix, column=f'{suffix}_position')
+    run(size_mode, suffix, column=f'{suffix}_position' if suffix else 'position')
 
 if __name__ == '__main__':
     click_main()

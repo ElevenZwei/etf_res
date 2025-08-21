@@ -101,8 +101,8 @@ def main():
     # dl_year_data('159915.SZ', 2021)
     # dl_year_data('159915.SZ', 2022)
     # dl_year_data('159915.SZ', 2023)
-    # dl_year_data('159915.SZ', 2025)
-    dl_year_data('510500.SH', 2024)
-    
+    dl_year_data('159915.SZ', 2024)
+    # dl_year_data('510500.SH', 2024)
+
 if __name__ == '__main__':
     main()

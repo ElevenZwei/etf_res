@@ -1,3 +1,4 @@
+import glob
 import pandas as pd
 from tqdm import tqdm
 from backtest.config import DATA_DIR
@@ -5,11 +6,13 @@ from backtest.scripts.black_scholes import calculate_d1, calculate_delta, calcul
 
 tqdm.pandas(desc="Processing")
 
-OPT_INPUT_FILE = f'{DATA_DIR}/input/opt_159915_2025_0101_0815.csv'
-OPT_DSP_OUTPUT_FILE = f'{DATA_DIR}/input/opt_159915_2025_0101_0815_dsp.csv'
-SPOT_INPUT_FILE = f'{DATA_DIR}/input/spot_159915_2025_0101_0815.csv'
-SPOT_DSP_OUTPUT_FILE = f'{DATA_DIR}/input/spot_159915_2025_0101_0815_dsp.csv'
-OPT_GREEKS_OUTPUT_FILE = f'{DATA_DIR}/input/opt_159915_2025_0101_0815_greeks.csv'
+DATE_SUFFIX = '0401_0709'
+OPT_INPUT_FILE = f'{DATA_DIR}/input/opt_159915_2025_{DATE_SUFFIX}.csv'
+OPT_DSP_OUTPUT_FILE = f'{DATA_DIR}/input/opt_159915_2025_{DATE_SUFFIX}_dsp.csv'
+SPOT_INPUT_FILE = f'{DATA_DIR}/input/spot_159915_2025.csv'
+SPOT_DSP_OUTPUT_FILE = f'{DATA_DIR}/input/spot_159915_2025_dsp.csv'
+OPT_GREEKS_OUTPUT_FILE = f'{DATA_DIR}/input/opt_159915_2025_{DATE_SUFFIX}_greeks.csv'
+OPT_GREEKS_CONCAT_OUTPUT_FILE = f'{DATA_DIR}/input/opt_159915_2025_greeks.csv'
 
 
 def downsample_time(df: pd.DataFrame, interval_sec: int):
@@ -54,7 +57,7 @@ def df_delta(df: pd.DataFrame):
     return df
 
 def proc_opt():
-    df = pd.read_csv(INPUT_FILE, thousands=',')
+    df = pd.read_csv(OPT_INPUT_FILE, thousands=',')
     df['dt'] = pd.to_datetime(df['dt'])
 
     # extract option info
@@ -119,6 +122,12 @@ def proc_opt_greeks():
     print(df.head())
     print(df.tail())
 
+def concat_opt_greeks():
+    all_files = glob.glob(f'{DATA_DIR}/input/opt_159915_2025_*_greeks.csv')
+    df_list = [pd.read_csv(f) for f in all_files]
+    concat_df = pd.concat(df_list, ignore_index=True)
+    concat_df.to_csv(OPT_GREEKS_CONCAT_OUTPUT_FILE, index=False)
+
 def proc_spot():
     df = pd.read_csv(SPOT_INPUT_FILE)
     df['dt'] = pd.to_datetime(df['dt'])
@@ -137,7 +146,8 @@ def proc_spot():
     print(df.tail())
 
 if __name__ == '__main__':
-    # proc_opt()
+    proc_opt()
     # proc_spot()
     proc_opt_greeks()
+    concat_opt_greeks()
 

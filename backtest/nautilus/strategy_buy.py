@@ -99,12 +99,12 @@ class StrategyBuy(Strategy):
 
         now = self.clock.utc_now() 
         self.log.info(f"now={now}")
-        if (now.hour == 6 and now.minute > 30) or now.hour > 6:
-            self.log.info(f"now is after 14:30, skip this.")
-            return
-        if (now.hour == 1 and now.minute < 40):
-            self.log.info(f"now is before 9:40, skip this.")
-            return
+        # if (now.hour == 6 and now.minute > 30) or now.hour > 6:
+        #     self.log.info(f"now is after 14:30, skip this.")
+        #     return
+        # if (now.hour == 1 and now.minute < 40):
+        #     self.log.info(f"now is before 9:40, skip this.")
+        #     return
 
         # Buy Options
         if self.hold_id is not None:
@@ -114,7 +114,7 @@ class StrategyBuy(Strategy):
                 self.log.info(f"hold option is not suitable, close all positions.")
                 self.close_all()
                 return
-        
+
         if self.hold_id is None:
             avail_opts = self.pick_available_options(now)
             buy_cp = 1 if spot_action > 0 else -1
@@ -131,7 +131,7 @@ class StrategyBuy(Strategy):
             if last_quote.ask_price == 0:
                 self.log.info(f"last ask_price is zero, skip this, price={repr(last_quote)}")
                 return
-            full_size = (5_000 / askp) // 10000 * 10000
+            full_size = (10_000 / askp) // 10000 * 10000
             self.full_size = full_size
 
         hold_size = self.full_size * abs(spot_action) // 10000 * 10000
@@ -184,7 +184,7 @@ class StrategyBuy(Strategy):
             & (self.df_info['first_day'] <= now_date)
             & (self.df_info['last_day'] > now_date)]
         return available_opts
-    
+
     def pick_atm_option(self, avail, spot_price, cp):
         if avail.shape[0] == 0:
             return None
@@ -193,7 +193,7 @@ class StrategyBuy(Strategy):
         if avail.shape[0] == 0:
             return None
         return avail.iloc[0]
-    
+
     def pick_option_with_delta(self, avail: pd.DataFrame, target_delta: float):
         if target_delta == 0 or avail.shape[0] == 0:
             return None

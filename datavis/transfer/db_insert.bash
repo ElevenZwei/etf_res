@@ -2,7 +2,7 @@
 
 # load db/mdt*.csv
 
-db_opts=(-h localhost -p 15432 -U option)
+db_opts=(-h 124.222.94.46 -p 19005 -U option -w)
 export PGPASSWORD=option
 
 echo "loading mdt csv files from ../db/ folder."
@@ -46,5 +46,11 @@ function import_mdtfs {
 
 # import_mdtfs 159915 20250402
 # import_mdtfs 510500 20250402
-import_mdtfs 510050 20250402
-import_mdtfs 510300 20250402
+# import_mdtfs 510050 20250402
+# import_mdtfs 510300 20250402
+
+import_mdtfs 159915 20250724
+import_mdtfs 510500 20250724
+import_mdtfs 510050 20250724
+import_mdtfs 510300 20250724
+import_mdtfs 588000 20250724

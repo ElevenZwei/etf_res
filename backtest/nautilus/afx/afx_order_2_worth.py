@@ -96,8 +96,12 @@ def calc_pnls(opt_df: pd.DataFrame, order_df: pd.DataFrame):
     return pnl_df
 
 def main(suffix: str, principal: float = 1000000.0):
+    # order_df = pd.read_csv(f'{DATA_DIR}/output/opt_bullsp_order_5_t.csv')
+    order_df = pd.read_csv(f'{DATA_DIR}/output/opt_order_{suffix}_t.csv')
+    order_df = make_order_df(order_df)
+
     # opt_df = pd.read_csv(f'{DATA_DIR}/input/tl_greeks_159915_all_fixed.csv')
-    opt_df = pd.read_csv(f'{DATA_DIR}/input/opt_159915_2025_0102_0527_greeks.csv')
+    opt_df = pd.read_csv(f'{DATA_DIR}/input/opt_159915_2025_greeks.csv')
     # opt_df = pd.read_csv(f'{DATA_DIR}/input/oi_spot_159915.csv')
     # opt_df = pd.read_csv(f'{DATA_DIR}/input/spot_159915_2025_dsp.csv')
     # opt_df = pd.read_csv(f'{DATA_DIR}/input/nifty_greeks_combined.csv')
@@ -105,9 +109,6 @@ def main(suffix: str, principal: float = 1000000.0):
     opt_df = make_opt_pivot(opt_df)
     print(opt_df)
     # opt_df.to_csv('opt_df.csv')
-    # order_df = pd.read_csv(f'{DATA_DIR}/output/opt_bullsp_order_5_t.csv')
-    order_df = pd.read_csv(f'{DATA_DIR}/output/opt_order_{suffix}_t.csv')
-    order_df = make_order_df(order_df)
 
     """
     这个地方非常变态， tonglian的数据不是完整的 会缺少一些时间
@@ -123,6 +124,7 @@ def main(suffix: str, principal: float = 1000000.0):
     pnl_df = pnl_df[~pnl_df['pnl'].isna()]
     pnl_df['dt'] = pnl_df['dt'].dt.date
     pnl_df['ratio'] = pnl_df['pnl'] / principal
+    pnl_df['ratio_diff'] = pnl_df['ratio'].diff().fillna(0)
     # print(pnl_df)
     pnl_df.to_csv(f'{DATA_DIR}/output/pnl_{suffix}.csv', index=False, float_format='%.2f')
 

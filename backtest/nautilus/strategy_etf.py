@@ -49,13 +49,13 @@ class StrategyETF(Strategy):
 
         now = self.clock.utc_now() 
         self.log.info(f"now={now}")
-        if (now.hour == 6 and now.minute > 30) or now.hour > 6:
-            self.log.info(f"now is after 14:30, close all.")
-            self.close_all()
-            return
-        if (now.hour == 1 and now.minute < 40):
-            self.log.info(f"now is before 9:40, skip this.")
-            return
+        # if (now.hour == 6 and now.minute > 30) or now.hour > 6:
+        #     self.log.info(f"now is after 14:30, close all.")
+        #     self.close_all()
+        #     return
+        # if (now.hour == 1 and now.minute < 40):
+        #     self.log.info(f"now is before 9:40, skip this.")
+        #     return
 
         spot_price = tick.ask_price
         spot_action = tick.action

@@ -104,12 +104,12 @@ class StrategySyn(Strategy):
 
         now = self.clock.utc_now() 
         self.log.info(f"now={now}")
-        if (now.hour == 6 and now.minute > 30) or now.hour > 6:
-            self.log.info(f"now is after 14:30, skip this.")
-            return
-        if (now.hour == 1 and now.minute < 40):
-            self.log.info(f"now is before 9:40, skip this.")
-            return
+        # if (now.hour == 6 and now.minute > 30) or now.hour > 6:
+        #     self.log.info(f"now is after 14:30, skip this.")
+        #     return
+        # if (now.hour == 1 and now.minute < 40):
+        #     self.log.info(f"now is before 9:40, skip this.")
+        #     return
 
         # Pick
         if self.buy_hold_id is not None:
@@ -151,20 +151,25 @@ class StrategySyn(Strategy):
                 return
 
             group_margin = self.calc_option_margin(sell_inst.id) + buy_tick.ask_price.as_double()
-            self.full_size = self.get_cash() / group_margin // 10000 * 10000
+            self.full_size = 1_000_000 / group_margin // 10000 * 10000
 
         hold_size = self.full_size * abs(spot_action) // 10000 * 10000
         trade_size = hold_size - self.hold_size
         self.log.info(f"pick buy opt={buy_inst.id}, sell opt={sell_inst.id}, hold_size={hold_size}, trade_size={trade_size}")
-        if trade_size < 10000:
+        if abs(trade_size) < 10000:
             self.log.info(f"trade size is too small, skip this, size={trade_size}")
             return
-    
+
         self.sell_hold_id = sell_inst.id
         self.buy_hold_id = buy_inst.id
         self.hold_from = now
         self.hold_action = spot_action
         self.hold_size = hold_size
+
+        if trade_size < 0:
+            sell_inst, buy_inst = buy_inst, sell_inst
+            trade_size = -trade_size
+
         order = self.order_factory.market(
             instrument_id=sell_inst.id,
             order_side=OrderSide.SELL,

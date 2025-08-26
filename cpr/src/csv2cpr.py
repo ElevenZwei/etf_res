@@ -45,8 +45,8 @@ def downsample_time(df: pd.DataFrame, interval_sec: int):
     df = df.loc[~df.isna().all(axis=1)]
     return df
 
-def upload_csv_to_cpr(spot: str, csv_file: str):
-    df = pd.read_csv(INPUT_DIR + csv_file)
+
+def upload_oi_df_to_cpr(spot: str, df: pd.DataFrame):
     df = df.set_index(pd.to_datetime(df['dt']))
     df = downsample_time(df, 60)  # downsample to 1 minute
     df = df[['call_oi_sum', 'put_oi_sum']]
@@ -61,8 +61,15 @@ def upload_csv_to_cpr(spot: str, csv_file: str):
               if_exists='append', index=False,
               method=upsert_on_conflict_skip,
               chunksize=1000)
+    return df
 
 
-upload_csv_to_cpr('159915', OI_CSV['159915'])
-# upload_csv_to_cpr('510500', OI_CSV['510500'])
+def upload_csv_to_cpr(spot: str, csv_file: str):
+    df = pd.read_csv(INPUT_DIR + csv_file)
+    return upload_oi_df_to_cpr(spot, df)
+
+
+if __name__ == "__main__":
+    upload_csv_to_cpr('159915', OI_CSV['159915'])
+    # upload_csv_to_cpr('510500', OI_CSV['510500'])
 

@@ -13,6 +13,7 @@ OI_CSV = {
         '159915': 'oi_merge/oi_159915.csv',
 }
 
+
 def tick2bar(series: pd.Series) -> pd.DataFrame:
     """
     Convert a Series of ticks to a DataFrame of bars.
@@ -27,8 +28,8 @@ def tick2bar(series: pd.Series) -> pd.DataFrame:
     df.columns = ['openp', 'highp', 'lowp', 'closep']
     return df.reset_index()
 
-def convert_csv_to_bars(spot: str, csv_file: str):
-    df = pd.read_csv(INPUT_DIR + csv_file)
+
+def convert_df_to_bars(spot: str, df: pd.DataFrame):
     df['dt'] = pd.to_datetime(df['dt'])
     df.set_index('dt', inplace=True)
     # Convert to bars
@@ -42,6 +43,13 @@ def convert_csv_to_bars(spot: str, csv_file: str):
             if_exists='append', index=False,
             method=upsert_on_conflict_skip,
             chunksize=1000,)
+    return bar_df
+
+
+def convert_csv_to_bars(spot: str, csv_file: str):
+    df = pd.read_csv(INPUT_DIR + csv_file)
+    return convert_df_to_bars(spot, df)
+
 
 if __name__ == "__main__":
     convert_csv_to_bars('159915', OI_CSV['159915'])

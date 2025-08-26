@@ -207,8 +207,7 @@ roll_methods = {
 
 def roll_static_slice(
         profit_df: pd.DataFrame, dt_from: date, dt_to: date,
-        validate_days: int, train_days_factor: int,
-        train_only: bool
+        validate_days: int, train_days_factor: float,
         ) -> List[Tuple[pd.DataFrame, pd.DataFrame, date, date, date, date]]:
     """
     Make a rolling slice of the profit dataframe.
@@ -216,7 +215,6 @@ def roll_static_slice(
     `dt_to` is exclusive, meaning the last day is not included in the slice.
     `validate_days` is the number of days for the validation set.
     `train_days_factor` is the factor to multiply `validate_days` to get the training set size.
-    `train_only` is a flag to indicate whether to only train and not validate.
     Returns a list of tuples, each tuple contains:
         - train_df: DataFrame for training data
         - validate_df: DataFrame for validation data
@@ -237,10 +235,10 @@ def roll_static_slice(
         dt_from = dt_from.replace(day=1) + relative_delta(months=1)
 
     print(f"Rolling from {dt_from} to {dt_to} with validate_days={validate_days}, train_days_factor={train_days_factor}")
-    train_days = validate_days * train_days_factor
+    train_days = int(validate_days * train_days_factor)
     slice_count = ((dt_to - dt_from).days - train_days) // validate_days
-    if train_only:
-        slice_count += 1
+    # last slice is train only slice
+    slice_count += 1
     slices = []
     # convert dt_from and dt_to to datetime objects with local timezone
     dt_from = pd.Timestamp(dt_from).tz_localize('Asia/Shanghai')
@@ -277,7 +275,6 @@ class RollRunArgs:
     trade_args_from_id: int
     trade_args_to_id: int
     pick_count: int
-    train_only: bool  # 只做预测，不做验证集上的验证
 
 
 def roll_run_static_sort(run_args: RollRunArgs, profit_df: pd.DataFrame) -> pd.DataFrame:
@@ -286,18 +283,20 @@ def roll_run_static_sort(run_args: RollRunArgs, profit_df: pd.DataFrame) -> pd.D
             profit_df, run_args.date_from, run_args.date_to,
             range_args.get('validate_days', 7),
             range_args.get('train_days_factor', 1),
-            train_only=run_args.train_only)
+            )
     roll_sorter = roll_methods[run_args.roll_method_args.method]['sort']
     roll_sorter_args = run_args.roll_method_args.args
     sorted_slices = []
-    for train_df, validate_df, train_from, train_to, validate_from, validate_to in profit_slice:
+    for idx, tup in enumerate(profit_slice):
+        train_df, validate_df, train_from, train_to, validate_from, validate_to = tup
         print(f"Sorting train from {train_from} to {train_to},"
               f" validate from {validate_from} to {validate_to}")
         train_sorted = roll_sorter(train_df, roll_sorter_args)
-        if not run_args.train_only:
-            validate_sorted = roll_sorter(validate_df, roll_sorter_args)
-        else:
+        # last slice is train only slice, no validate data available
+        if idx == len(profit_slice) - 1:
             validate_sorted = train_sorted[0:0].copy()
+        else:
+            validate_sorted = roll_sorter(validate_df, roll_sorter_args)
         sorted_slices.append((
             train_sorted, validate_sorted,
             train_from, train_to, validate_from, validate_to
@@ -367,9 +366,10 @@ def sort_slice_export(
     return roll_rank_df, roll_result_df
 
 
-def save_roll_output(run_args: RollRunArgs, rank_df: pd.DataFrame, result_df: pd.DataFrame):
+def save_roll_output(run_args: RollRunArgs, rank_df: pd.DataFrame, result_df: pd.DataFrame) -> pd.DataFrame:
     """ Save the rolling output to the database.
     Transform run_args to roll_args_id, then save the rank_df and result_df to the database.
+    Return the result_df with roll_args_id added.
     """
     # save roll method args to the database
     method_id = get_roll_method_id(
@@ -384,15 +384,12 @@ def save_roll_output(run_args: RollRunArgs, rank_df: pd.DataFrame, result_df: pd
             run_args.trade_args_from_id, run_args.trade_args_to_id,
             run_args.pick_count)
 
-    if not run_args.train_only:
-        print("uploading roll_rank to database.")
-        rank_df['roll_args_id'] = roll_args_id
-        rank_df.to_sql('roll_rank', engine, schema='cpr',
-                if_exists='append', index=False,
-                method=upsert_on_conflict_skip,
-                chunksize=1000)
-    else:
-        print("train only mode, skip roll_rank table.")
+    print("uploading roll_rank to database.")
+    rank_df['roll_args_id'] = roll_args_id
+    rank_df.to_sql('roll_rank', engine, schema='cpr',
+            if_exists='append', index=False,
+            method=upsert_on_conflict_skip,
+            chunksize=1000)
 
     print("uploading roll_result to database.")
     result_df['roll_args_id'] = roll_args_id
@@ -400,6 +397,7 @@ def save_roll_output(run_args: RollRunArgs, rank_df: pd.DataFrame, result_df: pd
             if_exists='append', index=False,
             method=upsert_on_conflict_skip,
             chunksize=1000)
+    return result_df
 
 
 def roll_run(run_args: RollRunArgs):
@@ -419,7 +417,7 @@ def roll_run(run_args: RollRunArgs):
 
     if run_args.roll_method_args.is_static:
         roll_rank_df, roll_result_df = roll_run_static_sort(run_args, profit_df)
-        save_roll_output(run_args, roll_rank_df, roll_result_df)
+        return save_roll_output(run_args, roll_rank_df, roll_result_df)
     else:
         raise NotImplementedError("Dynamic rolling is not implemented yet")
 

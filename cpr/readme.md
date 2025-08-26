@@ -25,7 +25,8 @@
 筛选得到新因子的输入需要 Call Oi, Put Oi, Spot Price 三个数据列。  
 这三个数据目前是放在一个 CSV 文件里面载入的，这个 CSV 文件使用 Tick 级别的数据。  
 有 `call_oi_sum, put_oi_sum, spot_price` 三个数据列。  
-目前得到这个 CSV 文件的方法是对我的录制数据库执行脚本 `./datavis/oi_scripts/db_oi_csv.py` 。这个脚本之后改造一下可以用来下载实盘数据。  
+<!-- 目前得到这个 CSV 文件的方法是对我的录制数据库执行脚本 `./datavis/oi_scripts/db_oi_csv.py` 。这个脚本之后改造一下可以用来下载实盘数据。   -->  
+现在获取实盘数据的脚本更新成了 `./src/dl_oi.py`，这个脚本会下载指定日期范围的历史数据，然后把本地所有的 `call_oi_sum, put_oi_sum, spot_price` csv 文件组合成 `./data/fact/oi_merge/oi_159915.csv` 。运行脚本的参数是 `python dl_oi.py -s 159915 -b 20250818 -e 20250818` 。
 
 修改 `src/csv2cpr.py` 的输入文件然后运行，它会读取 OI 数据储存在 `cpr.cpr` 表格里。  
 `cpr.cpr` 的表格数据要转换成每日开盘之后的变化值，建立时间索引方便后续切片的这一步，放在 SQL 函数里面。执行 `select cpr.update_daily('2025-01-01', '2025-02-01', dataset_id, notice=>true);` 可以更新 `cpr.daily` 表格。  
@@ -38,23 +39,20 @@
 运行这个采样需要几分钟的时间，这是数据 IO 比较大的运算。  
 
 得到采样之后可以用来计算历史的交易仓位，这个脚本是 `src/cpr_diff_sig.py` 。  
+这个脚本输入的时间范围和追加更新数据的时间范围是一致的，它是每日独立测试。  
 这是一个多核心高运算量的任务。  
 
-计算完成之后可以运行 `src/roll_run.py` 得到参数轮换的评估结果。储存在 `cpr.roll_args` `cpr.roll_rank` `cpr.roll_result` 里面。  
-`src/roll_merge.py` 会把轮换的参数组合成参数轮换中的历史仓位，它读取上一步的几个 roll 表格，把结果储存在 `cpr.roll_merged` 里面。  
-`cpr.roll_merged` 表格里面的历史仓位数据可以用来驱动 nautilus 框架回测，得到更加准确的营收报告。
+计算完成之后可以运行 `src/roll_run.py` 得到参数轮换的评估结果，这个脚本读取的时间范围会分成训练数据和测试数据两个时间段落。评估结果储存在 `cpr.roll_args` `cpr.roll_rank` `cpr.roll_result` 里面。  
+`src/roll_merge.py` 会把轮换的参数组合成参数轮换中的历史仓位，它读取上一步的 `cpr.roll_result cpr.clip_trade_backtest` 表格，把结果储存在 `cpr.roll_merged` 里面。  
+`cpr.roll_merged` 表格里面的历史仓位数据可以用来驱动 nautilus 框架回测，得到更加准确的营收报告。这部分的内容写在 `../backtest/readme.md` 。  
 
 对于轮换之前每个参数的收益情况，用来统计的 SQL 函数是 `select cpr.update_intraday_spot_clip_profit_range(dataset_id, 1, 8082, date_from, date_to, notice=>true);` ，它会读取 `cpr.clip_trade_backtest` 表格，然后把每个参数的逐笔收益储存在 `cpr.clip_trade_profit` 表格里面。  
 
 ### 实盘信号  
 
-实盘得出信号需要的参数导出脚本是 `src/roll_export.py` ，这个脚本读取表格 `cpr.roll_result` 以及之前回测中用到的切片样本等等数据，输出一个 json 文件。  
+实盘得出信号需要的参数导出脚本是 `src/roll_export.py` ，这个脚本读取表格 `cpr.roll_result` 以及之前回测中用到的切片样本等等数据，输出一个 json 文件。输出的 json 文件也会在数据库里面储存一份。  
 
-这个 json 文件
-
-
-
-
+运行这个 json 文件的脚本是 `src/export_run.py` ，运行脚本会调用 `dl_oi.py` 下载需要的数据，然后直接运行 json 文件的参数得到实时仓位。  
 
 
 

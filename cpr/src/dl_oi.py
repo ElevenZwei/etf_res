@@ -137,7 +137,7 @@ def dl_save_range_oi(spot: str, expiry_date: datetime.date,
     df = pd.concat(dfs, ignore_index=True)
     if df.shape[0] == 0:
         raise RuntimeError("db is empty.")
-    # 将时间戳转换为字符串格式，因为自动转换有的带微秒，有的微秒恰好是 0 ，格式里面会有差异。
+    # 手动将时间戳转换为字符串格式，因为自动转换有的带微秒，有的微秒恰好是 0 ，格式里面会有差异。
     df['dt'] = df['dt'].dt.strftime('%Y-%m-%dT%H:%M:%S%z')
     df.to_csv(fpath, index=False)
     return df
@@ -277,7 +277,7 @@ def dl_calc_oi_range(
     return df
 
 
-def oi_csv_merge(spot: str):
+def oi_csv_merge(spot: str, suffix: Optional[str] = None):
     fs = glob.glob(f"{OI_DIR}/oi_{spot}*.csv")
     dfs = [pd.read_csv(f) for f in fs]
     df = pd.concat(dfs, ignore_index=True)
@@ -287,6 +287,7 @@ def oi_csv_merge(spot: str):
     df = df.drop_duplicates(subset=['dt'], keep='first')
     df.to_csv(f"{OI_MERGE_DIR}/oi_{spot}.csv", index=False)
     print(f"merged {len(fs)} files into {OI_MERGE_DIR}/oi_{spot}.csv")
+    return df
 
 
 @click.command()

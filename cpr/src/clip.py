@@ -2,6 +2,8 @@
 # at a given time and in a given date interval.
 # And store the clip into cpr.clip table.
 
+# Heavy IO operations, can be parallelized.
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import time, date, datetime, timedelta
 from typing import Callable, Dict, List
 
@@ -175,6 +177,10 @@ def calculate_all_clips(spotcode: str, d1: date, d2: date):
     """
     Calculate all clips for a given spotcode and time interval.
     d2 is inclusive.
+    This function will calculate clips for every Friday in the interval,
+    then for each Friday, it will calculate clips backward for days before it.
+    So the data input range is before d1.
+    Every clip ends at a Friday, and starts at 30, 60, 90, 120 days before that Friday.
     """
     days = [d for d in pd.date_range(d1 - timedelta(days=7), d2) if d.weekday() == 4]  # Only Fridays
     intervals = [timedelta(days=x) for x in [-30, -60, -90, -120]]

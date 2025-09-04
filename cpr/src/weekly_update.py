@@ -75,6 +75,8 @@ def make_week_clip(dt_bg: date, dt_ed: date) -> List[Tuple[date, date]]:
         week_bg = week_bg + timedelta(days=7)
     # week_ed is Monday before or equal dt_ed
     week_ed = dt_ed - timedelta(days=dt_ed.weekday())
+    if dt_ed.weekday() >= 4:  # if dt_ed is Friday or later, include that week
+        week_ed = week_ed + timedelta(days=7)
     print(f"Calculating full weeks from {week_bg} to {week_ed}")
     if week_bg >= week_ed:
         print("No full week in the given date range, skipping backtest trade args update.")
@@ -91,7 +93,7 @@ def make_week_clip(dt_bg: date, dt_ed: date) -> List[Tuple[date, date]]:
 
 
 def backtest_data(spot: str, dt_bg: date, dt_ed: date):
-    # signal_intra_day_all(spot, dt_bg, dt_ed)
+    signal_intra_day_all(spot, dt_bg, dt_ed)
     with engine.connect() as conn:
         print("Updating intraday spot profit records...")
         query = sa.text("""
@@ -116,7 +118,15 @@ def backtest_data(spot: str, dt_bg: date, dt_ed: date):
 
 def roll_data(spot: str, dt_bg: date, dt_ed: date):
     dataset_id = get_dataset_id(spot)
-    roll_args_idset = roll_main(dataset_id, dt_bg, dt_ed)
+    weeks = make_week_clip(dt_bg, dt_ed)
+    week_bg = weeks[0][0] if weeks else dt_bg
+    week_ed = weeks[-1][1] if weeks else dt_ed
+    # 这里的参数会传给 gen_roll_args_list，它会把起点向前移动 60 天
+    # 因为滚动选取需要包含训练的时间范围
+    # 然后再传给 roll_static_slice 函数，这个函数选取的时间切片会包含最后一个不完整的星期。
+    # 所以这里的 end 参数至少要是想要预测的那个星期的星期一。
+    roll_args_idset = roll_main(dataset_id, week_bg, week_ed)
+
     for roll_args_id in roll_args_idset:
         top = 10
         merged_positions = calculate_merged_positions(
@@ -126,16 +136,16 @@ def roll_data(spot: str, dt_bg: date, dt_ed: date):
                 dt_to=dt_ed)
         save_merged_positions(merged_positions)
 
-    weeks = make_week_clip(dt_bg, dt_ed)
     for roll_args_id in roll_args_idset:
         for week_bg, week_ed in weeks:
             exp = roll_export(roll_args_id, top, week_bg, week_ed)
             roll_export_id = roll_export_save_db(exp)
+            print(f"Saved roll export id {roll_export_id} for roll_args_id {roll_args_id} from {week_bg} to {week_ed}")
 
 
 def weekly_update(spot: str, dt_bg: date, dt_ed: date):
-    # load_data(spot, dt_bg, dt_ed)
-    # clip_data(spot, dt_bg, dt_ed)
+    load_data(spot, dt_bg, dt_ed)
+    clip_data(spot, dt_bg, dt_ed)
     backtest_data(spot, dt_bg, dt_ed)
     roll_data(spot, dt_bg, dt_ed)
     # weeks = make_week_clip(dt_bg, dt_ed)

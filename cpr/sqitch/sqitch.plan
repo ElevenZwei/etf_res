@@ -10,3 +10,4 @@
 007_pnl_stat 2025-08-01T02:15:45Z anon <anon@localhost> # Add pnl stat functions.
 008_roll 2025-08-05T08:14:22Z anon <anon@localhost> # Add rolling tables.
 009_roll_json 2025-08-14T10:02:49Z anon <anon@localhost> # Add json export json and run json table.
+010_persistence 2025-09-02T08:31:14Z anon <anon@localhost> # Add persistent storage for hummingbird spirits.

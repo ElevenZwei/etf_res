@@ -14,7 +14,7 @@ from backtest.config import DATA_DIR
 from backtest.nautilus.data_types import prepare_venue, prepare_spot_quote_from_df, prepare_option_quote
 from backtest.nautilus.strategy_etf import StrategyETF, StrategyETFConfig
 
-def run(size_mode: int, suffix: str, column: str = 'pcr_position'):
+def run(size_mode: int, suffix: str, column: str = 'position'):
     # bgdt = datetime.date(2024, 2, 1)
     # eddt = datetime.date(2024, 10, 1)
     bgdt = datetime.date(2025, 1, 1)
@@ -58,7 +58,10 @@ def run(size_mode: int, suffix: str, column: str = 'pcr_position'):
 @click.option('-m', '--size-mode', type=int, help='size mode: 1 2 3 4')
 @click.option('-s', '--suffix', type=str, default='',)
 def click_main(size_mode: int, suffix: str):
-    run(size_mode, suffix, column=f'{suffix}_position')
+    run(size_mode, suffix,
+        column='position',
+        # column=f'{suffix}_position' if suffix else 'position'
+    )
 
 if __name__ == '__main__':
     click_main()

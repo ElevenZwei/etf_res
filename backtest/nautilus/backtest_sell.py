@@ -3,7 +3,6 @@
 构建期权卖出的仓位，输出回测的结果。
 期权卖出的策略是 strategy_sell.py
 这是一个卖出指定 Delta 值 Call 或者 Put 期权的策略。
-每一次换向都会平掉之前的仓位。
 """
 
 import datetime
@@ -38,7 +37,8 @@ def run(size_mode: int, suffix: str, column: str = 'position'):
     spot_df = spot_df.set_index('dt')
 
     # action_df = pd.read_csv(f'{DATA_DIR}/input/zxt_stock_position.csv')
-    action_df = pd.read_csv(f'{DATA_DIR}/cpr/roll_merged_1.csv')
+    # action_df = pd.read_csv(f'{DATA_DIR}/cpr/roll_merged_1.csv')
+    action_df = pd.read_csv(f'{DATA_DIR}/cc/cc_position_159949_2025.csv')
     action_df['dt'] = pd.to_datetime(action_df['dt'])
     action_df = action_df.set_index('dt')
     
@@ -70,7 +70,10 @@ def run(size_mode: int, suffix: str, column: str = 'position'):
 @click.option('-m', '--size-mode', type=int, help='size mode: 1 2 3 4')
 @click.option('-s', '--suffix', type=str, default='',)
 def click_main(size_mode: int, suffix: str):
-    run(size_mode, suffix, column=f'{suffix}_position' if suffix else 'position')
+    run(size_mode, suffix,
+        column='position',
+        # column=f'{suffix}_position' if suffix else 'position'
+    )
 
 if __name__ == '__main__':
     click_main()

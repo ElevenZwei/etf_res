@@ -63,8 +63,8 @@ def df_to_my_quote(df, inst):
             instrument_id=inst.id,
             bid_price=Price(tup.bid, 4),
             ask_price=Price(tup.ask, 4),
-            bid_size=Quantity.from_int(1e9),
-            ask_size=Quantity.from_int(1e9),
+            bid_size=Quantity.from_int(int(1e9)),
+            ask_size=Quantity.from_int(int(1e9)),
             ts_event=tup.epoch_ns,
             ts_init=tup.epoch_ns,
         )

@@ -17,7 +17,7 @@ function import_mdtfs {
     # mdfs=("${mdfs[@]: -1}")
     # echo "first: ${mdfs[0]}, last: ${mdfs[-1]}, count=${#mdfs[@]}"
     if command -v parallel; then
-        find . -type f -wholename './db/mdt_*.csv' | parallel -v -j8 --halt soon,fail=1 -- \
+        printf "%s\n" "${mdfs[@]}" | parallel -v -j8 --halt soon,fail=1 -- \
             psql "${db_opts[@]}" -d opt -c "\"\copy market_data_tick from '{}' delimiter ',' csv header\"";
     else
         for mdf in "${mdfs[@]}"; do
@@ -49,8 +49,14 @@ function import_mdtfs {
 # import_mdtfs 510050 20250402
 # import_mdtfs 510300 20250402
 
-import_mdtfs 159915 20250724
-import_mdtfs 510500 20250724
-import_mdtfs 510050 20250724
-import_mdtfs 510300 20250724
-import_mdtfs 588000 20250724
+# import_mdtfs 159915 20250724
+# import_mdtfs 510500 20250724
+# import_mdtfs 510050 20250724
+# import_mdtfs 510300 20250724
+# import_mdtfs 588000 20250724
+
+import_mdtfs 159915 20250901
+import_mdtfs 510500 20250901
+import_mdtfs 510050 20250901
+import_mdtfs 510300 20250901
+import_mdtfs 588000 20250901

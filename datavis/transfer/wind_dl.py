@@ -50,12 +50,11 @@ def dl_data(spotcode: str, dtstr: str):
     max_attempts = 3
     for opt_code in [spotcode, *opt_names['option_code']]:
         print(f"get opt data, spot {spotcode} date {dtstr} opt {opt_code}")
-        
         attempts = 0
         while attempts < max_attempts:
             try:
                 opt_data = w.wst(opt_code, "ask1,asize1,bid1,bsize1,ask2,asize2,bid2,bsize2,last,oi,volume",
-                                 f"{dtstr} 09:00:00", f"{dtstr} 11:00:51", "")
+                                 f"{dtstr} 09:00:00", f"{dtstr} 15:00:00", "")
                 opt_data = wind2df(opt_data)
                 break
             except WindException as we:

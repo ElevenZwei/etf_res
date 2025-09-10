@@ -28,6 +28,8 @@ class RollExport:
     # 测试交易的时间范围
     input_dt_from: datetime
     input_dt_to: datetime
+    trade_time_from: time
+    trade_time_to: time
     trade_weight: Dict[int, float]
     # 交易参数的触发条件，trade_args_id -> trigger DataFrame
     # trigger DataFrame 的格式是：
@@ -91,6 +93,12 @@ def parse_roll_export(json_str_obj: Union[str, any]) -> RollExport:
                 obj['input_dt_from'], '%Y-%m-%d %H:%M:%S'),
             input_dt_to=datetime.strptime(
                 obj['input_dt_to'], '%Y-%m-%d %H:%M:%S'),
+            trade_time_from=(datetime.strptime(
+                obj['trade_time_from'], '%H:%M:%S').time()
+                if 'trade_time_from' in obj else time(9, 30)),
+            trade_time_to=(datetime.strptime(
+                obj['trade_time_to'], '%H:%M:%S').time()
+                if 'trade_time_to' in obj else time(15, 0)),
             trade_weight=trade_weight,
             trade_trigger=trade_trigger,
     )
@@ -104,7 +112,7 @@ def merge_trade_trigger(trade_weight: Dict[int, float],
         trade_weight: Dict[int, float] - 交易参数的权重，key 是 trade_args_id，value 是权重。
         trade_trigger: Dict[int, pd.DataFrame] - 交易参数的触发条件，key 是 trade_args_id，value 是触发条件的 DataFrame。
     输出内容：
-        返回一个 DataFrame，包含所有交易参数的触发条件，按时间和 trade_args_id 索引。
+        返回一个 DataFrame，包含所有交易参数的触发条件，按时间 time 和 trade_args_id 索引。
     数据列包括：
         - time: 交易时间，格式为 HH:MM:SS
         - trade_args_id: 交易参数 ID
@@ -140,11 +148,17 @@ def merge_trade_trigger(trade_weight: Dict[int, float],
         merged_df['short_close'] = np.nan
 
     merged_df['time'] = pd.to_datetime(merged_df['time'], format='%H:%M:%S').dt.time
-    merged_df['time'] = merged_df['time'].astype('category')
     merged_df.set_index(['time', 'trade_args_id'], inplace=True, drop=False)
     merged_df.sort_index(inplace=True)
     # print(f"Merged trade trigger DataFrame:\n{merged_df.head(20)}")
     return merged_df
+
+
+def cut_trade_trigger(df: pd.DataFrame, roll: RollExport) -> pd.DataFrame:
+    time_from = roll.trade_time_from
+    time_to = roll.trade_time_to
+    df = df[(df['time'] >= time_from) & (df['time'] <= time_to)].copy()
+    return df
 
 
 def read_oi_csv(csv_path: str, dt_from: date, dt_to: date) -> pd.DataFrame:
@@ -224,7 +238,7 @@ def join_oi_trigger(oi_df: pd.DataFrame,
     merged_df = oi_df.join(trigger_df, how='left', lsuffix='_oi', rsuffix='_trigger')
     merged_df.reset_index(inplace=True, drop=True)
     merged_df.sort_values(by=['dt'], inplace=True)
-    print(f"Joined OI and Trigger DataFrame:\n{merged_df.head(20)}")
+    print(f"Joined OI and Trigger DataFrame:\n{merged_df.head(10)}\n{merged_df.tail(10)}")
     return merged_df
 
 
@@ -385,6 +399,7 @@ def run_roll_export(roll_export: RollExport, oi_df: pd.DataFrame) -> pd.DataFram
     trigger_df = merge_trade_trigger(
             roll_export.trade_weight,
             roll_export.trade_trigger)
+    trigger_df = cut_trade_trigger(trigger_df, roll_export)
     converted_df = convert_oi_df(oi_df)
     merged_df = join_oi_trigger(converted_df, trigger_df)
     split_trade_args_dict = split_trade_args(merged_df)
@@ -402,6 +417,7 @@ def run_roll_export(roll_export: RollExport, oi_df: pd.DataFrame) -> pd.DataFram
 
 @dataclass(frozen=True)
 class RollExportFrom:
+    """这是一个命令行输入的参数类型，指定读取 roll export json 的方法和运行参数"""
     source: str = 'file' # 'file' or 'db' or 'json'
     file_path: Optional[str] = None
     db_roll_args_id: Optional[int] = None
@@ -473,7 +489,7 @@ def run_roll_export_from(roll_export_from: RollExportFrom,
 
 @click.command()
 @click.option('-j', '--roll_export_from', type=str, required=True,
-            help='Path to the roll arguments JSON file.')
+            help='Path to the roll arguments JSON file or integer <db_roll_args_id> to read from database.')
 @click.option('-i', '--oi_from', type=str, required=True,
             help='Path to the OI CSV file or "db" to read from database.')
 @click.option('-b', '--dt_from', type=str, default=None,
@@ -490,7 +506,7 @@ def click_main(roll_export_from: str, oi_from: str, dt_from: str, dt_to: str):
             RollExportFrom(
                 source='file' if roll_export_from.endswith('.json') else 'db',
                 file_path=roll_export_from if roll_export_from.endswith('.json') else None,
-                db_roll_args_id=None if not roll_export_from.isdigit() else int(roll_export_from),
+                db_roll_args_id=int(roll_export_from) if roll_export_from.isdigit() else None,
                 db_roll_top=10,
                 db_dt_from=dt_from_date,
                 db_dt_to=dt_to_date,

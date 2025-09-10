@@ -317,9 +317,11 @@ def is_in_same_week(dt1: date, dt2: date) -> bool:
     return dt1.isocalendar()[1] == dt2.isocalendar()[1] and dt1.year == dt2.year
 
 
-def roll_export(roll_args_id: int, top: int, dt_from: date, dt_to: date):
-    # TODO 其实不一定是同一个星期，而是要根据 roll_args_id roll_result
-    # 的时间范围来判断。同一个星期是为了采样区间。
+def roll_export(roll_args_id: int, top: int,
+                dt_from: date, dt_to: date,
+                trade_time_from: time = time(9, 35, 0),
+                trade_time_to: time = time(14, 45, 0)):
+    # 限制同一个星期是为了时间窗口的采样区间。
     if not is_in_same_week(dt_from, dt_to):
         raise ValueError("dt_from and dt_to must be in the same week.")
     info = load_roll_export_info()
@@ -331,6 +333,8 @@ def roll_export(roll_args_id: int, top: int, dt_from: date, dt_to: date):
     info.update(roll_result_to_dict(df))
     info['input_dt_from'] = dt_from_datetime.strftime('%Y-%m-%d %H:%M:%S')
     info['input_dt_to'] = dt_to_datetime.strftime('%Y-%m-%d %H:%M:%S')
+    info['trade_time_from'] = trade_time_from.strftime("%H:%M:%S")
+    info['trade_time_to'] = trade_time_to.strftime("%H:%M:%S")
     info['roll_top'] = top
 
     trade_args_list = list(info['trade_args'].keys())

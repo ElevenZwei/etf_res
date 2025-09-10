@@ -103,25 +103,39 @@ def save_fpath(spot: str, tag: str,
     return fpath
 
 
+def get_cont_time_from_df(df1: pd.DataFrame) -> datetime.time:
+    bg_time = datetime.time(9, 30, 0)
+    # 开头不完善或者格式不正确那么就从头开始下载
+    first_row = df1.iloc[0] if not df1.empty else None
+    if first_row is not None:
+        if 'tradecode' not in first_row:
+            return bg_time
+        last_dt = pd.to_datetime(first_row['dt'])
+        if last_dt.time() > datetime.time(9, 31, 0):
+            return bg_time
+    last_row = df1.iloc[-1] if not df1.empty else None
+    if 'tradecode' in last_row:
+        last_dt = pd.to_datetime(last_row['dt'])
+        bg_date = last_dt.date()
+        bg_time = (last_dt + datetime.timedelta(seconds=1)).time()
+    return bg_time
+
+
 def dl_save_range_oi(spot: str, expiry_date: datetime.date,
-        bg_date: datetime.date, ed_date: datetime.date):
+        bg_date: datetime.date):
+    ed_date = bg_date
     fpath = save_fpath(spot, 'raw', bg_date, ed_date, expiry_date)
     bg_time = datetime.time(9, 30, 0)
     df1 = None
     # 如果文件存在，读取最后一行的时间戳
     if os.path.exists(fpath):
         df1 = pd.read_csv(fpath, parse_dates=['dt'])
-        last_row = df1.iloc[-1] if not df1.empty else None
-        # check format
-        if 'tradecode' in last_row:
-            last_dt = pd.to_datetime(last_row['dt'])
-            bg_date = last_dt.date()
-            bg_time = (last_dt + datetime.timedelta(seconds=1)).time()
+        bg_time = get_cont_time_from_df(df1)
         if bg_time > datetime.time(14, 59, 0):
             print(f"Loading existing data for {spot} on {bg_date}, "
                   f"expiry date: {expiry_date}")
             return pd.read_csv(fpath)
-    print(f"Downloading raw data for {spot} on {bg_date} {ed_date}"
+    print(f"Downloading raw data for {spot} on {bg_date}"
           f", expiry date: {expiry_date}")
     df2 = dl_oi_data(spot, expiry_date,
             bg_date, ed_date,
@@ -131,7 +145,10 @@ def dl_save_range_oi(spot: str, expiry_date: datetime.date,
         df1['dt'] = df1['dt'].dt.tz_convert('Asia/Shanghai')
     if df2 is not None and not df2.empty:
         df2['dt'] = df2['dt'].dt.tz_convert('Asia/Shanghai')
-    dfs = [x for x in [df1, df2] if x is not None and x.shape[0] != 0]
+    if bg_time > datetime.time(9, 30, 0):
+        dfs = [x for x in [df1, df2] if x is not None and x.shape[0] != 0]
+    else:
+        dfs = [df2] if df2 is not None and df2.shape[0] != 0 else []
     if dfs == []:
         raise RuntimeError("db is empty.")
     df = pd.concat(dfs, ignore_index=True)
@@ -158,7 +175,7 @@ def dl_raw_daily(spot: str, dt: datetime.date):
     expiry_date = get_nearest_expirydate(spot, dt)
     if expiry_date is None:
         raise RuntimeError("cannot find expiry date.")
-    return dl_save_range_oi(spot, expiry_date, dt, dt)
+    return dl_save_range_oi(spot, expiry_date, dt)
 
 
 def save_fpath_default(spot: str, tag: str, dt: datetime.date):

@@ -26,7 +26,7 @@ create table if not exists hb.spirit_persistence (
     username text not null,
     spirit text not null,
     key text not null,
-    value jsonb not null,
+    value jsonb,
     updated_at timestamptz not null default now()
 );
 create unique index if not exists hb_spirit_persistence_idx
@@ -37,7 +37,7 @@ create table if not exists hb.spirit_persistence_history (
     username text not null,
     spirit text not null,
     key text not null,
-    value jsonb not null,
+    value jsonb,
     updated_at timestamptz not null default now()
 );
 

@@ -27,7 +27,8 @@ class StrategyBuy(Strategy):
         self.hold_id = None
         self.hold_from: datetime.datetime = None
         self.hold_action = 0
-        
+        self.full_size = 0
+
         info_list = [{
             'inst': x.inst,
             'expiry_date': x.expiry_date,
@@ -37,11 +38,11 @@ class StrategyBuy(Strategy):
             'strike': x.strike } for x in self.infos.values()]
         print(info_list)
         self.df_info = pd.DataFrame(info_list)
-        
-    def get_cash(self):    
+
+    def get_cash(self):
         cash = self.portfolio.account(self.config.venue).balance().total.as_double()
         return cash
-    
+
     def get_net_worth(self):
         cash = self.portfolio.account(self.config.venue).balance().total.as_double()
         pos_value = 0
@@ -50,20 +51,20 @@ class StrategyBuy(Strategy):
         sum = cash + pos_value
         self.log.info(f"account: cash={cash}, pos={pos_value}, sum={sum}")
         return sum
-    
+
     def on_start(self):
         self.log.info('on_start: subscribe all contracts.')
         self.subscribe_quote_ticks(self.spot.id)
         for x in self.infos:
             self.subscribe_quote_ticks(x.id)
-    
+
     def on_quote_tick(self, tick: MyQuoteTick):
         # self.log.info(repr(tick))
         if tick.instrument_id == self.spot.id:
             self.on_spot_tick(tick)
         else:
             self.on_option_tick(tick)
-    
+
     def on_spot_tick(self, tick: MyQuoteTick):
         self.log.info(f'net_worth={self.get_net_worth()}')
         spot_price = tick.ask_price
@@ -82,6 +83,13 @@ class StrategyBuy(Strategy):
             if spot_action > 0:
                 self.log.info(f"spot action is positive, skip this.")
                 spot_action = 0
+
+        # lower_cutoff = 0.3
+        # upper_cutoff = 0.7
+        # if abs(spot_action) < lower_cutoff:
+        #     spot_action = 0
+        # if abs(spot_action) > upper_cutoff:
+        #     spot_action = 1 if spot_action > 0 else -1
 
         if self.hold_action == spot_action:
             self.log.info(f"hold action is same, skip this.")
@@ -107,32 +115,45 @@ class StrategyBuy(Strategy):
         #     return
 
         # Buy Options
-        if self.hold_id is not None:
-            pick_opt = self.infos[self.id_inst[self.hold_id]]
-            inst = pick_opt.inst
-            if pick_opt.cp * spot_action < 0:
-                self.log.info(f"hold option is not suitable, close all positions.")
-                self.close_all()
-                return
+        # reset picked option if not suitable
+        # if self.hold_id is not None:
+        #     pick_opt = self.infos[self.id_inst[self.hold_id]]
+        #     inst = pick_opt.inst
+        #     if pick_opt.cp * spot_action < 0:
+        #         self.log.info(f"hold option is not suitable, close all positions.")
+        #         self.close_all()
+        #         return
 
+        # refresh full_size if spot price changed a lot
+        # if self.hold_id is not None and self.full_size > 0:
+        #     if (spot_price > self.full_size_spot_price * 1.01
+        #             or spot_price < self.full_size_spot_price * 0.99):
+        #         askp = self.cache.quote_tick(self.hold_id).ask_price.as_double()
+        #         if askp == 0:
+        #             self.log.info(f"last ask_price is zero, skip this, price={repr(tick)}")
+        #             return
+        #         self.full_size = (10_000 / askp) // 10000 * 10000
+        #         self.full_size_spot_price = spot_price
+
+        # pick buy option and refresh full_size
         if self.hold_id is None:
             avail_opts = self.pick_available_options(now)
             buy_cp = 1 if spot_action > 0 else -1
-            pick_opt = self.pick_option_with_delta(avail_opts, buy_cp * 0.38)
+            pick_opt = self.pick_option_with_delta(avail_opts, buy_cp * 0.5)
             if pick_opt is None:
                 self.log.info("cannot pick opt, skip this.")
                 return
             inst: Instrument = pick_opt['inst']
             last_quote = self.cache.quote_tick(inst.id)
-            askp = last_quote.ask_price.as_double()
             if last_quote is None:
                 self.log.info("cannot read opt md, skip this.")
                 return
+            askp = last_quote.ask_price.as_double()
             if last_quote.ask_price == 0:
                 self.log.info(f"last ask_price is zero, skip this, price={repr(last_quote)}")
                 return
-            full_size = (10_000 / askp) // 10000 * 10000
-            self.full_size = full_size
+            self.full_size = (10_000 / askp) // 10000 * 10000
+            self.full_size_spot_price = spot_price
 
         hold_size = self.full_size * abs(spot_action) // 10000 * 10000
         if self.hold_id is not None:
@@ -201,7 +222,7 @@ class StrategyBuy(Strategy):
             avail = avail.loc[avail['cp'] == 1].copy()
         else:
             avail = avail.loc[avail['cp'] == -1].copy()
-        
+
         def read_delta(inst: Instrument) -> float:
             quote: MyQuoteTick = self.cache.quote_tick(inst.id)
             if quote is None:

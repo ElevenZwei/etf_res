@@ -118,7 +118,7 @@ begin
             args = args_arg,
             description = description_arg
             where id = method_id;
-            return method_id;
+        return method_id;
     end if;
     insert into cpr.roll_method (name, variation, is_static, args, description)
         values (name_arg, variation_arg, is_static_arg, args_arg, description_arg)

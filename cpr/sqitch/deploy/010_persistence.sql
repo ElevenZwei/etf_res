@@ -44,14 +44,25 @@ create table if not exists hb.spirit_persistence_history (
 create or replace function hb.set_spirit_persistence(
     username_arg text, spirit_arg text, key_arg text, value_arg jsonb)
     returns void language plpgsql as $$
+declare
+    sp_id integer;
 begin
+    -- update history first
     insert into hb.spirit_persistence_history (username, spirit, key, value)
         values (username_arg, spirit_arg, key_arg, value_arg);
+    -- update or insert main table
+    select id into sp_id from hb.spirit_persistence
+        where username = username_arg and spirit = spirit_arg and key = key_arg;
+    if sp_id is not null then
+        update hb.spirit_persistence
+            set value = value_arg, updated_at = now()
+            where id = sp_id;
+        return;
+    end if;
     insert into hb.spirit_persistence (username, spirit, key, value)
         values (username_arg, spirit_arg, key_arg, value_arg)
         on conflict (username, spirit, key) do update
-            set value = excluded.value,
-                updated_at = now();
+            set value = excluded.value, updated_at = now();
 end;
 $$;
 
@@ -108,14 +119,25 @@ create table if not exists hb.spirit_position_history (
 create or replace function hb.set_spirit_position(
     username_arg text, spirit_arg text, code_arg text, position_arg jsonb)
     returns void language plpgsql as $$
+declare
+    sp_id integer;
 begin
+    -- update history first
     insert into hb.spirit_position_history (username, spirit, code, position)
         values (username_arg, spirit_arg, code_arg, position_arg);
+    -- update or insert main table
+    select id into sp_id from hb.spirit_position
+        where username = username_arg and spirit = spirit_arg and code = code_arg;
+    if sp_id is not null then
+        update hb.spirit_position
+            set position = position_arg, updated_at = now()
+            where id = sp_id;
+        return;
+    end if;
     insert into hb.spirit_position (username, spirit, code, position)
         values (username_arg, spirit_arg, code_arg, position_arg)
         on conflict (username, spirit, code) do update
-            set position = excluded.position,
-                updated_at = now();
+            set position = excluded.position, updated_at = now();
 end;
 $$;
 

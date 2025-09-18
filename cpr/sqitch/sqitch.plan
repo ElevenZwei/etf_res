@@ -11,3 +11,5 @@
 008_roll 2025-08-05T08:14:22Z anon <anon@localhost> # Add rolling tables.
 009_roll_json 2025-08-14T10:02:49Z anon <anon@localhost> # Add json export json and run json table.
 010_persistence 2025-09-02T08:31:14Z anon <anon@localhost> # Add persistent storage for hummingbird spirits.
+011_md 2025-09-15T06:38:17Z anon <anon@localhost> # Add market data.
+012_md_func 2025-09-15T09:22:00Z anon <anon@localhost> # Add functions to market data tables.

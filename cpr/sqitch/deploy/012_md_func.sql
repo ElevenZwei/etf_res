@@ -76,7 +76,7 @@ create or replace function md.upsert_contract_info(
 declare
     is_diff boolean = null;
 begin
-    -- canonicalize
+    -- sanitize inputs.
     -- 这里代为处理录制代码里面可能没有传入的 null 参数。
     if callput_arg = 0 or callput_arg is null then
         callput_arg = 0;
@@ -141,6 +141,7 @@ begin
 end;
 $$;
 
+-- last_price_arg is nullable.
 create or replace function md.update_contract_price_daily(
     tradecode_arg text, dt_arg timestamptz,
     last_price_arg float8, vol_arg bigint, oi_arg integer)
@@ -196,6 +197,7 @@ begin
 end;
 $$;
 
+-- last_price_arg is nullable.
 create or replace function md.update_contract_price_minute(
     tradecode_arg text, dt_arg timestamptz,
     last_price_arg float8, vol_arg bigint, oi_arg integer)
@@ -256,6 +258,16 @@ declare
     price_daily_id integer = null;
     price_minute_id integer = null;
 begin
+    -- sanitize inputs.
+    if last_price_arg <= 0 then
+        last_price_arg = null;
+    end if;
+    if vol_arg <= 0 then
+        vol_arg = null;
+    end if;
+    if oi_arg <= 0 then
+        oi_arg = null;
+    end if;
     select true into tradecode_exists
         from md.contract_info ci
         where ci.tradecode = tradecode_arg;

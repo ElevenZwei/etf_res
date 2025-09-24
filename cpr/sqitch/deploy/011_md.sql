@@ -61,7 +61,7 @@ create table if not exists md.contract_info (
     -- 通常来说这个时间是程序第一次抓取到该合约信息的时间
     updated_at timestamptz not null default now()
 );
--- name 可能在某些时候会有短时间的重复。
+-- name 可能在某些时候会有短时间的重复，比如更新合约信息的过程进行中。
 create index if not exists idx_contract_info_name
     on md.contract_info (name);
 create index if not exists idx_contract_spotcode_expiry

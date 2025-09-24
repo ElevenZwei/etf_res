@@ -42,18 +42,69 @@
 这个脚本输入的时间范围和追加更新数据的时间范围是一致的，它是每日独立测试。  
 这是一个多核心高运算量的任务。  
 
-计算完成之后可以运行 `src/roll_run.py` 得到参数轮换的评估结果，这个脚本读取的时间范围会分成训练数据和测试数据两个时间段落。评估结果储存在 `cpr.roll_args` `cpr.roll_rank` `cpr.roll_result` 里面。  
-`src/roll_merge.py` 会把轮换的参数组合成参数轮换中的历史仓位，它读取上一步的 `cpr.roll_result cpr.clip_trade_backtest` 表格，把结果储存在 `cpr.roll_merged` 里面。  
-`cpr.roll_merged` 表格里面的历史仓位数据可以用来驱动 nautilus 框架回测，得到更加准确的营收报告。这部分的内容写在 `../backtest/readme.md` 。  
-
 对于轮换之前每个参数的收益情况，用来统计的 SQL 函数是 `select cpr.update_intraday_spot_clip_profit_range(dataset_id, 1, 8082, date_from, date_to, notice=>true);` ，它会读取 `cpr.clip_trade_backtest` 表格，然后把每个参数的逐笔收益储存在 `cpr.clip_trade_profit` 表格里面。  
+
+计算完成之后可以运行 `src/roll_run.py` 得到参数轮换的评估结果，这个脚本读取的时间范围会分成训练数据和测试数据两个时间段落。它会读取 `cpr.clip_trade_profit` 传递给评估函数来给参数排序。评估结果储存在 `cpr.roll_args` `cpr.roll_rank` `cpr.roll_result` 里面。  
+
+`src/roll_merge.py` 会把轮换的参数组合成带有轮换的历史仓位，它读取上一步的 `cpr.roll_result cpr.clip_trade_backtest` 表格，把结果储存在 `cpr.roll_merged` 里面。  
+
+`cpr.roll_merged` 表格里面的历史仓位数据可以用来驱动 nautilus 框架回测，得到更加准确的营收报告。这部分的内容写在 `../backtest/readme.md` 。  
 
 ### 实盘信号  
 
-实盘得出信号需要的参数导出脚本是 `src/roll_export.py` ，这个脚本读取表格 `cpr.roll_result` 以及之前回测中用到的切片样本等等数据，输出一个 json 文件。输出的 json 文件也会在数据库里面储存一份。  
+实盘得出信号需要的参数导出脚本是 `src/roll_export.py` ，这个脚本读取表格 `cpr.roll_result` 以及之前回测中用到的切片样本等等数据，在 stdout 输出一个 json 文件。输出的 json 文件也会在数据库里面储存一份。  
+实盘运行的 json 文件在数据库里面储存在 `cpr.roll_export` 表格里面，这个表格有一个约束是同一个 `roll_args_id + top_n` 的运行参数的时间窗口不能重叠。这是为了实盘运行的严谨性。  
+写入数据库的规则是，如果运行的时间窗口完全一样的话，那么 `roll_export.py` 会更新 `cpr.roll_export` 里面储存的实盘运行参数。如果不一样的话会尝试插入，如果时间窗口和之前的数据行没有
 
-运行这个 json 文件的脚本是 `src/export_run.py` ，运行脚本会调用 `dl_oi.py` 下载需要的数据，然后直接运行 json 文件的参数得到实时仓位。  
+运行这个 json 文件的脚本是 `src/export_run.py` ，脚本会调用 `dl_oi.py` 下载需要的数据，然后直接运行 json 文件的参数得到实时仓位。这个脚本设计成幂等的，指的是在日内的任何时间运行都可以得到当日开盘到当时的完整信号，并且写入数据库，不受之前运行结果的影响。  
+
+实盘信号的实时计算使用 `src/export_run_daemon.py` 这个脚本是一个 wrapper ，默认按开盘时间定期运行 `src/export_run.py` 计算当日的新信号。  
+
+运行这个 export_run / export_run_daemon 脚本的前提需求有几个：  
+1. 实盘录制程序将实时市场盘口数据写入数据库，`dl_oi.py` 可以下载到当日交易数据。  
+2. daemon 脚本从 CPR 数据库 `cpr.roll_export` 表格中读取当日的交易参数，这个 json 需要存在。
+
+让它开盘中可以定期更新信号写入数据库的运行方法是：  
+```bash
+while true; do python export_run_daemon.py -s; sleep 3; done
+```
+
+让它计算某一天的交易信号，并且写入数据库的的运行方法是：  
+```bash
+python export_run_daemon.py -d 2025-09-01
+```
+
+### 每周更新  
+
+每周更新有一个脚本完成 `src/weekly_update.py` 。这个脚本的工作包括下载数据，载入数据，计算日内变化量，进行采样，运行回测，得到新的轮换参数，然后储存在数据库里面。这个也就是上面所说的整个过程的集成化处理。  
+
+这个脚本让它做回测并且更新下周的运行参数的使用方法如下：  
+```bash
+python weekly_update.py -s 159915 -b 2025-09-08 -e 2025-09-14  
+# -b 输入周一，-e 输入周日，在周五收盘之后运行才能得到可靠的下周轮换结果
+```
+
+如果只是让它做回测，更新所有参数的 backtest 结果，不触碰 roll 信息，使用方法如下：  
+```bash
+python weekly_update.py --no-roll -s 159915 -b 2025-09-08 -e 2025-09-14  
+# -b -e 随意
+```
+
+如果让它做回测，更新 backtest 结果，并且根据当前已有的 roll_result 表格更新 roll_merged 历史信号，使用方法如下：  
+```bash
+python weekly_update.py --no-roll-next -s 159915 -b 2025-09-08 -e 2025-09-14  
+# -b -e 随意
+```
+
+## TODO
+这里 python 脚本里面有一个问题就是 to_sql 函数里面滥用 upsert_on_conflict_skip ，我都不知道一个脚本最后执行有没有写入数据库，完全就是随缘的。至少有下面几个高危使用位置需要更换：  
+1. json run 脚本 export_run.py 写入仓位信号的函数 `save_roll_export_run` .  
+2. roll 轮换选择参数的脚本 roll.py 写入轮换结果的函数 `save_roll_output` .  
+3. 合并轮换的历史仓位的脚本 roll_merge.py 写入合并结果的函数。  
+
+滥用的原因来自于更多更新函数的写入都是有重叠的，其实应该是检查和之前的参数是否一致，有些允许不一致的时候启动更新，有些就应该在不一致的时候报错。
 
 
+TODO: 关于回测结果，还需要一个安全检查的脚本，检查目前这些 clip_trade_profit 的数据行的开仓时间插口之间有没有重叠的情况。
 
 

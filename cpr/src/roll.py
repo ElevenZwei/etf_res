@@ -366,11 +366,7 @@ def sort_slice_export(
     return roll_rank_df, roll_result_df
 
 
-def save_roll_output(run_args: RollRunArgs, rank_df: pd.DataFrame, result_df: pd.DataFrame) -> pd.DataFrame:
-    """ Save the rolling output to the database.
-    Transform run_args to roll_args_id, then save the rank_df and result_df to the database.
-    Return the result_df with roll_args_id added.
-    """
+def get_roll_args_id_from_run_args(run_args: RollRunArgs) -> int:
     # save roll method args to the database
     method_id = get_roll_method_id(
             run_args.roll_method_args.method,
@@ -383,6 +379,15 @@ def save_roll_output(run_args: RollRunArgs, rank_df: pd.DataFrame, result_df: pd
             method_id, run_args.dataset_id,
             run_args.trade_args_from_id, run_args.trade_args_to_id,
             run_args.pick_count)
+    return roll_args_id
+
+
+def save_roll_output(run_args: RollRunArgs, rank_df: pd.DataFrame, result_df: pd.DataFrame) -> pd.DataFrame:
+    """ Save the rolling output to the database.
+    Transform run_args to roll_args_id, then save the rank_df and result_df to the database.
+    Return the result_df with roll_args_id added.
+    """
+    roll_args_id = get_roll_args_id_from_run_args(run_args)
 
     print("uploading roll_rank to database.")
     rank_df['roll_args_id'] = roll_args_id

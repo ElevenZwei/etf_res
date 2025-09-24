@@ -2,7 +2,7 @@
 
 from datetime import datetime, date, timedelta
 
-from roll import RollMethodArgs, RollRunArgs, roll_run
+from roll import RollMethodArgs, RollRunArgs, roll_run, get_roll_args_id_from_run_args
 
 best_return1 = RollMethodArgs(
     method="best_return",
@@ -39,6 +39,13 @@ def gen_roll_args_list(dataset_id: int, dt_bg: date, dt_ed: date) -> list[RollRu
         ),
     ]
     return roll_run_args_list
+
+
+def get_roll_args_ids(dataset_id: int, dt_bg: date, dt_ed: date) -> set[int]:
+    args_list = gen_roll_args_list(dataset_id, dt_bg, dt_ed)
+    roll_args_ids = { get_roll_args_id_from_run_args(roll_run_args)
+                     for roll_run_args in args_list }
+    return roll_args_ids
 
 
 def main(dataset_id: int, dt_bg: date, dt_ed: date) -> set[int]:

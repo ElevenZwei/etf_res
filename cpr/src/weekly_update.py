@@ -5,7 +5,7 @@ from csv2cpr import upload_oi_df_to_cpr
 from tick2bar import convert_df_to_bars
 from clip import calculate_all_clips
 from cpr_diff_sig import signal_intra_day_all
-from roll_run import main as roll_main
+from roll_run import main as roll_main, get_roll_args_ids as get_roll_args_ids
 from roll_merge import save_merged_positions, calculate_merged_positions
 from roll_export import roll_export, roll_export_save_db
 
@@ -116,16 +116,19 @@ def backtest_data(spot: str, dt_bg: date, dt_ed: date):
         print(df)
 
 
-def roll_data(spot: str, dt_bg: date, dt_ed: date):
+def roll_data(spot: str, dt_bg: date, dt_ed: date, with_roll_next: bool = True):
     dataset_id = get_dataset_id(spot)
     weeks = make_week_clip(dt_bg, dt_ed)
     week_bg = weeks[0][0] if weeks else dt_bg
     week_ed = weeks[-1][1] if weeks else dt_ed
-    # 这里的参数会传给 gen_roll_args_list，它会把起点向前移动 60 天
-    # 因为滚动选取需要包含训练的时间范围
-    # 然后再传给 roll_static_slice 函数，这个函数选取的时间切片会包含最后一个不完整的星期。
-    # 所以这里的 end 参数至少要是想要预测的那个星期的星期一。
-    roll_args_idset = roll_main(dataset_id, week_bg, week_ed)
+    if with_roll_next:
+        # 这里的参数会传给 gen_roll_args_list，它会把起点向前移动 60 天
+        # 因为滚动选取需要包含训练的时间范围
+        # 然后再传给 roll_static_slice 函数，这个函数选取的时间切片会包含最后一个不完整的星期。
+        # 所以这里的 end 参数至少要是想要预测的那个星期的星期一。
+        roll_args_idset = roll_main(dataset_id, week_bg, week_ed)
+    else:
+        roll_args_idset = get_roll_args_ids(dataset_id, week_bg, week_ed)
 
     for roll_args_id in roll_args_idset:
         top = 10
@@ -136,19 +139,23 @@ def roll_data(spot: str, dt_bg: date, dt_ed: date):
                 dt_to=dt_ed)
         save_merged_positions(merged_positions)
 
-    for roll_args_id in roll_args_idset:
-        for week_bg, week_ed in weeks:
-            exp = roll_export(roll_args_id, top, week_bg, week_ed)
-            roll_export_id = roll_export_save_db(exp)
-            print(f"Saved roll export id {roll_export_id} for roll_args_id {roll_args_id} from {week_bg} to {week_ed}")
+    if with_roll_next:
+        for roll_args_id in roll_args_idset:
+            for week_bg, week_ed in weeks:
+                exp = roll_export(roll_args_id, top, week_bg, week_ed)
+                roll_export_id = roll_export_save_db(exp)
+                print(f"Saved roll export id {roll_export_id} for roll_args_id {roll_args_id} from {week_bg} to {week_ed}")
 
 
-def weekly_update(spot: str, dt_bg: date, dt_ed: date):
+def weekly_update(spot: str, dt_bg: date, dt_ed: date,
+                  with_roll: bool = True,
+                  with_roll_next: bool = True):
+    # weeks = make_week_clip(dt_bg, dt_ed)
     load_data(spot, dt_bg, dt_ed)
     clip_data(spot, dt_bg, dt_ed)
     backtest_data(spot, dt_bg, dt_ed)
-    roll_data(spot, dt_bg, dt_ed)
-    # weeks = make_week_clip(dt_bg, dt_ed)
+    if with_roll:
+        roll_data(spot, dt_bg, dt_ed, with_roll_next=with_roll_next)
 
 
 
@@ -156,7 +163,10 @@ def weekly_update(spot: str, dt_bg: date, dt_ed: date):
 @click.option('-s', '--spot', type=click.Choice(['159915', '510500']), required=True, help='Spot code to update')
 @click.option('-b', '--date-bg', type=click.DateTime(formats=["%Y-%m-%d"]), required=False, help='Start date (YYYY-MM-DD)', default=(datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d"))
 @click.option('-e', '--date-ed', type=click.DateTime(formats=["%Y-%m-%d"]), required=False, help='End date (YYYY-MM-DD)', default=datetime.now().strftime("%Y-%m-%d"))
-def click_main(spot: str, date_bg: datetime, date_ed: datetime):
+@click.option('--no-roll', is_flag=True, default=False, help='Skip roll update')
+@click.option('--no-roll-next', is_flag=True, default=False, help='Skip roll next week prediction update')
+def click_main(spot: str, date_bg: datetime, date_ed: datetime,
+               no_roll: bool, no_roll_next: bool):
     if date_ed is None:
         date_ed = datetime.now()
     if date_bg is None:
@@ -166,7 +176,9 @@ def click_main(spot: str, date_bg: datetime, date_ed: datetime):
     if dt_bg > dt_ed:
         raise ValueError("Start date must be before or equal to end date")
     print(f"Starting weekly update for spot {spot} from {dt_bg} to {dt_ed}")
-    weekly_update(spot, dt_bg, dt_ed)
+    weekly_update(spot, dt_bg, dt_ed,
+                  with_roll=not no_roll,
+                  with_roll_next=not no_roll_next)
     print("Weekly update completed.")
 
 

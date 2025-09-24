@@ -320,7 +320,7 @@ def is_in_same_week(dt1: date, dt2: date) -> bool:
 def roll_export(roll_args_id: int, top: int,
                 dt_from: date, dt_to: date,
                 trade_time_from: time = time(9, 35, 0),
-                trade_time_to: time = time(14, 45, 0)):
+                trade_time_to: time = time(14, 50, 0)):
     # 限制同一个星期是为了时间窗口的采样区间。
     if not is_in_same_week(dt_from, dt_to):
         raise ValueError("dt_from and dt_to must be in the same week.")

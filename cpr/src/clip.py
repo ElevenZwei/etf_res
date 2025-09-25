@@ -17,8 +17,11 @@ engine = get_engine()
 
 def load_ratio_data(spotcode: str, ti: time, d1: date, d2: date)-> pd.DataFrame:
     """
-    Load ratio data for a given time and spotcode.
+    Load ratio data for a given time and date range and spotcode.
+    取出这个时间点上一段日期区间内的 ratio 和 ratio_diff 数据。
+    d1, d2 are inclusive.
     """
+    # latex: cpr.daily.dt(only date info is used) \in [d1, d2]
     query = sa.text("""
         with ds as (
             select id from cpr.dataset

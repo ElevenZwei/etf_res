@@ -101,10 +101,12 @@ def load_range_id_with_cache(ti: time, d1: date, d2: date) -> int:
 
 
 def load_cpr_daily(dsid: int, dat: date):
+    """取出这一天的日内数据"""
+    # latex: dt \in [dat, dat + 1 day)
     query = sa.text("""
         select * from cpr.daily
         where dataset_id = :dsid
-        and dt > :dat and dt < :dat + interval '1 day'
+        and dt >= :dat and dt < :dat + interval '1 day'
     """)
     with engine.connect() as conn:
         df = pd.read_sql(query, conn, params={

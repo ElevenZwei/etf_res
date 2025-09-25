@@ -26,8 +26,11 @@ class RollExport:
     roll_top: int
     spotcode: str
     # 测试交易的时间范围
+    # input_dt_from and input_dt_to are inclusive.
+    # input_dt_to should be like '2025-08-17 23:59:59' to include the whole day.
     input_dt_from: datetime
     input_dt_to: datetime
+    # trade_time_from and trade_time_to are inclusive.
     trade_time_from: time
     trade_time_to: time
     trade_weight: Dict[int, float]
@@ -51,12 +54,17 @@ def read_roll_export_file(file_path: str) -> RollExport:
 
 def read_roll_export_db(roll_args_id: int, top: int,
                       dt_from: date, dt_to: date) -> RollExport:
+    """
+    从数据库加载 roll 参数。
+    input dt_from and dt_to are inclusive.
+    """
+    # latex: [input_dt_from, input_dt_to] \subset [sql_dt_from, sql_dt_to)
     query = sa.text("""
         select id, args from cpr.roll_export
         where roll_args_id = :roll_args_id
             and top = :top
             and dt_from <= :dt_from
-            and dt_to >= :dt_to
+            and dt_to > :dt_to
         limit 1;
         """)
     with engine.connect() as conn:
@@ -71,6 +79,7 @@ def read_roll_export_db(roll_args_id: int, top: int,
                          f"dt_from {dt_from}, dt_to {dt_to}.")
     res = parse_roll_export(df['args'].iloc[0])
     res.roll_export_id = df['id'].iloc[0]
+    print(f"Loaded roll export from DB with id {res.roll_export_id}")
     return res
 
 
@@ -157,6 +166,7 @@ def merge_trade_trigger(trade_weight: Dict[int, float],
 def cut_trade_trigger(df: pd.DataFrame, roll: RollExport) -> pd.DataFrame:
     time_from = roll.trade_time_from
     time_to = roll.trade_time_to
+    # latex: df.time \in [trade_time_from, trade_time_to]
     df = df[(df['time'] >= time_from) & (df['time'] <= time_to)].copy()
     return df
 
@@ -167,13 +177,13 @@ def read_oi_csv(csv_path: str, dt_from: date, dt_to: date) -> pd.DataFrame:
     Args:
         csv_path (str): Path to the CSV file containing OI data.
         dt_from (date): Start date for filtering.
-        dt_to (date): End date for filtering, exclusive.
+        dt_to (date): End date for filtering, inclusive.
     """
     # localize the date range to pandas timestamp with timezone
     dt_from = pd.Timestamp(dt_from).tz_localize('Asia/Shanghai')
     dt_to = pd.Timestamp(dt_to).tz_localize('Asia/Shanghai')
     df = pd.read_csv(csv_path, parse_dates=['dt'])
-    df = df[(df['dt'] >= dt_from) & (df['dt'] < dt_to)]
+    df = df[(df['dt'] >= dt_from) & (df['dt'] < dt_to + timedelta(days=1))]
     return df
 
 
@@ -183,9 +193,9 @@ def read_oi_db(spotcode: str, dt_from: date, dt_to: date) -> pd.DataFrame:
     Args:
         spotcode (str): The spot code for which to read OI data.
         dt_from (date): Start date for filtering.
-        dt_to (date): End date for filtering, exclusive.
+        dt_to (date): End date for filtering, inclusive.
     """
-    df = dl_calc_oi_range(spotcode, dt_from, dt_to - timedelta(days=1))
+    df = dl_calc_oi_range(spotcode, dt_from, dt_to)
     df['dt'] = pd.to_datetime(df['dt'], utc=True)
     df['dt'] = df['dt'].dt.tz_convert('Asia/Shanghai')
     return df
@@ -476,7 +486,6 @@ def run_roll_export_from(roll_export_from: RollExportFrom,
     if dt_to > input_to:
         raise ValueError(f"dt_to {dt_to} is later than roll_export.input_dt_to {roll_export.input_dt_to}.")
     print(f"Running roll args from {roll_export_from} and OI from {oi_from}, dt_from: {dt_from}, dt_to: {dt_to}")
-    dt_to = dt_to + timedelta(days=1)  # make dt_to inclusive
     if oi_from == 'db':
         oi_df = read_oi_db(roll_export.spotcode, dt_from, dt_to)
     else:

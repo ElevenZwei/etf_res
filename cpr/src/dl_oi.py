@@ -30,6 +30,7 @@ engine = get_engine(PG_OI_DB_CONF)
 def dl_expiry_date(spot: str, year: int, month: int) -> Optional[datetime.date]:
     d_from = datetime.datetime(year, month, 1)
     d_to = datetime.datetime(year, month, 28)
+    # latex: ci.expirydate \in [d_from, d_to]
     query = sa.text("""
             select min(expirydate) as expirydate
             from contract_info ci
@@ -52,10 +53,15 @@ def dl_oi_data(spot: str, expiry_date: datetime.date,
         bg_date: datetime.date, ed_date: datetime.date,
         bg_time: datetime.time = datetime.time(9, 30, 0),
         ed_time: datetime.time = datetime.time(15, 0, 0)) -> pd.DataFrame:
+    """
+    bg_date and ed_date are inclusive.
+    bg_time and ed_time are inclusive.
+    """
     bg_date_str = bg_date.strftime('%Y-%m-%d')
     ed_date_str = ed_date.strftime('%Y-%m-%d')
     bg_time_str = bg_time.strftime('%H:%M:%S')
     ed_time_str = ed_time.strftime('%H:%M:%S')
+    # latex: mdt.dt \in [bg_datetime, ed_datetime]
     query = sa.text("""
         set enable_nestloop=false;
         with OI as (
@@ -65,7 +71,7 @@ def dl_oi_data(spot: str, expiry_date: datetime.date,
                     dt, spotcode, expirydate, callput, strike, tradecode,
                     open_interest as oi
                 from market_data_tick mdt join contract_info ci using(code)
-                where mdt.dt > :bg_datetime and mdt.dt < :ed_datetime
+                where mdt.dt >= :bg_datetime and mdt.dt <= :ed_datetime
                 and dt::time >= '09:30:00' and dt::time <= '15:00:00'
                 and spotcode = :spot and expirydate = :expiry_date
             ) as T
@@ -73,7 +79,7 @@ def dl_oi_data(spot: str, expiry_date: datetime.date,
         select oi.dt, oi.spotcode, oi.expirydate, oi.strike
             , oi.callput, oi.tradecode, oi.oi, mdt.last_price as spot_price
         from OI join market_data_tick mdt using (dt)
-        where mdt.dt > :bg_datetime and mdt.dt < :ed_datetime
+        where mdt.dt >= :bg_datetime and mdt.dt <= :ed_datetime
         and mdt.code = oi.spotcode
         order by dt asc;
     """)

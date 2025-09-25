@@ -54,7 +54,15 @@ def load_roll_args(roll_args_id: int) -> Dict[str, int]:
 
 
 def load_roll_result(roll_args_id: int, top: int, dt_from: date, dt_to: date) -> pd.DataFrame:
+    """
+    load roll result for a specific roll arguments ID and date range.
+    return columns:
+        roll_args_id, trade_args_id, dt_from, dt_to, rank, weight
+    """
     with engine.connect() as conn:
+        # input dt_from and dt_to are inclusive
+        # sql dt_from is inclusive, dt_to is exclusive
+        # find all roll results that overlap with input [dt_from, dt_to]
         query = sa.text("""
             SELECT
                 roll_args_id, trade_args_id, dt_from, dt_to,
@@ -62,7 +70,7 @@ def load_roll_result(roll_args_id: int, top: int, dt_from: date, dt_to: date) ->
             FROM cpr.roll_result
             WHERE roll_args_id = :roll_args_id
             AND predict_rank <= :top
-            AND dt_to >= :dt_from
+            AND dt_to > :dt_from
             AND dt_from <= :dt_to
         """)
         df = pd.read_sql(query, conn, params={
@@ -77,10 +85,14 @@ def load_roll_result(roll_args_id: int, top: int, dt_from: date, dt_to: date) ->
 
 
 def load_trade_history(dataset_id: int, trade_args_id: int, dt_from: date, dt_to: date) -> pd.DataFrame:
-    """Load trade history for a specific dataset and trade arguments ID."""
+    """
+    Load trade history for a specific dataset and trade arguments ID.
+    input dt_from and dt_to are inclusive
+    """
     print(f"Loading trade history for dataset_id={dataset_id}, trade_args_id={trade_args_id}, "
         f"from {dt_from} to {dt_to}")
     with engine.connect() as conn:
+        # latex: cpr.clip_trade_backtest.dt \in [dt_from, dt_to]
         query = sa.text("""SELECT * FROM cpr.clip_trade_backtest
                     WHERE dataset_id = :dataset_id
                     AND trade_args_id = :trade_args_id
@@ -183,7 +195,10 @@ def merge_range_weights(dataset_id: int, range_weights: RangeWeightsType) -> pd.
 
 
 def calculate_merged_positions(roll_args_id: int, top: int, dt_from: date, dt_to: date) -> pd.DataFrame:
-    """Calculate merged positions based on roll arguments ID and date range."""
+    """
+    Calculate merged positions based on roll arguments ID and date range.
+    dt_from and dt_to are inclusive.
+    """
     roll_args = load_roll_args(roll_args_id)
     dataset_id = roll_args['dataset_id']
     # Load roll result

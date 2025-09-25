@@ -73,8 +73,11 @@ def load_roll_result(roll_args_id: int, top: int, dt_from: datetime, dt_to: date
     """
     Load roll results from the database by roll_args_id, limited to top entries within date range.
     returns a DataFrame with roll_args_id, trade_args_id, dt_from, dt_to, rank, weight.
+    dt_from and dt_to are inclusive.
     """
     with engine.connect() as conn:
+        # the sql table dt_to is exclusive, so we need to adjust the query accordingly
+        # latex: input [dt_from, dt_to] \subset sql [dt_from, dt_to)
         query = sa.text("""
             select
                 roll_args_id, trade_args_id,
@@ -86,7 +89,7 @@ def load_roll_result(roll_args_id: int, top: int, dt_from: datetime, dt_to: date
             where roll_args_id = :roll_args_id
             and predict_rank <= :top
             and dt_from <= :dt_from
-            and dt_to >= :dt_to
+            and dt_to > :dt_to
         """)
         df = pd.read_sql(query, conn, params={
             "roll_args_id": roll_args_id,

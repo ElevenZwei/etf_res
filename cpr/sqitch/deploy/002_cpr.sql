@@ -91,6 +91,8 @@ begin
 
 end $$ language plpgsql;
 
+-- update daily data for a date range with optional notice
+-- d1 and d2 are inclusive
 create or replace function cpr.update_daily(d1 date, d2 date, dataset_id_arg integer,
     notice boolean default true)
 returns void as $$

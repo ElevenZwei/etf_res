@@ -64,11 +64,12 @@ def load_trade_profits(dataset_id: int, trade_args_ids: List[int],
                        from_dt: date, to_dt: date) -> pd.DataFrame:
     """
     Load trade profits for a given list of trade argument IDs.
-    `to_dt` day is exclusive.
+    `to_dt` day is inclusive.
     """
     if not trade_args_ids:
         return pd.DataFrame(columns=['trade_args_id', 'profit'])
-    
+
+    # latex: cpr.clip_trade_profit.[dt_open, dt_close] \subset [from_dt, to_dt + 1 day)
     query = sa.text("""
         select dataset_id, trade_args_id,
             dt_open, dt_close,
@@ -86,7 +87,7 @@ def load_trade_profits(dataset_id: int, trade_args_ids: List[int],
         df = pd.read_sql(query, conn, params={
             'dataset_id': dataset_id,
             'from_dt': from_dt,
-            'to_dt': to_dt,
+            'to_dt': to_dt + timedelta(days=1),
             'trade_args_ids': tuple(trade_args_ids),
         })
     return df.set_index('trade_args_id')
@@ -212,7 +213,7 @@ def roll_static_slice(
     """
     Make a rolling slice of the profit dataframe.
     `dt_from` and `dt_to` are the start and end dates of the rolling process.
-    `dt_to` is exclusive, meaning the last day is not included in the slice.
+    `dt_to` is inclusive.
     `validate_days` is the number of days for the validation set.
     `train_days_factor` is the factor to multiply `validate_days` to get the training set size.
     Returns a list of tuples, each tuple contains:
@@ -236,13 +237,12 @@ def roll_static_slice(
 
     print(f"Rolling from {dt_from} to {dt_to} with validate_days={validate_days}, train_days_factor={train_days_factor}")
     train_days = int(validate_days * train_days_factor)
-    slice_count = ((dt_to - dt_from).days - train_days) // validate_days
+    slice_count = ((dt_to + timedelta(days=1) - dt_from).days - train_days) // validate_days
     # last slice is train only slice
     slice_count += 1
     slices = []
     # convert dt_from and dt_to to datetime objects with local timezone
     dt_from = pd.Timestamp(dt_from).tz_localize('Asia/Shanghai')
-    dt_to = pd.Timestamp(dt_to).tz_localize('Asia/Shanghai')
     for i in range(slice_count):
         # 因为是 datetime 对象，所以最后不要减去一天，时间到零点为止，最后一天自然不会包含在内
         train_from = dt_from + timedelta(days=i * validate_days)
@@ -270,6 +270,8 @@ class RollMethodArgs:
 class RollRunArgs:
     roll_method_args: RollMethodArgs
     dataset_id: int
+    # date_from and date_to are the overall date range for the rolling process
+    # date_to is inclusive
     date_from: date
     date_to: date
     trade_args_from_id: int

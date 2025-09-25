@@ -33,6 +33,7 @@ def load_data(spot: str, dt_bg: date, dt_ed: date):
     upload_oi_df_to_cpr(spot, oi_df)
     convert_df_to_bars(spot, oi_df)
     with engine.connect() as conn:
+        # cpr.update_daily arg dt_ed is inclusive
         query = sa.text("""
             select cpr.update_daily(:dt_bg, :dt_ed, :dataset_id)
         """)
@@ -41,6 +42,8 @@ def load_data(spot: str, dt_bg: date, dt_ed: date):
             "dt_ed": dt_ed,
             "dataset_id": get_dataset_id(spot)})
         conn.commit()
+        # preview updated cpr.daily data
+        # latex: cpr.daily.dt \in [dt_bg, dt_ed] and dataset_id = get_dataset_id(spot)
         query = sa.text("""
             select * from (
                 (select * from "cpr"."daily"
@@ -69,6 +72,12 @@ def clip_data(spot: str, dt_bg: date, dt_ed: date):
 
 
 def make_week_clip(dt_bg: date, dt_ed: date) -> List[Tuple[date, date]]:
+    """
+    Make a list of full weeks (Monday to Sunday) within the date range [dt_bg, dt_ed].
+    Each week is represented as a tuple (week_bg, week_ed).
+    The last element of the list may be an incomplete week if dt_ed is not a Sunday.
+    If there is no full week in the range, return an empty list.
+    """
     # week_bg is Monday after or equal dt_bg
     week_bg = dt_bg - timedelta(days=dt_bg.weekday())
     if week_bg < dt_bg:
@@ -93,9 +102,14 @@ def make_week_clip(dt_bg: date, dt_ed: date) -> List[Tuple[date, date]]:
 
 
 def backtest_data(spot: str, dt_bg: date, dt_ed: date):
+    """
+    Update intraday spot profit records and get best clip trade args for recent weeks.
+    dt_bg and dt_ed are inclusive
+    """
     signal_intra_day_all(spot, dt_bg, dt_ed)
     with engine.connect() as conn:
         print("Updating intraday spot profit records...")
+        # cpr.update_intraday_spot_clip_profit_range arg dt_ed is inclusive
         query = sa.text("""
             select cpr.update_intraday_spot_clip_profit_range(:dataset_id, 1, 8082, :dt_bg, :dt_ed)
         """)
@@ -105,6 +119,9 @@ def backtest_data(spot: str, dt_bg: date, dt_ed: date):
             "dataset_id": get_dataset_id(spot)})
         conn.commit()
         weeks = make_week_clip(dt_bg, dt_ed)[:-1]  # exclude the last incomplete week
+        # this sql function returns the best clip trade args for the last full week
+        # arg week_ed is exclusive in the sql function.
+        # because week_ed is non-trading day, so it won't cause partial week issue.
         query = sa.text("""
             select * from cpr.get_best_clip_trade_args(:week_bg, :week_ed, :dataset_id, cnt => 5)
         """)

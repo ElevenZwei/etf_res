@@ -3,6 +3,12 @@
 BEGIN;
 
 -- XXX Add DDLs here.
+
+-- 统计各个 trade_args_id 在某个时间段内的 pnl 表现。
+-- 这里的 pnl 计算是基于 clip_trade_profit 表的。
+-- 也就是说，必须先运行 update_intraday_spot_clip_profit 函数，生成 clip_trade_profit 表的数据。
+-- 时间范围是 左闭右开 [bg, ed)。
+-- ed is exclusive.
 create or replace function cpr.get_best_clip_trade_args(
     bg date,
     ed date,
@@ -23,6 +29,10 @@ language sql as $$
     limit cnt;
 $$;
 
+-- 统计各个 trade_args_id 在某个时间段内的 pnl 表现。
+-- 这里的 pnl 计算是基于 clip_trade_profit 表的。
+-- 时间范围是 左闭右开 [bg, ed)。
+-- ed is exclusive.
 create or replace function cpr.get_return_of_clip_trade_args(
     bg date,
     ed date,

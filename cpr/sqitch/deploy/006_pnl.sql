@@ -99,6 +99,9 @@ begin
 
 end; $$;
 
+-- update intraday spot clip profit for a date range and trade_args_id range with optional notice
+-- d1 and d2 are inclusive
+-- trade_args_id_bg_arg and trade_args_id_ed_arg are inclusive
 create or replace function cpr.update_intraday_spot_clip_profit_range(
     dataset_id_arg integer,
     trade_args_id_bg_arg integer,

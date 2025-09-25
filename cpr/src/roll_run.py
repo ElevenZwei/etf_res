@@ -23,8 +23,12 @@ best_return1 = RollMethodArgs(
 
 
 def gen_roll_args_list(dataset_id: int, dt_bg: date, dt_ed: date) -> list[RollRunArgs]:
-# 这里的 date_from 和 date_to 是滚动选取的时间范围，
-# date_from 要写的比回测的开始时间早一些，因为她需要包含训练的时间范围。
+    """
+    dt_bg is inclusive, dt_ed is inclusive
+    dt_ed should be a non-trading day to avoid partial week issue.
+    """
+    # 这里的 date_from 和 date_to 是滚动选取的时间范围，
+    # date_from 要写的比回测的开始时间早一些，因为她需要包含训练的时间范围。
     dt_from = (dt_bg - timedelta(days=60))
     dt_to = dt_ed
     roll_run_args_list = [

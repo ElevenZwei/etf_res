@@ -34,7 +34,8 @@ create table cpr.roll_export_run(
 create unique index if not exists cpr_roll_export_run_idx
     on cpr.roll_export_run (roll_export_id, dt);
 
-
+-- insert roll run args into cpr.roll_export
+-- returns null if insert violates constraints.
 create or replace function cpr.get_or_create_roll_export(
     roll_args_id_arg integer, top_arg integer, dt_from_arg date, dt_to_arg date, args_arg jsonb)
     returns integer language plpgsql as $$

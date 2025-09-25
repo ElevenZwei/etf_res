@@ -259,18 +259,26 @@ def split_trade_args(merged_df: pd.DataFrame) -> Dict[int, pd.DataFrame]:
     merged_df.reset_index(drop=True, inplace=True)
     merged_df['trade_args_id'] = merged_df['trade_args_id'].astype('category')
     merged_df.set_index(['trade_args_id'], inplace=True, drop=False)
-    trade_args_dict = {}
+    # non-trading time rows
+    if np.nan in merged_df.index:
+        nan_rows = merged_df.loc[np.nan].copy()
+        # 这是因为它可能只有一行，会变成 pd.Series .
+        if isinstance(nan_rows, pd.Series):
+            nan_rows = nan_rows.to_frame().T
+    else:
+        nan_rows = merged_df[0:0]
+
+    trade_args_dict = { np.nan: nan_rows }
     for trade_args_id in merged_df['trade_args_id'].unique():
         if trade_args_id is None or pd.isna(trade_args_id):
             continue
         trade_df = merged_df.loc[trade_args_id].copy()
         if isinstance(trade_df, pd.Series):
             trade_df = trade_df.to_frame().T
-        if np.nan in merged_df.index:
-            nan_rows = merged_df.loc[np.nan].copy()
-            if isinstance(nan_rows, pd.Series):
-                nan_rows = nan_rows.to_frame().T
-            trade_df = pd.concat([trade_df, nan_rows], ignore_index=True)
+        # add non-trading time rows into split dataframes
+        trade_df = pd.concat([trade_df, nan_rows], ignore_index=True)
+        trade_df['weight'] = trade_df['weight'].astype('float64')
+        # sort by time
         trade_df.reset_index(drop=True, inplace=True)
         trade_df.sort_values(by='dt', inplace=True)
         trade_args_dict[trade_args_id] = trade_df
@@ -282,6 +290,7 @@ def split_trade_cycle(trade_df: pd.DataFrame) -> List[pd.DataFrame]:
     trade_df.reset_index(drop=True, inplace=True)
     # remove rows with dt_time > 11:25 and < 12:00
     # this is to skip trading the time between 11:25 and 12:00
+    # same with cpr_diff_sig.py
     trade_df = trade_df[
             ~((trade_df['dt_time'] > time(11, 25))
               & (trade_df['dt_time'] < time(12, 0)))
@@ -360,28 +369,33 @@ def aggr_trade_position(position_df_list: List[pd.DataFrame]) -> pd.DataFrame:
     if not position_df_list:
         # raise ValueError("No position DataFrames provided.")
         return pd.DataFrame(columns=[
-            'dt', 'dt_raw', 'trade_args_open_count', 'position', 'weight_sum'])
+            'dt', 'dt_raw', 'open_count', 'position', 'weight_sum'])
 
     aggr_df = pd.concat(position_df_list, ignore_index=True)
+    aggr_df['is_open'] = aggr_df['position'].abs()
     aggr_df = aggr_df.groupby(['dt']).agg({
         'dt_raw': 'first',
-        'position': 'sum',
+        'is_open': 'sum',
         'weighted_position': 'sum',
         'weight': 'sum',
     }).reset_index()
     aggr_df = aggr_df.rename(columns={
-        'position': 'trade_args_open_count',
+        'is_open': 'open_count',
         'weighted_position': 'position',
         'weight': 'weight_sum',
     })
     # filter invalid weight sum
-    invalid_weight_mask = (aggr_df['weight_sum'] != 1.0) & (aggr_df['weight_sum'] != 0.0)
+    aggr_df['weight_sum'] = aggr_df['weight_sum'].astype('float64')
+    invalid_weight_mask = (
+              (~np.isclose(aggr_df['weight_sum'], 1.0))
+            & (~np.isclose(aggr_df['weight_sum'], 0.0))
+            )
     invalid_weight_count = invalid_weight_mask.sum()
     if invalid_weight_count > 0:
         print(f"Warning: {invalid_weight_count} rows have invalid weight sum.")
         print(f"Invalid rows:\n{aggr_df[invalid_weight_mask]}")
         aggr_df = aggr_df[~invalid_weight_mask]
-    aggr_df = aggr_df[['dt', 'dt_raw', 'trade_args_open_count', 'position', 'weight_sum']]
+    aggr_df = aggr_df[['dt', 'dt_raw', 'open_count', 'position', 'weight_sum']]
     return aggr_df
 
 
@@ -393,7 +407,7 @@ def aggr_set_meta(aggr_df: pd.DataFrame, roll_export: RollExport) -> pd.DataFram
 
 def aggr_cut(aggr_df: pd.DataFrame) -> pd.DataFrame:
     aggr_df.reset_index(drop=True, inplace=True)
-    aggr_df = aggr_df[['roll_args_id', 'top', 'dt', 'dt_raw', 'position']]
+    aggr_df = aggr_df[['roll_args_id', 'top', 'dt', 'dt_raw', 'open_count', 'position']]
     return aggr_df
 
 

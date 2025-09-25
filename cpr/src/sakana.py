@@ -9,6 +9,7 @@ class SakanaScheduler:
     """
     def __init__(self,
                  interval_seconds: int = 60,
+                 interval_offset: int = 0,
                  timezone_str: str = 'Asia/Shanghai',
                  work_hours: tuple = ('09:30', '15:00'),
                  work_days: set = {0, 1, 2, 3, 4}):
@@ -19,6 +20,10 @@ class SakanaScheduler:
         self.end_time = self._parse_time(work_hours[1])
         self.work_days = work_days
         self.cb = lambda: print('empty job')
+        # add offset to self.start_time
+        self.start_time = (
+                datetime.combine(datetime.now(self.tz).date(), self.start_time)
+                + timedelta(seconds=interval_offset)).time()
 
     def set_callback(self, cb):
         self.cb = cb
@@ -31,13 +36,14 @@ class SakanaScheduler:
                 and self.start_time <= dt.time() < self.end_time)
 
     def _next_execution(self) -> datetime:
+        # time in self.tz
         now = datetime.now(self.tz)
 
         # Case 1: 今日が営業日かつ開始前
         if (now.weekday() in self.work_days
             and now.time() < self.start_time):
             return self.tz.localize(
-                datetime.combine(now.date(), self.start_time)
+                    datetime.combine(now.date(), self.start_time)
             )
 
         # Case 2: 営業時間中
@@ -57,17 +63,17 @@ class SakanaScheduler:
         while next_day.weekday() not in self.work_days:
             next_day += timedelta(days=1)
         return self.tz.localize(
-            datetime.combine(next_day.date(), self.start_time)
+                datetime.combine(next_day.date(), self.start_time)
         )
 
     def _next_interval(self, now: datetime) -> datetime:
-        base_time = now
-        intervals_since_start = (base_time - self._today_start(now)) // self.interval
+        intervals_since_start = (now - self._today_start(now)) // self.interval
         return self._today_start(now) + (intervals_since_start + 1) * self.interval
 
     def _today_start(self, dt: datetime) -> datetime:
-        return dt.replace(hour=self.start_time.hour, minute=self.start_time.minute,
-                          second=0, microsecond=0)
+        return self.tz.localize(
+                datetime.combine(dt.date(), self.start_time)
+        )
 
     def run(self):
         while True:

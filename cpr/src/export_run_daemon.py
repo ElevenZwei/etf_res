@@ -16,13 +16,14 @@ def task_callback(today: Optional[date] = None):
                 db_dt_to=today,
             ), 'db', today, today)
     diff_df = aggr_filter_diff(df)
-    print(f"Task result:\n{diff_df}")
+    print(f"Signal changes:\n{diff_df}")
     # print(df)
 
 
 def main():
     scheduler = SakanaScheduler(
             interval_seconds=30,
+            interval_offset=6,
             timezone_str='Asia/Shanghai',
             work_hours=('09:30', '15:00'),
             work_days={0, 1, 2, 3, 4}

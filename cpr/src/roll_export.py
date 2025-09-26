@@ -18,7 +18,7 @@ import pytz
 import numpy as np
 import pandas as pd
 import sqlalchemy as sa
-from typing import Dict, List, Tuple, Optional, TypeAlias, Union
+from typing import Dict, List, Tuple, Optional, TypeAlias, Union, Any
 from dataclasses import dataclass
 
 from datetime import date, time, datetime, timedelta
@@ -149,7 +149,7 @@ def load_trade_args(trade_args_id: int) -> Dict[str, Union[int, Dict[str, Union[
     }
 
 
-def trade_args_parse_threshold(trade_args_json: any) -> Dict[str, Optional[float]]:
+def trade_args_parse_threshold(trade_args_json: Any) -> Dict[str, Optional[float]]:
     if isinstance(trade_args_json, str):
         obj = json.loads(trade_args_json)
     else:
@@ -261,7 +261,7 @@ def iterate_minute(bg: time, ed: time, step: timedelta = timedelta(minutes=1)) -
 
 
 def load_clips_for_trade_args(
-        dataset_id: int, trade_args_info: any, today: date
+        dataset_id: int, trade_args_info: Any, today: date
         ) -> Dict[time, List[float]]:
     d1, d2 = date_range_of_trade_args(today, trade_args_info['trade_args_date_interval'])
     time_intervals = [
@@ -277,7 +277,7 @@ def load_clips_for_trade_args(
 
 
 def cut_clips_for_trade_args(
-        clips: Dict[time, List[float]], trade_args_info: any,
+        clips: Dict[time, List[float]], trade_args_info: Any,
         ) -> List[Dict[str, Union[str, float]]]:
     """
     Cut clips to the threshold defined by trade_args_info.
@@ -353,7 +353,7 @@ def roll_export(roll_args_id: int, top: int,
     return info
 
 
-def roll_export_save_db(info: any) -> int:
+def roll_export_save_db(info: Any) -> int:
     """
     Register the roll export information in the database.
     Returns the ID of the created roll export entry.

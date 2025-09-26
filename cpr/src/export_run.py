@@ -9,7 +9,7 @@ import json
 import numpy as np
 import pandas as pd
 import sqlalchemy as sa
-from typing import Dict, List, Tuple, Optional, TypeAlias, Union
+from typing import Dict, List, Tuple, Optional, TypeAlias, Union, Any
 from dataclasses import dataclass
 
 from datetime import date, time, datetime, timedelta
@@ -83,7 +83,7 @@ def read_roll_export_db(roll_args_id: int, top: int,
     return res
 
 
-def parse_roll_export(json_str_obj: Union[str, any]) -> RollExport:
+def parse_roll_export(json_str_obj: Union[str, Any]) -> RollExport:
     if isinstance(json_str_obj, str):
         obj = json.loads(json_str_obj)
     else:
@@ -218,6 +218,8 @@ def convert_oi_df(df: pd.DataFrame) -> pd.DataFrame:
     df.sort_index(inplace=True)
     df = downsample_time(df, 60)  # downsample to 1 minute
 
+    # calculate cpr, cpr_open, cpr_diff from call and put
+    # 这里是 pyright 无法判断的一个属性，因为 df.index 是 DatetimeIndex 这个信息从类型系统中丢失了
     df['dt_date'] = df.index.date
     df['dt_time'] = df.index.time
     df.reset_index(inplace=True, drop=False)
@@ -252,7 +254,7 @@ def join_oi_trigger(oi_df: pd.DataFrame,
     return merged_df
 
 
-def split_trade_args(merged_df: pd.DataFrame) -> Dict[int, pd.DataFrame]:
+def split_trade_args(merged_df: pd.DataFrame) -> Dict[float, pd.DataFrame]:
     """
     Split the merged DataFrame into a dictionary of DataFrames by trade_args_id.
     """
@@ -260,21 +262,17 @@ def split_trade_args(merged_df: pd.DataFrame) -> Dict[int, pd.DataFrame]:
     merged_df['trade_args_id'] = merged_df['trade_args_id'].astype('category')
     merged_df.set_index(['trade_args_id'], inplace=True, drop=False)
     # non-trading time rows
+    # loc + [np.nan] to get DataFrame and keep the index as np.nan
     if np.nan in merged_df.index:
-        nan_rows = merged_df.loc[np.nan].copy()
-        # 这是因为它可能只有一行，会变成 pd.Series .
-        if isinstance(nan_rows, pd.Series):
-            nan_rows = nan_rows.to_frame().T
+        nan_rows: pd.DataFrame = merged_df.loc[[np.nan]].copy()
     else:
-        nan_rows = merged_df[0:0]
+        nan_rows = merged_df.iloc[0:0].copy()
 
     trade_args_dict = { np.nan: nan_rows }
     for trade_args_id in merged_df['trade_args_id'].unique():
         if trade_args_id is None or pd.isna(trade_args_id):
             continue
-        trade_df = merged_df.loc[trade_args_id].copy()
-        if isinstance(trade_df, pd.Series):
-            trade_df = trade_df.to_frame().T
+        trade_df: pd.DataFrame = merged_df.loc[[trade_args_id]].copy()
         # add non-trading time rows into split dataframes
         trade_df = pd.concat([trade_df, nan_rows], ignore_index=True)
         trade_df['weight'] = trade_df['weight'].astype('float64')

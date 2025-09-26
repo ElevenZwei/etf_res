@@ -4,10 +4,10 @@ import json
 import numpy as np
 import pandas as pd
 import sqlalchemy as sa
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional, Any
 from dataclasses import dataclass
 
-from datetime import date, time, timedelta
+from datetime import date, timedelta
 from dateutil.relativedelta import relativedelta
 
 from config import get_engine, upsert_on_conflict_skip
@@ -171,7 +171,7 @@ def trade_args_filter(df: pd.DataFrame, method_names: Optional[List[str]],
     return df
 
 
-def roll_method_1_filter(trade_args_df: pd.DataFrame, roll_method_args: Dict[str, any]) -> pd.DataFrame:
+def roll_method_1_filter(trade_args_df: pd.DataFrame, roll_method_args: Dict[str, Any]) -> pd.DataFrame:
     filter_args = roll_method_args.get('filter_args', {})
     method_names = filter_args.get('method_names', None)
     long_only = filter_args.get('long_only', False)
@@ -182,7 +182,7 @@ def roll_method_1_filter(trade_args_df: pd.DataFrame, roll_method_args: Dict[str
 
 
 def roll_method_1_sort(profit_df_slice: pd.DataFrame,
-                       roll_method_args: Dict[str, any]) -> pd.DataFrame:
+                       roll_method_args: Dict[str, Any]) -> pd.DataFrame:
     profit_aggr = trade_profits_aggregate(profit_df_slice)
     col = roll_method_args.get('sort_column', None)
     if col is None:
@@ -224,8 +224,6 @@ def roll_static_slice(
         - validate_from: start date of validation data
         - validate_to: end date of validation data
     """
-    if dt_from is None:
-        raise ValueError("No data to roll")
     if validate_days <= 0 or train_days_factor <= 0:
         raise ValueError("validate_days and train_days_factor must be positive")
     if validate_days == 7 or validate_days == 14:
@@ -233,7 +231,7 @@ def roll_static_slice(
         dt_from = dt_from - timedelta(days=dt_from.weekday()) + timedelta(weeks=1)
     if validate_days == 30:
         # align dt_from to the first day of next month
-        dt_from = dt_from.replace(day=1) + relative_delta(months=1)
+        dt_from = dt_from.replace(day=1) + relativedelta(months=1)
 
     print(f"Rolling from {dt_from} to {dt_to} with validate_days={validate_days}, train_days_factor={train_days_factor}")
     train_days = int(validate_days * train_days_factor)
@@ -242,10 +240,10 @@ def roll_static_slice(
     slice_count += 1
     slices = []
     # convert dt_from and dt_to to datetime objects with local timezone
-    dt_from = pd.Timestamp(dt_from).tz_localize('Asia/Shanghai')
+    ts_from = pd.Timestamp(dt_from).tz_localize('Asia/Shanghai')
     for i in range(slice_count):
         # 因为是 datetime 对象，所以最后不要减去一天，时间到零点为止，最后一天自然不会包含在内
-        train_from = dt_from + timedelta(days=i * validate_days)
+        train_from = ts_from + timedelta(days=i * validate_days)
         train_to = train_from + timedelta(days=train_days)
         validate_from = train_to
         validate_to = validate_from + timedelta(days=validate_days)
@@ -259,11 +257,11 @@ def roll_static_slice(
 
 @dataclass(frozen=True)
 class RollMethodArgs:
-    method: str = None
-    variation: str = None
+    method: str
+    variation: str
+    args: Dict[str, Any]
+    description: str
     is_static: bool = True
-    args: Dict[str, any] = None
-    description: str = None
 
 
 @dataclass(frozen=True)
@@ -279,7 +277,7 @@ class RollRunArgs:
     pick_count: int
 
 
-def roll_run_static_sort(run_args: RollRunArgs, profit_df: pd.DataFrame) -> pd.DataFrame:
+def roll_run_static_sort(run_args: RollRunArgs, profit_df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
     range_args = run_args.roll_method_args.args.get('range_args', {})
     profit_slice = roll_static_slice(
             profit_df, run_args.date_from, run_args.date_to,

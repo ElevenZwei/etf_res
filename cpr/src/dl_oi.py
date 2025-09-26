@@ -6,16 +6,14 @@
 import click
 import datetime
 import glob
-import io
 import os
 import sqlalchemy as sa
 import pandas as pd
 from typing import Optional, List
-from collections import deque
 from dateutil.relativedelta import relativedelta
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
-from config import DATA_DIR, PG_OI_DB_CONF, get_engine
+from config import DATA_DIR, PG_OI_CONN_INFO, get_engine
 
 OI_DIR = f'{DATA_DIR}/fact/oi_daily/'
 OI_MERGE_DIR = f'{DATA_DIR}/fact/oi_merge/'
@@ -24,7 +22,7 @@ if not os.path.exists(OI_DIR):
 if not os.path.exists(OI_MERGE_DIR):
     os.makedirs(OI_MERGE_DIR, exist_ok=True)
 
-engine = get_engine(PG_OI_DB_CONF)
+engine = get_engine(PG_OI_CONN_INFO)
 
 
 def dl_expiry_date(spot: str, year: int, month: int) -> Optional[datetime.date]:
@@ -120,9 +118,8 @@ def get_cont_time_from_df(df1: pd.DataFrame) -> datetime.time:
         if last_dt.time() > datetime.time(9, 31, 0):
             return bg_time
     last_row = df1.iloc[-1] if not df1.empty else None
-    if 'tradecode' in last_row:
+    if last_row is not None and 'tradecode' in last_row:
         last_dt = pd.to_datetime(last_row['dt'])
-        bg_date = last_dt.date()
         bg_time = (last_dt + datetime.timedelta(seconds=1)).time()
     return bg_time
 
@@ -202,9 +199,9 @@ def pivot_sum(df: pd.DataFrame, col: str = 'oi'):
 
 def calc_oi(df: pd.DataFrame):
     df = df.drop_duplicates(subset=['dt', 'tradecode'], keep='first')
-    call_df = df[df['callput'] == 1]
+    call_df = df.loc[df['callput'] == 1]
     call_sum = pivot_sum(call_df, 'oi')
-    put_df = df[df['callput'] == -1]
+    put_df = df.loc[df['callput'] == -1]
     put_sum = pivot_sum(put_df, 'oi')
     df2 = pd.DataFrame({
         'call_oi_sum': call_sum,
@@ -243,7 +240,7 @@ def dl_calc_oi(spot: str, dt: datetime.date, refresh: bool = False) -> pd.DataFr
 
 
 def date_range(bg_date: datetime.date, ed_date: datetime.date) -> List[datetime.date]:
-    dt_list: List[np.datetime64] = pd.date_range(bg_date, ed_date).to_list()
+    dt_list: List[pd.Timestamp] = pd.date_range(bg_date, ed_date).to_list()
     holidays = [
         '2025-01-28', '2025-01-29', '2025-01-30', '2025-01-31',
         '2025-02-01', '2025-02-02', '2025-02-03', '2025-02-04',
@@ -252,8 +249,8 @@ def date_range(bg_date: datetime.date, ed_date: datetime.date) -> List[datetime.
         '2025-06-02']
     dt_list = [dt for dt in dt_list if dt.weekday() < 5]  # skip weekend
     dt_list = [dt for dt in dt_list if dt.strftime('%Y-%m-%d') not in holidays]  # skip holidays
-    dt_list = [dt.date() for dt in dt_list]  # convert to date
-    return dt_list
+    date_list = [dt.date() for dt in dt_list]  # convert to date
+    return date_list
 
 
 def init_worker():
@@ -261,7 +258,7 @@ def init_worker():
     初始化工作进程，设置数据库连接等。
     """
     global engine
-    engine = get_engine(PG_OI_DB_CONF)
+    engine = get_engine(PG_OI_CONN_INFO)
 
 
 def dl_calc_oi_range(

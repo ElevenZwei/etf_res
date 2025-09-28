@@ -13,3 +13,4 @@
 010_persistence 2025-09-02T08:31:14Z anon <anon@localhost> # Add persistent storage for hummingbird spirits.
 011_md 2025-09-15T06:38:17Z anon <anon@localhost> # Add market data.
 012_md_func 2025-09-15T09:22:00Z anon <anon@localhost> # Add functions to market data tables.
+013_external_signal 2025-09-28T05:18:23Z anon <anon@localhost> # Add external signal storage.

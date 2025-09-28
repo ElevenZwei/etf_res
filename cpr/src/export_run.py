@@ -65,6 +65,7 @@ def read_roll_export_db(roll_args_id: int, top: int,
             and top = :top
             and dt_from <= :dt_from
             and dt_to > :dt_to
+        order by dt_from desc
         limit 1;
         """)
     with engine.connect() as conn:

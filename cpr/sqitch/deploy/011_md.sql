@@ -106,6 +106,7 @@ create table if not exists md.contract_price_daily (
     vol bigint,
     oi integer,
     days_left integer, -- 距离到期日的天数，expiry - dt + 1
+    inserted_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
 );
 select create_hypertable('md.contract_price_daily', 'dt', if_not_exists => true);
@@ -131,6 +132,7 @@ create table if not exists md.contract_price_minute (
     close float8,
     vol bigint,
     oi integer,
+    inserted_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
 );
 select create_hypertable('md.contract_price_minute', 'dt', if_not_exists => true);
@@ -159,7 +161,8 @@ create table if not exists md.contract_price_tick (
     ask2_price float8, bid2_price float8,
     ask2_size integer, bid2_size integer,
     ask3_price float8, bid3_price float8,
-    ask3_size integer, bid3_size integer
+    ask3_size integer, bid3_size integer,
+    inserted_at timestamptz not null default now()
 );
 select create_hypertable('md.contract_price_tick', 'dt', if_not_exists => true);
 create unique index if not exists idx_contract_price_tick_tradecode_dt
@@ -177,8 +180,8 @@ create table if not exists md.option_greeks_tick (
     gamma float8,
     theta float8,
     vega float8,
-    rho float8,
-    iv float8
+    iv float8,
+    inserted_at timestamptz not null default now()
 );
 select create_hypertable('md.option_greeks_tick', 'dt', if_not_exists => true);
 create unique index if not exists idx_option_greeks_tick_tradecode_dt
@@ -193,7 +196,8 @@ create table if not exists md.contract_trade_tick (
     dt timestamptz not null,
     price float8,
     amount integer,
-    trade_type int2 -- 1 表示买入， -1 表示卖出， 0 表示中性
+    trade_type int2, -- 1 表示买入， -1 表示卖出， 0 表示中性
+    inserted_at timestamptz not null default now()
 );
 select create_hypertable('md.contract_trade_tick', 'dt', if_not_exists => true);
 create unique index if not exists idx_contract_trade_tick_tradecode_dt
@@ -207,7 +211,8 @@ create table if not exists md.put_call_parity_strike_tick (
     strike float8 not null, -- 行权价
     dt timestamptz not null,
     call_parity float8, -- buy call, sell put, the time value difference
-    put_parity float8  -- buy put, sell call, the time value difference
+    put_parity float8,  -- buy put, sell call, the time value difference
+    inserted_at timestamptz not null default now()
 );
 select create_hypertable('md.put_call_parity_strike_tick', 'dt', if_not_exists => true);
 create unique index if not exists idx_put_call_parity_strike_tick_chaincode_strike_dt
@@ -220,7 +225,8 @@ create table if not exists md.put_call_parity_chain_tick (
     chaincode text not null,
     dt timestamptz not null,
     call_parity float8, -- buy call, sell put, the time value difference
-    put_parity float8  -- buy put, sell call, the time value difference
+    put_parity float8,  -- buy put, sell call, the time value difference
+    inserted_at timestamptz not null default now()
 );
 select create_hypertable('md.put_call_parity_chain_tick', 'dt', if_not_exists => true);
 create unique index if not exists idx_put_call_parity_chain_tick_chaincode_dt

@@ -1,7 +1,7 @@
-import time
+import time as ctime
 import traceback
 import pytz
-from datetime import datetime, timedelta
+from datetime import time, datetime, timedelta
 
 class SakanaScheduler:
     """
@@ -28,7 +28,7 @@ class SakanaScheduler:
     def set_callback(self, cb):
         self.cb = cb
 
-    def _parse_time(self, time_str: str) -> datetime.time:
+    def _parse_time(self, time_str: str) -> time:
         return datetime.strptime(time_str, '%H:%M').time()
 
     def _is_working_time(self, dt: datetime) -> bool:
@@ -82,7 +82,7 @@ class SakanaScheduler:
 
             if wait_seconds > 0:
                 print(f"[SAKANA] Next run at: {next_run:%Y-%m-%d %H:%M:%S}")
-                time.sleep(wait_seconds)
+                ctime.sleep(wait_seconds)
 
             if self._is_working_time(datetime.now(self.tz)):
                 try:

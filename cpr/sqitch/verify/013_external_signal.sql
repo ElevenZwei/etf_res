@@ -15,7 +15,7 @@ begin
     perform assert(count(*) = 1, 'Expected one row')
         from cpr.stock_signal
         where product = 'test' and acname = 'test_st'
-            and ps = 0.1 and if_final = true;
+            and ps = 0.1 and if_final = 1;
     select insert_time, modified_time into sig_time, modi_time
         from cpr.stock_signal
         where id = row_id;
@@ -24,7 +24,7 @@ begin
     perform assert(ps = 0.2, 'Expected new position value')
         from cpr.stock_signal
         where product = 'test' and acname = 'test_st'
-            and insert_time = sig_time and if_final = true;
+            and insert_time = sig_time and if_final = 1;
     -- we cannot test modified_time, because now() will be kept same in one statement.
 end; $$;
 

@@ -21,7 +21,7 @@ create table if not exists cpr.stock_signal (
     -- position, range [-1, 1]
     ps float8 not null default 0,
     -- 是否是最新一个信号
-    if_final boolean not null default true,
+    if_final int2 not null default 1,
     check(ps >= -1 and ps <= 1)
 );
 

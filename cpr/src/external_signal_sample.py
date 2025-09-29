@@ -54,7 +54,7 @@ df = pd.DataFrame({
         '2025-06-10 10:02:00',
     ]),
     'ps': [-1, -0.5, 0, 0.5, 1],
-    'if_final': [False, False, False, False, True],
+    'if_final': [0, 0, 1, 0, 1],
 })
 
 # 这里提供两种写入数据库的方法

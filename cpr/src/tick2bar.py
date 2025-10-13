@@ -1,5 +1,4 @@
 import pandas as pd
-import sqlalchemy
 
 from config import get_engine, upsert_on_conflict_skip
 

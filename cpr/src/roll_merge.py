@@ -244,11 +244,12 @@ def save_merged_positions(merged_positions: pd.DataFrame) -> None:
 
 
 if __name__ == "__main__":
-    merged_positions = calculate_merged_positions(
-            roll_args_id=1,
-            top=10,
-            dt_from=date(2025, 7, 1),
-            dt_to=date(2025, 8, 17))
-    save_merged_positions(merged_positions)
+    for roll_args_id in [1, 2]:
+        merged_positions = calculate_merged_positions(
+                roll_args_id=roll_args_id,
+                top=10,
+                dt_from=date(2025, 1, 1),
+                dt_to=date(2025, 9, 30))
+        save_merged_positions(merged_positions)
 
 

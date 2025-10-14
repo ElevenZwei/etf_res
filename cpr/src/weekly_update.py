@@ -14,7 +14,7 @@ import pandas as pd
 import sqlalchemy as sa
 from config import get_engine
 from datetime import date, datetime, timedelta
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 engine = get_engine()
 
@@ -133,7 +133,9 @@ def backtest_data(spot: str, dt_bg: date, dt_ed: date):
         print(df)
 
 
-def roll_data(spot: str, dt_bg: date, dt_ed: date, with_roll_next: bool = True):
+def roll_data(spot: str, dt_bg: date, dt_ed: date,
+              with_roll_next: bool = True,
+              with_roll_export: bool = True):
     dataset_id = get_dataset_id(spot)
     weeks = make_week_clip(dt_bg, dt_ed)
     week_bg = weeks[0][0] if weeks else dt_bg
@@ -147,8 +149,8 @@ def roll_data(spot: str, dt_bg: date, dt_ed: date, with_roll_next: bool = True):
     else:
         roll_args_idset = get_roll_args_ids(dataset_id, week_bg, week_ed)
 
+    top = 10
     for roll_args_id in roll_args_idset:
-        top = 10
         merged_positions = calculate_merged_positions(
                 roll_args_id=roll_args_id,
                 top=top,
@@ -156,7 +158,7 @@ def roll_data(spot: str, dt_bg: date, dt_ed: date, with_roll_next: bool = True):
                 dt_to=dt_ed)
         save_merged_positions(merged_positions)
 
-    if with_roll_next:
+    if with_roll_next and with_roll_export:
         for roll_args_id in roll_args_idset:
             for week_bg, week_ed in weeks:
                 exp = roll_export(roll_args_id, top, week_bg, week_ed)
@@ -166,13 +168,16 @@ def roll_data(spot: str, dt_bg: date, dt_ed: date, with_roll_next: bool = True):
 
 def weekly_update(spot: str, dt_bg: date, dt_ed: date,
                   with_roll: bool = True,
-                  with_roll_next: bool = True):
+                  with_roll_next: bool = True,
+                  with_roll_export: bool = True):
     # weeks = make_week_clip(dt_bg, dt_ed)
     load_data(spot, dt_bg, dt_ed)
     clip_data(spot, dt_bg, dt_ed)
     backtest_data(spot, dt_bg, dt_ed)
     if with_roll:
-        roll_data(spot, dt_bg, dt_ed, with_roll_next=with_roll_next)
+        roll_data(spot, dt_bg, dt_ed,
+                  with_roll_next=with_roll_next,
+                  with_roll_export=with_roll_export)
 
 
 
@@ -181,9 +186,10 @@ def weekly_update(spot: str, dt_bg: date, dt_ed: date,
 @click.option('-b', '--date-bg', type=click.DateTime(formats=["%Y-%m-%d"]), required=False, help='Start date (YYYY-MM-DD)', default=(datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d"))
 @click.option('-e', '--date-ed', type=click.DateTime(formats=["%Y-%m-%d"]), required=False, help='End date (YYYY-MM-DD)', default=datetime.now().strftime("%Y-%m-%d"))
 @click.option('--no-roll', is_flag=True, default=False, help='Skip roll update')
-@click.option('--no-roll-next', is_flag=True, default=False, help='Skip roll next week prediction update')
-def click_main(spot: str, date_bg: datetime, date_ed: datetime,
-               no_roll: bool, no_roll_next: bool):
+@click.option('--no-roll-next', is_flag=True, default=False, help='Skip roll next week rank update')
+@click.option('--no-roll-export', is_flag=True, default=False, help='Skip roll export next week config')
+def click_main(spot: str, date_bg: Optional[datetime], date_ed: Optional[datetime],
+               no_roll: bool, no_roll_next: bool, no_roll_export: bool):
     if date_ed is None:
         date_ed = datetime.now()
     if date_bg is None:
@@ -195,7 +201,8 @@ def click_main(spot: str, date_bg: datetime, date_ed: datetime,
     print(f"Starting weekly update for spot {spot} from {dt_bg} to {dt_ed}")
     weekly_update(spot, dt_bg, dt_ed,
                   with_roll=not no_roll,
-                  with_roll_next=not no_roll_next)
+                  with_roll_next=not no_roll_next,
+                  with_roll_export=not no_roll_export)
     print("Weekly update completed.")
 
 

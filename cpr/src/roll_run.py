@@ -1,6 +1,6 @@
 # 这个是运行 roll.py 里面滚动选取策略逻辑的运行器。
 
-from datetime import datetime, date, timedelta
+from datetime import date, timedelta
 
 from roll import RollMethodArgs, RollRunArgs, roll_run, get_roll_args_id_from_run_args
 
@@ -21,6 +21,31 @@ best_return1 = RollMethodArgs(
     description="Best return with log returns, previous week to predict this week",
 )
 
+best_return2 = RollMethodArgs(
+    method="best_return",
+    variation="logret_t2w_v1w",
+    is_static=True,
+    args={
+        "range_args": {
+            "validate_days": 7,
+            "train_days_factor": 2,
+        },
+        "filter_args": {
+            "noon_close": False,
+        },
+        'sort_column': 'profit_logret',
+    },
+    description="Best return with log returns, previous two weeks to predict this week",
+)
+
+# check every roll_method_args has different (method, variation) pair.
+tag_set = set()
+for met in [best_return1, best_return2]:
+    tag = met.method + '@' + met.variation
+    if tag in tag_set:
+        raise RuntimeError(
+                f'{tag} is duplicated, different roll method should have different (method, variation) strings.')
+    tag_set.add(tag)
 
 def gen_roll_args_list(dataset_id: int, dt_bg: date, dt_ed: date) -> list[RollRunArgs]:
     """
@@ -34,6 +59,15 @@ def gen_roll_args_list(dataset_id: int, dt_bg: date, dt_ed: date) -> list[RollRu
     roll_run_args_list = [
         RollRunArgs(
             roll_method_args=best_return1,
+            dataset_id=dataset_id,
+            date_from=dt_from,
+            date_to=dt_to,
+            trade_args_from_id=1,
+            trade_args_to_id=8092,
+            pick_count=5000,
+        ),
+        RollRunArgs(
+            roll_method_args=best_return2,
             dataset_id=dataset_id,
             date_from=dt_from,
             date_to=dt_to,
@@ -62,10 +96,11 @@ def main(dataset_id: int, dt_bg: date, dt_ed: date) -> set[int]:
 
 
 if __name__ == "__main__":
-    main(
+    roll_args_ids = main(
         dataset_id=3,
-        dt_bg=date(2025, 8, 10),
-        dt_ed=date(2025, 8, 25),
+        dt_bg=date(2025, 9, 1),
+        dt_ed=date(2025, 7, 7),
     )
+    print('updated roll_args_id:', roll_args_ids)
 
 

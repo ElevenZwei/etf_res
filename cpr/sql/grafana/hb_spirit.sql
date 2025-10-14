@@ -64,7 +64,7 @@ order by time;
 -- Assume position jsonb array elements with same contract should be summed up
 -- e.g. [{"contract": "AAPL", "amount": 10}, {"contract": "AAPL", "amount": 5}] => 15
 -- Result tag format: username@contract
--- 注意这个做法并不正确，因为不同的 spirit 更新的时间并不同步，这里我们需要延续其他 spirit
+-- 注意这个做法并不正确，因为多个不同的 spirit 更新的时间并不同步，这里我们需要延续其他 spirit
 -- 之前的持仓，实际上是非常复杂的逻辑，所以我放在 spirit catcher C++ 里面操作了。
 -- 这里的查询仅作为参考。
 with input as (
@@ -160,3 +160,66 @@ with input as (
 )
 select * from position_aggregated
 order by time;
+
+-- Panel: spirit position all spirits, zero fill from previous position if empty, pivoted
+-- 这个是使用了 C++ 上传的数据，SpiritCatcherSum 是所有 spirit 的总和
+with input as (
+    select username, spirit, code, updated_at, position,
+    lag(position) over (partition by username, spirit, code order by updated_at) as prev_position
+    from "hb"."spirit_position_history"
+    where username = '505000011810'
+        and spirit = 'SpiritCatcherSum'
+        and $__timeFilter(updated_at)
+)
+, prev_pos_unpack as (
+    select username, spirit, code, updated_at, position, prev_item
+    from input
+    -- left join lateral unnest of jsonb array, prevent empty prev_position causing row drop
+    left join lateral (
+        select jsonb_array_elements(coalesce(prev_position, '[]'::jsonb)) as prev_item
+    ) as lp on true
+)
+, prev_pos_zeroed as (
+    select username, spirit, code, updated_at, position,
+    jsonb_set(prev_item, '{amount}', '0'::jsonb) as prev_item_zeroed
+    from prev_pos_unpack
+)
+, zeroed_pack as (
+    select username, spirit, code, updated_at, position,
+    coalesce(
+        jsonb_agg(prev_item_zeroed) filter (where prev_item_zeroed is not null),
+        '[]'::jsonb) as prev_position_zeroed
+    from prev_pos_zeroed
+    group by username, spirit, code, updated_at, position
+)
+, spirit_position as (
+    select username, spirit, code, updated_at, position,
+    case when position is null or jsonb_array_length(position) = 0 then prev_position_zeroed
+    else position end as position_filled
+    from zeroed_pack
+)
+, position_unpack as (
+    select username, spirit, code, updated_at, item
+    from spirit_position
+    left join lateral (
+        select jsonb_array_elements(position_filled) as item
+    ) as lp on true
+)
+, position_final as (
+    select username, spirit, code, updated_at,
+    coalesce((item->>'contract'), '<empty>') as contract,
+    coalesce((item->'amount')::int, 0) as amount
+    from position_unpack
+)
+, position_aggregated as (
+    select updated_at as time,
+    username || '@' || contract as tag,
+    sum(amount) as amount
+    from position_final
+    group by updated_at, username, spirit, contract
+    order by updated_at asc
+)
+select * from position_aggregated
+order by time;
+
+

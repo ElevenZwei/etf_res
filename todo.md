@@ -283,7 +283,7 @@ Export 的脚本终于搞定了之后，下一步是需要解决这个脚本的�
 在此之后的发生原因才是时间区间的边界没有做好分析和判断。关于下一个日期是否初始条件合理的测试可以直接写在 grafana 里面。  
 
 版本的分离: dev (sim) -> prod (1810) 两个账号。  
-数据库的分离: opt -> opt_prod 。对应的 python 脚本和 Hummingbird 连接信息需要更新。
+数据库的分离: opt -> opt_prod 。对应的 python 脚本和 Hummingbird 连接信息需要更新。  
 软件版本的分离: hb -> hx_s1_prod，需要更新 hb_daemon 脚本。  
 
 今天试着把这些工作完成。  

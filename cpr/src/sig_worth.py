@@ -116,14 +116,11 @@ def main():
     for col in df_signal.columns:
         df_signal[col] = df_signal[col].ffill().fillna(0)
     # print(df_signal)
-    # exit(0)
     m1 = signal_worth_mimo(df_signal.reset_index(), list(df_signal.columns),
                            etf1, dt_from, dt_to)
     m1.to_csv(DATA_DIR / 'sig_worth' / 'roll_worth.csv', index=True)
     print(m1)
     return m1
-    # m2 = signal_worth_mimo(p1, ['position'], etf1, dt_from, dt_to)
-    # print(m2)
 
 
 # import matplotlib.pyplot as plt

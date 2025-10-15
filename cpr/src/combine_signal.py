@@ -7,7 +7,7 @@ from config import DATA_DIR
 from sig_worth import cut_df, signal_worth_mimo
 
 df_399 = pd.read_csv(DATA_DIR / 'signal' / 'pos_399006.csv')
-df_159 = pd.read_csv(DATA_DIR / 'signal' / 'roll_159915.csv')
+df_159 = pd.read_csv(DATA_DIR / 'signal' / 'roll_159915_1.csv')
 dt_from = pd.to_datetime('2025-01-13')
 dt_to = pd.to_datetime('2025-09-19 23:59')
 

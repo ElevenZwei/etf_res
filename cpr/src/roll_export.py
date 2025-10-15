@@ -386,8 +386,8 @@ def roll_export_save_db(info: Any) -> int:
 @click.command()
 @click.option('-r', '--roll_args_id', type=int, required=True, help='Roll arguments ID to export.')
 @click.option('-t', '--top', type=int, required=True, help='Top count of parameters to export.')
-@click.option('-b', '--dt_from', type=str, required=True, help='Start date (YYYY-MM-DD), inclusive.')
-@click.option('-e', '--dt_to', type=str, required=True, help='End date (YYYY-MM-DD), inclusive.')
+@click.option('-b', '--dt_from', type=str, required=True, help='Run start date (YYYY-MM-DD), inclusive.')
+@click.option('-e', '--dt_to', type=str, required=True, help='Run end date (YYYY-MM-DD), inclusive.')
 def click_main(roll_args_id: int, top: int, dt_from: str, dt_to: str):
     """
     Command line interface for exporting roll parameters.

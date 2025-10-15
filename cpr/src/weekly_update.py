@@ -160,7 +160,8 @@ def roll_data(spot: str, dt_bg: date, dt_ed: date,
 
     if with_roll_next and with_roll_export:
         for roll_args_id in roll_args_idset:
-            for week_bg, week_ed in weeks:
+            # only export last week config.
+            for week_bg, week_ed in weeks[-1:]:
                 exp = roll_export(roll_args_id, top, week_bg, week_ed)
                 roll_export_id = roll_export_save_db(exp)
                 print(f"Saved roll export id {roll_export_id} for roll_args_id {roll_args_id} from {week_bg} to {week_ed}")

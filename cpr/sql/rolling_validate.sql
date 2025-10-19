@@ -7,7 +7,8 @@ create function cpr.best_trade_validate(
     bg date, ed date,
     validate_intv interval,
     pick_intv_ratio int,
-    dataset_id_arg int, best_cnt int)
+    dataset_id_arg int,
+    best_cnt int)
 returns table(
     spotcode text,
     dt_bg date, dt_ed date,

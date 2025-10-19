@@ -8,6 +8,8 @@ from typing import List
 from config import DATA_DIR
 
 def cut_df(df: pd.DataFrame, dt_from: datetime, dt_to: datetime):
+    if df.index.name == 'dt':
+        df = df.reset_index()
     df['dt'] = pd.to_datetime(df['dt'])
     # call tz_localize or tz_convert
     if df['dt'].dt.tz is None:
@@ -44,6 +46,7 @@ def cut_merge(pos: pd.DataFrame, etf: pd.DataFrame, dt_from: datetime, dt_to: da
 
 def calc_worth(merged: pd.DataFrame):
     df = merged.copy()
+    df['date'] = df.index.date
     df['spot_prev_close'] = df['spot_close'].shift(1)
     df['spot_diff'] = df['spot_close'] - df['spot_prev_close']
     df['spot_ratio'] = df['spot_close'] / df['spot_prev_close'] - 1
@@ -52,13 +55,33 @@ def calc_worth(merged: pd.DataFrame):
     df['position_actual'] = df['position_actual'].ffill().fillna(0)
 
     # method 1 fixed unit
-    # method 2 compound investment
     df['worth_1_diff'] = df['position_actual'] * df['spot_diff']
+    df['net_1_intraday_diff'] = df.groupby('date')['worth_1_diff'].cumsum().ffill().fillna(0)
     df['net_1_diff'] = df['worth_1_diff'].cumsum().ffill().fillna(0)
     df['net_1'] = df['net_1_diff'] / df['spot_close']
+
+    # method 2 compound investment
     df['worth_2_logret'] = np.log(df['position_actual'] * df['spot_ratio'] + 1)
     df['net_2_logret'] = df['worth_2_logret'].cumsum().ffill().fillna(0)
     df['net_2'] = np.exp(df['net_2_logret']) - 1
+
+    # method 3 intraday compound
+    df['worth_3_logret'] = np.log(df['position_actual'] * df['spot_ratio'] + 1)
+    #  sum(logret) over (partition by date order by dt)
+    df['net_3_intraday_logret'] = df.groupby('date')['worth_3_logret'].cumsum().ffill().fillna(0)
+    df['net_3_intraday'] = np.exp(df['net_3_intraday_logret']) - 1
+
+    df_daily = df.groupby('date').agg({
+        'spot_open': 'first',
+        'net_1_intraday_diff': 'last',
+        'net_2': 'last',
+        'net_3_intraday': 'last',
+    })
+    df_daily['net_3_cumsum'] = df_daily['net_3_intraday'].cumsum()
+    df_daily['net_1_intraday'] = df_daily['net_1_intraday_diff'] / df_daily['spot_open']
+    df_daily['net_1'] = df_daily['net_1_intraday'].cumsum()
+    print(df_daily)
+
 
     return df
 
@@ -112,12 +135,14 @@ def main():
     # p1 = pd.read_csv(DATA_DIR / 'signal' / 'pos_399006.csv')
     p2 = prepare_df(pd.read_csv(DATA_DIR / 'signal' / 'roll_159915_1.csv'), dt_from, dt_to)
     p3 = prepare_df(pd.read_csv(DATA_DIR / 'signal' / 'roll_159915_2.csv'), dt_from, dt_to)
-    df_signal = p2.join(p3, lsuffix='_1', rsuffix='_2', how='outer')
-    for col in df_signal.columns:
-        df_signal[col] = df_signal[col].ffill().fillna(0)
-    # print(df_signal)
-    m1 = signal_worth_mimo(df_signal.reset_index(), list(df_signal.columns),
-                           etf1, dt_from, dt_to)
+    m1 = signal_worth(p2, etf1, dt_from, dt_to)
+    
+    # df_signal = p2.join(p3, lsuffix='_1', rsuffix='_2', how='outer')
+    # for col in df_signal.columns:
+    #     df_signal[col] = df_signal[col].ffill().fillna(0)
+    # m1 = signal_worth_mimo(df_signal.reset_index(), list(df_signal.columns),
+    #                        etf1, dt_from, dt_to)
+
     m1.to_csv(DATA_DIR / 'sig_worth' / 'roll_worth.csv', index=True)
     print(m1)
     return m1

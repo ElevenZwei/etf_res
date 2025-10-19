@@ -155,15 +155,16 @@ begin
     select id into price_daily_id
         from md.contract_price_daily cpd
         where cpd.tradecode = tradecode_arg and cpd.dt = dt_arg::date;
-    select
-        coalesce(cpd.open, last_price_arg),
-        greatest(coalesce(cpd.high, last_price_arg), last_price_arg),
-        least(coalesce(cpd.low, last_price_arg), last_price_arg)
-        into new_open, new_high, new_low
-        from md.contract_price_daily cpd
-        where cpd.id = price_daily_id or price_daily_id is null;
 
     if price_daily_id is not null then
+        select
+            coalesce(cpd.open, last_price_arg),
+            greatest(coalesce(cpd.high, last_price_arg), last_price_arg),
+            least(coalesce(cpd.low, last_price_arg), last_price_arg)
+            into new_open, new_high, new_low
+            from md.contract_price_daily cpd
+            where cpd.id = price_daily_id
+            limit 1;
         update md.contract_price_daily cpd
         set
             open = new_open, high = new_high, low = new_low,
@@ -171,6 +172,9 @@ begin
             updated_at = now()
         where id = price_daily_id;
     else
+        new_open = last_price_arg;
+        new_high = last_price_arg;
+        new_low = last_price_arg;
         insert into md.contract_price_daily (
             tradecode, dt, open, high, low, close, vol, oi, days_left)
         values (
@@ -182,7 +186,8 @@ begin
                 from md.contract_info ci
                 where ci.tradecode = tradecode_arg)
         ) on conflict (tradecode, dt) do update set
-            open = new_open, high = new_high, low = new_low,
+            high = greatest(md.contract_price_daily.high, last_price_arg),
+            low = least(md.contract_price_daily.low, last_price_arg),
             close = excluded.close, vol = excluded.vol, oi = excluded.oi,
             updated_at = now()
         returning id into price_daily_id;
@@ -204,22 +209,23 @@ create or replace function md.update_contract_price_minute(
     returns integer language plpgsql as $$
 declare
     price_minute_id integer = null;
-    dt_minute timestamptz = to_timestamp(floor(extract(epoch from at_arg) / 60) * 60);
+    dt_minute timestamptz = to_timestamp(floor(extract(epoch from dt_arg) / 60) * 60);
     new_open float8;
     new_high float8;
     new_low float8;
 begin
     select id into price_minute_id
-        where tradecode = tradecode_arg and dt = dt_minute;
-    select
-        coalesce(cpm.open, last_price_arg),
-        greatest(coalesce(cpm.high, last_price_arg), last_price_arg),
-        least(coalesce(cpm.low, last_price_arg), last_price_arg)
-        into new_open, new_high, new_low
         from md.contract_price_minute cpm
-        where cpm.id = price_minute_id or price_minute_id is null;
+        where tradecode = tradecode_arg and dt = dt_minute;
 
     if price_minute_id is not null then
+        select
+            coalesce(cpm.open, last_price_arg),
+            greatest(coalesce(cpm.high, last_price_arg), last_price_arg),
+            least(coalesce(cpm.low, last_price_arg), last_price_arg)
+            into new_open, new_high, new_low
+            from md.contract_price_minute cpm
+            where cpm.id = price_minute_id limit 1;
         update md.contract_price_minute cpm
         set
             open = new_open, high = new_high, low = new_low,
@@ -227,6 +233,9 @@ begin
             updated_at = now()
         where id = price_minute_id;
     else
+        new_open = last_price_arg;
+        new_high = last_price_arg;
+        new_low = last_price_arg;
         insert into md.contract_price_minute (
             tradecode, dt, open, high, low, close, vol, oi)
         values (
@@ -234,7 +243,8 @@ begin
             last_price_arg, last_price_arg, last_price_arg, last_price_arg,
             vol_arg, oi_arg)
         on conflict (tradecode, dt) do update set
-            open = new_open, high = new_high, low = new_low,
+            high = greatest(md.contract_price_minute.high, last_price_arg),
+            low = least(md.contract_price_minute.low, last_price_arg),
             close = excluded.close, vol = excluded.vol, oi = excluded.oi,
             updated_at = now()
         returning id into price_minute_id;
@@ -259,14 +269,14 @@ declare
     price_minute_id integer = null;
 begin
     -- sanitize inputs.
-    if last_price_arg <= 0 then
+    if last_price_arg is not distinct from 'NaN'::numeric then
         last_price_arg = null;
     end if;
     if vol_arg <= 0 then
-        vol_arg = null;
+        vol_arg = 0;
     end if;
     if oi_arg <= 0 then
-        oi_arg = null;
+        oi_arg = 0;
     end if;
     select true into tradecode_exists
         from md.contract_info ci

@@ -109,6 +109,7 @@ create table if not exists md.contract_price_daily (
     inserted_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
 );
+-- hypertable will provide a 'dt' index.
 select create_hypertable('md.contract_price_daily', 'dt', if_not_exists => true);
 -- 避免 insert 操作，同时保证 update 不改变任何索引数据列。
 create unique index if not exists idx_contract_price_daily_id
@@ -185,7 +186,7 @@ create table if not exists md.option_greeks_tick (
 );
 select create_hypertable('md.option_greeks_tick', 'dt', if_not_exists => true);
 create unique index if not exists idx_option_greeks_tick_tradecode_dt
-    on md.option_greeks_tick (tradecode, dt desc);
+    on md.option_greeks_tick (tradecode, dt desc, price_level);
 
 -- Tick 级别的逐笔成交数据，使用 tradecode + dt 唯一标识一条记录
 -- Ctp Options 没有向公众开放即时市场成交数据接口。

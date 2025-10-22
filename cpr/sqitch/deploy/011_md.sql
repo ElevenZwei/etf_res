@@ -109,7 +109,7 @@ create table if not exists md.contract_price_daily (
     inserted_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
 );
--- hypertable will provide a 'dt' index.
+-- hypertable will provide a 'dt' index when if_not_exists=true.
 select create_hypertable('md.contract_price_daily', 'dt', if_not_exists => true);
 -- 避免 insert 操作，同时保证 update 不改变任何索引数据列。
 create unique index if not exists idx_contract_price_daily_id
@@ -163,6 +163,10 @@ create table if not exists md.contract_price_tick (
     ask2_size integer, bid2_size integer,
     ask3_price float8, bid3_price float8,
     ask3_size integer, bid3_size integer,
+    ask4_price float8, bid4_price float8,
+    ask4_size integer, bid4_size integer,
+    ask5_price float8, bid5_price float8,
+    ask5_size integer, bid5_size integer,
     inserted_at timestamptz not null default now()
 );
 select create_hypertable('md.contract_price_tick', 'dt', if_not_exists => true);

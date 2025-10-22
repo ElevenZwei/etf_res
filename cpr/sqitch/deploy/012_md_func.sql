@@ -15,6 +15,32 @@ insert into md.exchange_info (exchange, name, timezone, is_commodity)
     ('SZSE', 'Shenzhen Stock Exchange', 'Asia/Shanghai', false)
     on conflict (exchange) do nothing;
 
+insert into md.contract_info (tradecode, name, exchange, lot_size, callput) values
+    ('159915', '159915', 'SZSE', 10000, 0),
+    ('510050', '510050', 'SSE', 10000, 0),
+    ('510300', '510300', 'SSE', 10000, 0),
+    ('510500', '510500', 'SSE', 10000, 0),
+    ('588000', '588000', 'SSE', 10000, 0)
+    on conflict (tradecode) do nothing;
+
+do $$
+declare
+    inserted bool;
+begin
+    select tradecode is not null into inserted
+        from md.contract_info_history
+        where tradecode = '159915';
+    if not inserted then
+        insert into md.contract_info_history (tradecode, name, exchange, lot_size, callput) values
+            ('159915', '159915', 'SZSE', 10000, 0),
+            ('510050', '510050', 'SSE', 10000, 0),
+            ('510300', '510300', 'SSE', 10000, 0),
+            ('510500', '510500', 'SSE', 10000, 0),
+            ('588000', '588000', 'SSE', 10000, 0);
+    end if;
+end;
+$$;
+
 create or replace function md.get_contract_of_date(
     tradecode_arg text, dt_arg date)
     returns table (
@@ -83,7 +109,6 @@ begin
         spotcode_arg = null;
         chaincode_arg = null;
         strike_arg = null;
-        expiry_arg = null;
     end if;
     if length(spotcode_arg) = 0 then
         spotcode_arg = null;

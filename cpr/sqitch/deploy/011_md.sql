@@ -96,15 +96,17 @@ create unique index if not exists idx_contract_info_history_tradecode_updated_at
 -- 更新频次按市场推送频率并且这个合约有新的数据变化时更新。
 -- update 频率较高，避开 insert 操作，避免 serial id 成为瓶颈。
 create table if not exists md.contract_price_daily (
-    id serial,
+    id serial,  -- 在 hypertable 里面尽量不要创建不含 dt 的主键
     tradecode text not null references md.contract_info(tradecode),
     dt date not null,
     open float8,
     high float8,
     low float8,
     close float8,
-    vol bigint,
-    oi integer,
+    vol_open bigint,
+    vol_close bigint,
+    oi_open integer,
+    oi_close integer,
     days_left integer, -- 距离到期日的天数，expiry - dt + 1
     inserted_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
@@ -112,6 +114,7 @@ create table if not exists md.contract_price_daily (
 -- hypertable will provide a 'dt' index when if_not_exists=true.
 select create_hypertable('md.contract_price_daily', 'dt', if_not_exists => true);
 -- 避免 insert 操作，同时保证 update 不改变任何索引数据列。
+-- unique index 需要带上 dt 才能保证跨分区的 id 唯一性。
 create unique index if not exists idx_contract_price_daily_id
     on md.contract_price_daily (id, dt);
 create unique index if not exists idx_contract_price_daily_tradecode_dt
@@ -131,13 +134,16 @@ create table if not exists md.contract_price_minute (
     high float8,
     low float8,
     close float8,
-    vol bigint,
-    oi integer,
+    vol_open bigint,
+    vol_close bigint,
+    oi_open integer,
+    oi_close integer,
     inserted_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
 );
 select create_hypertable('md.contract_price_minute', 'dt', if_not_exists => true);
 -- 避免 insert 操作，同时保证 update 不改变任何索引数据列。
+-- unique index 需要带上 dt 才能保证跨分区的 id 唯一性。
 create unique index if not exists idx_contract_price_minute_id
     on md.contract_price_minute (id, dt);
 create unique index if not exists idx_contract_price_minute_tradecode_dt

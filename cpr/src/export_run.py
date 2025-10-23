@@ -118,6 +118,7 @@ def merge_trade_trigger(trade_weight: Dict[int, float],
                         trade_trigger: Dict[int, pd.DataFrame]) -> pd.DataFrame:
     """
     合并所有交易参数的触发条件。
+    把多个 trade_args_id 的触发条件 DataFrame 合并成一个 DataFrame。
     输入参数：
         trade_weight: Dict[int, float] - 交易参数的权重，key 是 trade_args_id，value 是权重。
         trade_trigger: Dict[int, pd.DataFrame] - 交易参数的触发条件，key 是 trade_args_id，value 是触发条件的 DataFrame。
@@ -203,9 +204,7 @@ def read_oi_db(spotcode: str, dt_from: date, dt_to: date) -> pd.DataFrame:
 
 
 def downsample_time(df: pd.DataFrame, interval_sec: int):
-    df = df.resample(f'{interval_sec}s').first()
-    # 这里跳过没有开盘的时间
-    df = df.loc[~df.isna().all(axis=1)]
+    df = df.resample(f'{interval_sec}s').first().dropna()
     return df
 
 
@@ -258,6 +257,8 @@ def join_oi_trigger(oi_df: pd.DataFrame,
 def split_trade_args(merged_df: pd.DataFrame) -> Dict[float, pd.DataFrame]:
     """
     Split the merged DataFrame into a dictionary of DataFrames by trade_args_id.
+    这个处理过程存在一个假设，就是所有的 trade_args_id 都会有相同的非交易时间行，
+    因为这些行是没有 trade_args_id 的，所以会被分配到 NaN 这个 key 下。
     """
     merged_df.reset_index(drop=True, inplace=True)
     merged_df['trade_args_id'] = merged_df['trade_args_id'].astype('category')

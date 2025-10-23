@@ -16,9 +16,7 @@ OPT_GREEKS_CONCAT_OUTPUT_FILE = f'{DATA_DIR}/input/opt_159915_2025_greeks.csv'
 
 
 def downsample_time(df: pd.DataFrame, interval_sec: int):
-    df = df.resample(f'{interval_sec}s').first()
-    # 这里跳过没有开盘的时间
-    df = df.loc[~df.isna().all(axis=1)]
+    df = df.resample(f'{interval_sec}s').first().dropna()
     return df
 
 def line_greeks(option_price: float, future_price: float,

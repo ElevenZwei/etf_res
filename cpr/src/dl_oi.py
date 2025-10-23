@@ -243,33 +243,34 @@ def save_fpath_default(spot: str, tag: str, dt: datetime.date):
     return save_fpath(spot, tag, dt, dt, expiry_date)
 
 
-def pivot_sum(df: pd.DataFrame, col: str = 'oi'):
+def pivot_sum(df: pd.DataFrame, col: str, tag: str):
     """
     计算 oi 数据的总和。
     """
     df = df.pivot(index='dt', columns='strike', values=col)
     df = df.ffill().bfill().astype('int64')
-    print(df)
+    # df.to_csv(f'{OI_DIR}/debug_pivot_sum_{tag}.csv')
     return df.sum(axis=1)
 
 
 def calc_oi(df: pd.DataFrame):
     df = df.drop_duplicates(subset=['dt', 'tradecode'], keep='first')
     call_df = df.loc[df['callput'] == 1]
-    call_sum = pivot_sum(call_df, 'oi')
+    call_sum = pivot_sum(call_df, 'oi', 'call')
     put_df = df.loc[df['callput'] == -1]
-    put_sum = pivot_sum(put_df, 'oi')
+    put_sum = pivot_sum(put_df, 'oi', 'put')
     df2 = pd.DataFrame({
         'call_oi_sum': call_sum,
         'put_oi_sum': put_sum,
     })
+    return df2.reset_index()
     # spot_price = df[['dt', 'spot_price']].drop_duplicates()
     # spot_price = spot_price.set_index('dt')
     # df2 = pd.merge(df2, spot_price,
     #                left_index=True,
     #                right_index=True,
     #                how='inner')
-    return df2.reset_index()
+    # return df2.reset_index()
 
 
 def dl_calc_oi(spot: str, dt: datetime.date, refresh: bool = False) -> pd.DataFrame:

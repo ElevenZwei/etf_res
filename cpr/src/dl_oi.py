@@ -13,21 +13,33 @@ from typing import Optional, List
 from dateutil.relativedelta import relativedelta
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
-from config import DATA_DIR, PG_OI_CONN_INFO, get_engine
+from config import DATA_DIR, PG_CPR_CONN_INFO, PG_OI_CONN_INFO, get_engine
 
 OI_DIR = f'{DATA_DIR}/fact/oi_daily/'
 OI_MERGE_DIR = f'{DATA_DIR}/fact/oi_merge/'
+USE_NEW_DB = True
+
 if not os.path.exists(OI_DIR):
     os.makedirs(OI_DIR, exist_ok=True)
 if not os.path.exists(OI_MERGE_DIR):
     os.makedirs(OI_MERGE_DIR, exist_ok=True)
 
-engine = get_engine(PG_OI_CONN_INFO)
+def get_engine_wrapper() -> sa.engine.Engine:
+    return get_engine(PG_CPR_CONN_INFO if USE_NEW_DB else PG_OI_CONN_INFO)
+
+engine: sa.engine.Engine = get_engine_wrapper()
 
 
 def dl_expiry_date(spot: str, year: int, month: int) -> Optional[datetime.date]:
     d_from = datetime.datetime(year, month, 1)
     d_to = datetime.datetime(year, month, 28)
+    if USE_NEW_DB:
+        return fetch_expiry_date_new(spot, d_from.date(), d_to.date())
+    else:
+        return fetch_expiry_date_old(spot, d_from.date(), d_to.date())
+
+
+def fetch_expiry_date_old(spot: str, d_from: datetime.date, d_to: datetime.date) -> Optional[datetime.date]:
     # latex: ci.expirydate \in [d_from, d_to]
     query = sa.text("""
             select min(expirydate) as expirydate
@@ -44,7 +56,25 @@ def dl_expiry_date(spot: str, year: int, month: int) -> Optional[datetime.date]:
         })
     if df.shape[0] == 0:
         return None
-    return df['expirydate'].iloc[0]
+    return df.iloc[0, 0]
+
+
+def fetch_expiry_date_new(spot: str, d_from: datetime.date, d_to: datetime.date) -> Optional[datetime.date]:
+    query = sa.text("""
+                    select min(expiry)
+                    from "md"."contract_info"
+                    where expiry >= :d_from and expiry <= :d_to
+                    and spotcode = :spot
+    """)
+    with engine.connect() as conn:
+        df = pd.read_sql(query, conn, params={
+            'spot': spot,
+            'd_from': d_from.strftime('%Y-%m-%d'),
+            'd_to': d_to.strftime('%Y-%m-%d'),
+        })
+    if df.shape[0] == 0:
+        return None
+    return df.iloc[0, 0]
 
 
 def dl_oi_data(spot: str, expiry_date: datetime.date,
@@ -55,10 +85,17 @@ def dl_oi_data(spot: str, expiry_date: datetime.date,
     bg_date and ed_date are inclusive.
     bg_time and ed_time are inclusive.
     """
-    bg_date_str = bg_date.strftime('%Y-%m-%d')
-    ed_date_str = ed_date.strftime('%Y-%m-%d')
-    bg_time_str = bg_time.strftime('%H:%M:%S')
-    ed_time_str = ed_time.strftime('%H:%M:%S')
+    bg_datetime_str = bg_date.strftime('%Y-%m-%d') + ' ' + bg_time.strftime('%H:%M:%S')
+    ed_datetime_str = ed_date.strftime('%Y-%m-%d') + ' ' + ed_time.strftime('%H:%M:%S')
+    if USE_NEW_DB:
+        fetch_oi_data = fetch_oi_data_new(spot, expiry_date, bg_datetime_str, ed_datetime_str)
+    else:
+        fetch_oi_data = fetch_oi_data_old(spot, expiry_date, bg_datetime_str, ed_datetime_str)
+    return fetch_oi_data
+
+
+def fetch_oi_data_old(spot: str, expiry_date: datetime.date,
+                      bg_datetime_str: str, ed_datetime_str: str) -> pd.DataFrame:
     # latex: mdt.dt \in [bg_datetime, ed_datetime]
     query = sa.text("""
         set enable_nestloop=false;
@@ -74,22 +111,40 @@ def dl_oi_data(spot: str, expiry_date: datetime.date,
                 and spotcode = :spot and expirydate = :expiry_date
             ) as T
         )
-        select oi.dt, oi.spotcode, oi.expirydate, oi.strike
-            , oi.callput, oi.tradecode, oi.oi, mdt.last_price as spot_price
-        from OI join market_data_tick mdt using (dt)
-        where mdt.dt >= :bg_datetime and mdt.dt <= :ed_datetime
-        and mdt.code = oi.spotcode
-        order by dt asc;
+        select * from OI order by dt asc;
     """)
     with engine.connect() as conn:
         df = pd.read_sql(query, conn, params={
             'spot': spot,
             'expiry_date': expiry_date.strftime('%Y-%m-%d'),
-            'bg_datetime': f'{bg_date_str} {bg_time_str}',
-            'ed_datetime': f'{ed_date_str} {ed_time_str}',
+            'bg_datetime': bg_datetime_str,
+            'ed_datetime': ed_datetime_str,
         })
-    if df.shape[0] == 0:
-        return df
+    return df
+
+
+def fetch_oi_data_new(spot: str, expiry_date: datetime.date,
+                      bg_datetime_str: str, ed_datetime_str: str) -> pd.DataFrame:
+    query = sa.text("""
+        with tradecodes as (
+            select spotcode, expiry, callput, strike, tradecode
+            from "md"."contract_info"
+            where expiry = :expiry_date and spotcode = :spot
+        )
+        , oi as (
+            select dt, spotcode, expiry, callput, strike, tradecode, oi
+            from md.contract_price_tick join tradecodes using (tradecode)
+            where dt >= :bg_datetime and dt < :ed_datetime
+        )
+        select * from oi order by dt asc;
+    """)
+    with engine.connect() as conn:
+        df = pd.read_sql(query, conn, params={
+            'spot': spot,
+            'expiry_date': expiry_date.strftime('%Y-%m-%d'),
+            'bg_datetime': bg_datetime_str,
+            'ed_datetime': ed_datetime_str,
+        })
     return df
 
 
@@ -134,7 +189,7 @@ def dl_save_range_oi(spot: str, expiry_date: datetime.date,
     if os.path.exists(fpath):
         df1 = pd.read_csv(fpath, parse_dates=['dt'])
         bg_time = get_cont_time_from_df(df1)
-        if bg_time > datetime.time(14, 59, 0):
+        if bg_time >= datetime.time(14, 59, 0):
             print(f"Loading existing data for {spot} on {bg_date}, "
                   f"expiry date: {expiry_date}")
             return pd.read_csv(fpath)
@@ -194,6 +249,7 @@ def pivot_sum(df: pd.DataFrame, col: str = 'oi'):
     """
     df = df.pivot(index='dt', columns='strike', values=col)
     df = df.ffill().bfill().astype('int64')
+    print(df)
     return df.sum(axis=1)
 
 
@@ -207,12 +263,12 @@ def calc_oi(df: pd.DataFrame):
         'call_oi_sum': call_sum,
         'put_oi_sum': put_sum,
     })
-    spot_price = df[['dt', 'spot_price']].drop_duplicates()
-    spot_price = spot_price.set_index('dt')
-    df2 = pd.merge(df2, spot_price,
-                   left_index=True,
-                   right_index=True,
-                   how='inner')
+    # spot_price = df[['dt', 'spot_price']].drop_duplicates()
+    # spot_price = spot_price.set_index('dt')
+    # df2 = pd.merge(df2, spot_price,
+    #                left_index=True,
+    #                right_index=True,
+    #                how='inner')
     return df2.reset_index()
 
 
@@ -246,7 +302,10 @@ def date_range(bg_date: datetime.date, ed_date: datetime.date) -> List[datetime.
         '2025-02-01', '2025-02-02', '2025-02-03', '2025-02-04',
         '2025-04-04',
         '2025-05-01', '2025-05-02', '2025-05-03', '2025-05-04', '2025-05-05',
-        '2025-06-02']
+        '2025-06-02',
+        '2025-10-01', '2025-10-02', '2025-10-03',
+        '2025-10-06', '2025-10-07', '2025-10-08',
+    ]
     dt_list = [dt for dt in dt_list if dt.weekday() < 5]  # skip weekend
     dt_list = [dt for dt in dt_list if dt.strftime('%Y-%m-%d') not in holidays]  # skip holidays
     date_list = [dt.date() for dt in dt_list]  # convert to date
@@ -258,7 +317,7 @@ def init_worker():
     初始化工作进程，设置数据库连接等。
     """
     global engine
-    engine = get_engine(PG_OI_CONN_INFO)
+    engine = get_engine_wrapper()
 
 
 def dl_calc_oi_range(
@@ -297,7 +356,7 @@ def dl_calc_oi_range(
     return df
 
 
-def oi_csv_merge(spot: str, suffix: Optional[str] = None):
+def oi_csv_merge(spot: str):
     fs = glob.glob(f"{OI_DIR}/oi_{spot}*.csv")
     dfs = [pd.read_csv(f) for f in fs]
     df = pd.concat(dfs, ignore_index=True)

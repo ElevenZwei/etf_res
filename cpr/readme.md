@@ -54,6 +54,9 @@
 
 实盘得出信号需要的参数导出脚本是 `src/roll_export.py` ，这个脚本读取表格 `cpr.roll_result` 以及之前回测中用到的切片样本等等数据，在 stdout 输出一个 json 文件。输出的 json 文件也会在数据库里面储存一份。  
 实盘运行的 json 文件在数据库里面储存在 `cpr.roll_export` 表格里面，这个表格有一个约束是同一个 `roll_args_id + top_n` 的运行参数的时间窗口不能重叠。这是为了实盘运行的严谨性。  
+
+TODO: **这个约束目前没有生效，不知道是什么原因，可能是 DDL 的版本？**  
+
 时间窗口这样决定 `[dt_from, dt_to)` ，最后一天不包含在内。
 实盘运行参数写入数据库按 `cpr.get_or_create_roll_export()` 函数执行。规则是，如果运行的时间窗口完全一样的话，那么 `roll_export.py` 会更新 `cpr.roll_export` 里面储存的实盘运行参数。如果不一样的话会尝试插入，如果时间窗口和之前的数据行没有完全一样的话，那么会尝试插入数据行。插入的约束交给数据库判断，如果有违反约束，例如时间窗口冲突了的话，那么数据库会返回 null id，然后 python 会 raise error 。  
 
@@ -83,7 +86,8 @@ python export_run_daemon.py -d 2025-09-01
 这个脚本让它做回测并且更新下周的运行参数的使用方法如下：  
 ```bash
 python weekly_update.py -s 159915 -b 2025-09-08 -e 2025-09-14  
-# -b 输入周一，-e 输入周日，在周五收盘之后运行才能得到可靠的下周轮换结果
+# -b 输入周一，-e 输入周日，在周五收盘之后运行才能得到可靠的下周轮换结果  
+# 这个流程可以处理日常更新的过程，我们需要保证市场数据的完善准确才能得到正确结果。
 ```
 
 如果只是让它做回测，更新所有参数的 backtest 结果，不触碰 roll 信息，使用方法如下：  
@@ -98,8 +102,37 @@ python weekly_update.py --no-roll-next -s 159915 -b 2025-09-08 -e 2025-09-14
 # -b -e 随意
 ```
 
+如果让它做回测，更新 backtest 结果，更新 roll_result 和 roll_merged 历史信号，但是不写入 roll_export 运行参数表格，使用方法如下：
+```bash
+python weekly_update.py --no-roll-export -s 159915 -b 2025-09-08 -e 2025-09-14  
+# -b -e 随意  
+# 当 -e 日期是周日的时候它会计算后一周的 roll_result 
+```
+
+## 操作清单  
+### 当需要换月的时候  
+更改 yaml 文件里面的月份数字。
+
+### 当缺少某天的数据时  
+使用 wind 数据库，在启动了 Wind 的 Windows 电脑上运行 `etf_res/datavis/transfer/wind_dl.py` 这是下载期权 Tick 数据的脚本，下载之后更改 `etf_res/datavis/transfer/insert_db.bash` 里面上传数据的日期，这两个文件可以把数据上传到 yuanlan 机器的 postgres 数据库里面。  
+然后本地执行 `python export_run_daemon.py -d <date>` 命令，这个命令可以根据那一天的 roll_export 运行参数，读取行情数据库的行情数据并且生成 CPR 信号，如果信号可以正确生成，从开仓到收盘平仓都存在。那么那天的数据是补齐了。  
+补齐数据之后可以进行上面流程里面的 backtest / roll / export 等等后续工程。  
+
+### 当需要增加新的 roll method 轮换方案的时候  
+在 roll_run.py 里面增加新的方案的描述，注意需要设置独一无二的 name + variation 作为方案的标记名称。  
+然后运行总体的 roll_run.py 检查它的输出，输出的表格是 cpr.roll_result 和 cpr.roll_rank 。  
+如果这两个都没有问题，然后再手动执行一下 roll_merge.py 得到合成仓位，用这个合成仓位跑一跑回测看看效果是否符合预期。  
+之后再执行 roll_export.py 得到可以运行的 json 配置文件。
+
+
+### 当需要测试信号效果的时候  
+cpr roll 的结果是储存在 cpr.roll_merged 表格里面，这个表格的数据是 cpr_merge.py 脚本计算的。这个 cpr_merge.py 脚本需要的输入是当时的 cpr.roll_result 轮换排序和 cpr.clip_trade_backtest 仓位。  
+使用 ./src/update_roll_csv.py 脚本可以从 cpr.roll_merged 表格里面到处数据保存在 csv 文件里面。  
+
+
 ## TODO
 这里 python 脚本里面有一个问题就是 to_sql 函数里面滥用 upsert_on_conflict_skip ，我都不知道一个脚本最后执行有没有写入数据库，完全就是随缘的。至少有下面几个高危使用位置需要更换：  
+
 1. json run 脚本 export_run.py 写入仓位信号的函数 `save_roll_export_run` .  
 2. roll 轮换选择参数的脚本 roll.py 写入轮换结果的函数 `save_roll_output` .  
 3. 合并轮换的历史仓位的脚本 roll_merge.py 写入合并结果的函数。  

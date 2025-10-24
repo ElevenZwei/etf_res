@@ -326,6 +326,11 @@ def dl_calc_oi_range(
     """
     下载并计算一段时间内的 oi 数据。
     """
+    global USE_NEW_DB
+    if bg_date <= datetime.date(2025, 10, 23):
+        print("Switching to old database for oi calculation.")
+        USE_NEW_DB = False
+
     dt_list = date_range(bg_date, ed_date)
     df_list = []
     # for dt in dt_list:
@@ -367,6 +372,61 @@ def oi_csv_merge(spot: str):
     df = df.drop_duplicates(subset=['dt'], keep='first')
     df.to_csv(f"{OI_MERGE_DIR}/oi_{spot}.csv", index=False)
     print(f"merged {len(fs)} files into {OI_MERGE_DIR}/oi_{spot}.csv")
+    return df
+
+
+def dl_spot_range(spot: str, bg_date: datetime.date, ed_date: datetime.date) -> pd.DataFrame:
+    """
+    下载一段时间内的现货数据。
+    """
+    global USE_NEW_DB
+    if bg_date <= datetime.date(2025, 10, 23):
+        print("Switching to old database for spot data download.")
+        USE_NEW_DB = False
+
+    if USE_NEW_DB:
+        fetch_spot_data = fetch_spot_data_new
+    else:
+        fetch_spot_data = fetch_spot_data_old
+    bg_datetime_str = bg_date.strftime('%Y-%m-%d') + ' 09:30:00'
+    ed_datetime_str = ed_date.strftime('%Y-%m-%d') + ' 15:00:00'
+    df = fetch_spot_data(spot, bg_datetime_str, ed_datetime_str)
+    return df
+
+
+def fetch_spot_data_old(spot: str,
+                        bg_datetime_str: str, ed_datetime_str: str) -> pd.DataFrame:
+    query = sa.text("""
+        select dt, code as spot, last_price as spot_price
+        from market_data_tick
+        where dt >= :bg_datetime and dt <= :ed_datetime
+        and code = :spot
+        order by dt asc;
+    """)
+    with engine.connect() as conn:
+        df = pd.read_sql(query, conn, params={
+            'spot': spot,
+            'bg_datetime': bg_datetime_str,
+            'ed_datetime': ed_datetime_str,
+        })
+    return df
+
+
+def fetch_spot_data_new(spot: str,
+                        bg_datetime_str: str, ed_datetime_str: str) -> pd.DataFrame:
+    query = sa.text("""
+        select dt, tradecode as spot, last_price as spot_price
+        from "md"."contract_price_tick"
+        where dt >= :bg_datetime and dt <= :ed_datetime
+        and tradecode = :spot
+        order by dt asc;
+    """)
+    with engine.connect() as conn:
+        df = pd.read_sql(query, conn, params={
+            'spot': spot,
+            'bg_datetime': bg_datetime_str,
+            'ed_datetime': ed_datetime_str,
+        })
     return df
 
 

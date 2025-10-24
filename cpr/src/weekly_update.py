@@ -1,6 +1,6 @@
 # 这个文件的作用是完成自动化的每周数据更新和配置更新的任务。
 
-from dl_oi import dl_calc_oi_range, oi_csv_merge
+from dl_oi import dl_calc_oi_range, dl_spot_range, oi_csv_merge
 from csv2cpr import upload_oi_df_to_cpr
 from tick2bar import convert_df_to_bars
 from clip import calculate_all_clips
@@ -31,7 +31,8 @@ def load_data(spot: str, dt_bg: date, dt_ed: date):
     dl_calc_oi_range(spot, dt_bg, dt_ed)
     oi_df = oi_csv_merge(spot)
     upload_oi_df_to_cpr(spot, oi_df)
-    convert_df_to_bars(spot, oi_df)
+    spot_df = dl_spot_range(spot, dt_bg, dt_ed);
+    convert_df_to_bars(spot, spot_df)
     with engine.connect() as conn:
         # cpr.update_daily arg dt_ed is inclusive
         query = sa.text("""
@@ -86,7 +87,7 @@ def make_week_clip(dt_bg: date, dt_ed: date) -> List[Tuple[date, date]]:
     week_ed = dt_ed - timedelta(days=dt_ed.weekday())
     if dt_ed.weekday() >= 4:  # if dt_ed is Friday or later, include that week
         week_ed = week_ed + timedelta(days=7)
-    print(f"Calculating full weeks from {week_bg} to {week_ed}")
+    print(f"Calculating full weeks in [{week_bg}, {week_ed}) .")
     if week_bg >= week_ed:
         print("No full week in the given date range, skipping backtest trade args update.")
         return []
@@ -97,7 +98,7 @@ def make_week_clip(dt_bg: date, dt_ed: date) -> List[Tuple[date, date]]:
         wbg = week_bg + timedelta(days=i*7)
         wed = wbg + timedelta(days=6)
         result.append((wbg, wed))
-    print(f"Full weeks: {result}")
+    print(f"Full weeks: {result[:-1]}, incomplete week: {result[-1]}")
     return result
 
 
@@ -139,7 +140,7 @@ def roll_data(spot: str, dt_bg: date, dt_ed: date,
     dataset_id = get_dataset_id(spot)
     weeks = make_week_clip(dt_bg, dt_ed)
     week_bg = weeks[0][0] if weeks else dt_bg
-    week_ed = weeks[-1][1] if weeks else dt_ed
+    week_ed = weeks[-2][1] if weeks else dt_ed  # end of last full week
     if with_roll_next:
         # 这里的参数会传给 gen_roll_args_list，它会把起点向前移动 60 天
         # 因为滚动选取需要包含训练的时间范围
@@ -171,7 +172,6 @@ def weekly_update(spot: str, dt_bg: date, dt_ed: date,
                   with_roll: bool = True,
                   with_roll_next: bool = True,
                   with_roll_export: bool = True):
-    # weeks = make_week_clip(dt_bg, dt_ed)
     load_data(spot, dt_bg, dt_ed)
     clip_data(spot, dt_bg, dt_ed)
     backtest_data(spot, dt_bg, dt_ed)

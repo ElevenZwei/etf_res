@@ -204,7 +204,7 @@ def read_oi_db(spotcode: str, dt_from: date, dt_to: date) -> pd.DataFrame:
 
 
 def downsample_time(df: pd.DataFrame, interval_sec: int):
-    df = df.resample(f'{interval_sec}s').first().dropna()
+    df = df.resample(f'{interval_sec}s').first().dropna(how='all')
     return df
 
 

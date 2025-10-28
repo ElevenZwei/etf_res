@@ -1,6 +1,7 @@
 import math
 import pandas as pd
 import datetime
+from typing import Optional
 from nautilus_trader.trading.strategy import Strategy
 from nautilus_trader.config import StrategyConfig
 from nautilus_trader.model.instruments import Instrument, Equity
@@ -11,9 +12,10 @@ from nautilus_trader.model.enums import OrderSide
 from backtest.nautilus.data_types import MyQuoteTick
 
 class StrategyETFConfig(StrategyConfig, frozen=True):
-    spot: Instrument = None
-    venue: Venue = None
-    size_mode: int = None
+    spot: Optional[Instrument] = None
+    venue: Optional[Venue] = None
+    size_mode: Optional[int] = None
+    fixed_size: Optional[int] = None
 
 class StrategyETF(Strategy):
     def __init__(self, config: StrategyETFConfig):

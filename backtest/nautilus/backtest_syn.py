@@ -6,6 +6,7 @@
 每一次换向都会平掉之前的仓位。
 """
 
+import math
 import datetime
 import click
 import pandas as pd
@@ -17,9 +18,9 @@ from backtest.config import DATA_DIR
 from backtest.nautilus.data_types import prepare_venue, prepare_spot_quote_from_df, prepare_option_quote
 from backtest.nautilus.strategy_syn import StrategySyn, StrategySynConfig
 
-def run(size_mode: int, suffix: str, column: str = 'position'):
+def run(id: int, suffix: str, column: str = 'position'):
     bgdt = datetime.date(2025, 1, 1)
-    eddt = datetime.date(2025, 8, 19)
+    eddt = datetime.date(2025, 10, 23)
 
     engine = BacktestEngine(config=BacktestEngineConfig(
         trader_id=TraderId('BT-001'),
@@ -36,7 +37,8 @@ def run(size_mode: int, suffix: str, column: str = 'position'):
 
     # action_df = pd.read_csv(f'{DATA_DIR}/input/zxt_stock_position.csv')
     # action_df = pd.read_csv(f'{DATA_DIR}/cpr/roll_merged_1.csv')
-    action_df = pd.read_csv(f'{DATA_DIR}/cc/cc_position_159949_2025.csv')
+    # action_df = pd.read_csv(f'{DATA_DIR}/cc/cc_position_159949_2025.csv')
+    action_df = pd.read_csv(f'{DATA_DIR}/dummy_signal/short_159915_2025.csv')
     action_df['dt'] = pd.to_datetime(action_df['dt'])
     action_df = action_df.set_index('dt')
     
@@ -50,10 +52,16 @@ def run(size_mode: int, suffix: str, column: str = 'position'):
         f'{DATA_DIR}/input/opt_159915_2025_greeks.csv',
         engine, ven, bgdt, eddt)
 
-    suffix=f"syn_m{size_mode}_{suffix}"
+    suffix=f"syn_i{id}_{suffix}"
     syn_config = StrategySynConfig(
-        spot=spot_inst, infos=opt_info,
-        venue=ven, size_mode=size_mode)
+        spot=spot_inst,
+        infos=opt_info,
+        venue=ven,
+        long_only=False,
+        short_only=False,
+        daily_close=False,
+        min_trade_size=30000,
+        fixed_size= math.floor(850_0000 / 2.086))
     syn_st = StrategySyn(config=syn_config)
     engine.add_strategy(strategy=syn_st)
     result = engine.run()
@@ -65,13 +73,10 @@ def run(size_mode: int, suffix: str, column: str = 'position'):
     engine.dispose()
 
 @click.command(context_settings=dict(help_option_names=['-h', '--help']))
-@click.option('-m', '--size-mode', type=int, help='size mode: 1 2 3 4')
+@click.option('-i', '--id', type=int, help='backtest identifier: 1 2 3 4')
 @click.option('-s', '--suffix', type=str, default='',)
-def click_main(size_mode: int, suffix: str):
-    run(size_mode, suffix,
-        column='position',
-        # column=f'{suffix}_position' if suffix else 'position'
-    )
+def click_main(id: int, suffix: str):
+    run(id, suffix, column='position')
 
 if __name__ == '__main__':
     click_main()

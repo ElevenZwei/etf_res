@@ -3,6 +3,7 @@
 from decimal import Decimal
 import tqdm
 import pandas as pd
+import numpy as np
 
 from nautilus_trader.model.data import QuoteTick
 from nautilus_trader.model.objects import Money, Price, Currency, Quantity
@@ -79,8 +80,6 @@ def df_to_my_quote(df, inst):
     return res
 
 def prepare_spot_quote(csv_fpath, engine, venue, bgdt, eddt):
-    # df = CSVTickDataLoader.load('../input/spot_sig_159915.csv', 'dt')
-    # df = CSVTickDataLoader.load('../input/oi_signal_159915_act_changes.csv', 'dt')
     df = CSVTickDataLoader.load(csv_fpath, 'dt')
     inst = prepare_spot_quote_from_df(
         df, df, engine, venue, bgdt, eddt)
@@ -101,8 +100,8 @@ def prepare_spot_quote_from_df(spot_df, action_df, engine, venue, bgdt, eddt):
     codes = df['code'].unique()
     assert(len(codes) == 1)
     spot = codes[0]
-    df.loc[:, 'ask'] = df['price'] # + 0.0001
-    df.loc[:, 'bid'] = df['price']
+    df.loc[:, 'ask'] = df['openp'] # + 0.0001
+    df.loc[:, 'bid'] = df['openp']
     print('loading spot:', spot)
     spot_symbol = Symbol(spot)
     inst = Equity(
@@ -122,12 +121,6 @@ def prepare_spot_quote_from_df(spot_df, action_df, engine, venue, bgdt, eddt):
     return inst
 
 def prepare_option_quote(csv_fpath, engine, venue, bgdt, eddt):
-    # df = CSVTickDataLoader.load('../input/options_159915_minute_data.csv', 'dt')
-    # df = CSVTickDataLoader.load('../input/options_data.csv', 'dt')
-    # df = CSVTickDataLoader.load('../input/options_159915_clip.csv', 'dt')
-    # df = CSVTickDataLoader.load('../input/tl_greeks_159915_all.csv', 'dt')
-    # df = CSVTickDataLoader.load('../input/tl_greeks_159915_all_fixed.csv', 'dt')
-    # df = CSVTickDataLoader.load('../input/tl_greeks_159915_clip_fixed.csv', 'dt')
     df = CSVTickDataLoader.load(csv_fpath, 'dt')
     se_dt = df.index.to_series().dt.date
     df = df[(se_dt >= bgdt) & (se_dt < eddt)]
@@ -140,8 +133,14 @@ def prepare_option_quote(csv_fpath, engine, venue, bgdt, eddt):
     infos = {}
     for code in tqdm.tqdm(codes):
         df_clip = df[df['code'] == code].copy()
+        # skip contract with less than 1000 data points
+        if df_clip.empty:
+            continue
+        if df_clip.shape[0] < 1000:
+            continue
         df_clip.loc[:, 'ask']= df_clip['closep'] + 0.0004
-        df_clip.loc[:, 'bid'] = df_clip['closep'] - 0.0004
+        # 如果加上交易成本的价格低于 0 的话在实盘里我们不会卖出
+        df_clip.loc[:, 'bid'] = np.maximum(df_clip['closep'] - 0.0004, 0)
         id = df_clip['tradecode'].iloc[0]
         # print(id)
         cp = 1 if ('C2' in id or '-C-' in id) else -1

@@ -1,6 +1,7 @@
 import math
 import pandas as pd
 import datetime
+from typing import Optional
 from nautilus_trader.trading.strategy import Strategy
 from nautilus_trader.config import StrategyConfig
 from nautilus_trader.model.instruments import Instrument, Equity
@@ -12,16 +13,21 @@ from backtest.nautilus.data_types import MyQuoteTick, OptionInfo
 
 class StrategySynConfig(StrategyConfig, frozen=True):
     spot: Instrument = None
-    infos: dict[Instrument, OptionInfo] = None
+    infos: dict[Instrument, OptionInfo] = {}
     venue: Venue = None
-    size_mode: int = None
+    long_only: bool = False
+    short_only: bool = False
+    daily_close: bool = False
+    fixed_size: Optional[int] = None
+    fixed_exposure: Optional[float] = None
+    min_trade_size: int = 10000
+
 
 class StrategySyn(Strategy):
     def __init__(self, config: StrategySynConfig):
         super().__init__(config)
         self.spot = config.spot
         self.infos = config.infos
-        self.size_mode = config.size_mode
         self.id_inst = { x.id: x for x in config.infos }
 
         self.buy_hold_id = None
@@ -40,11 +46,11 @@ class StrategySyn(Strategy):
             'strike': x.strike } for x in self.infos.values()]
         print(info_list)
         self.df_info = pd.DataFrame(info_list)
-        
-    def get_cash(self):    
+ 
+    def get_cash(self):
         cash = self.portfolio.account(self.config.venue).balance().total.as_double()
         return cash
-    
+
     def get_net_worth(self):
         cash = self.portfolio.account(self.config.venue).balance().total.as_double()
         pos_value = 0
@@ -55,13 +61,13 @@ class StrategySyn(Strategy):
         sum = cash + pos_value
         self.log.info(f"account: cash={cash}, pos={pos_value}, sum={sum}")
         return sum
-    
+
     def on_start(self):
         self.log.info('on_start: subscribe all contracts.')
         self.subscribe_quote_ticks(self.spot.id)
         for x in self.infos:
             self.subscribe_quote_ticks(x.id)
-    
+
     def on_quote_tick(self, tick: MyQuoteTick):
         # self.log.info(repr(tick))
         # self.log.info(f'{self.spot.id}, {tick.instrument_id}')
@@ -69,7 +75,7 @@ class StrategySyn(Strategy):
             self.on_spot_tick(tick)
         else:
             self.on_option_tick(tick)
-    
+
     def on_spot_tick(self, tick: MyQuoteTick):
         self.log.info(f'net_worth={self.get_net_worth()}')
         spot_price = tick.ask_price
@@ -77,20 +83,17 @@ class StrategySyn(Strategy):
         if spot_action is None:
             self.log.info(f"spot action is none.")
             return
-        if self.size_mode == 5 or self.size_mode == 6:
+        if self.config.long_only:
             # long only mode
             if spot_action < 0:
                 self.log.info(f"spot action is negative, skip this.")
                 spot_action = 0
-        if self.size_mode == 7 or self.size_mode == 8:
+        if self.config.short_only:
             # short only mode
             if spot_action > 0:
                 self.log.info(f"spot action is positive, skip this.")
                 spot_action = 0
 
-        if self.hold_action == spot_action:
-            self.log.info(f"hold action is same, skip this.")
-            return
         self.log.info(f'spot price={spot_price}, action={spot_action}')
 
         if self.hold_action * spot_action <= 0:
@@ -104,12 +107,14 @@ class StrategySyn(Strategy):
 
         now = self.clock.utc_now() 
         self.log.info(f"now={now}")
-        # if (now.hour == 6 and now.minute > 30) or now.hour > 6:
-        #     self.log.info(f"now is after 14:30, skip this.")
-        #     return
-        # if (now.hour == 1 and now.minute < 40):
-        #     self.log.info(f"now is before 9:40, skip this.")
-        #     return
+
+        # refresh full_size
+        if self.config.fixed_exposure is not None:
+            self.full_size = math.floor(self.config.fixed_exposure / spot_price // 10000 * 10000)
+            self.log.info(f"refresh full_size with fixed_exposure={self.config.fixed_exposure}, full_size={self.full_size}")
+        elif self.hold_action == spot_action:
+            self.log.info(f"hold action is same, skip this.")
+            return
 
         # Pick
         if self.buy_hold_id is not None:
@@ -151,12 +156,21 @@ class StrategySyn(Strategy):
                 return
 
             group_margin = self.calc_option_margin(sell_inst.id) + buy_tick.ask_price.as_double()
-            self.full_size = 1_000_000 / group_margin // 10000 * 10000
+            if self.config.fixed_size is not None:
+                self.log.info(f"calc full_size with fixed_size={self.config.fixed_size}")
+                self.full_size = self.config.fixed_size
+            elif self.config.fixed_exposure is not None:
+                self.log.info(f"calc full_size with fixed_exposure={self.config.fixed_exposure}")
+                self.full_size = math.floor(self.config.fixed_exposure / spot_price // 10000 * 10000)
+            else:
+                self.log.info(f"calc full_size with account cash.")
+                self.full_size = 1_000_000 / group_margin // 10000 * 10000
+            self.log.info(f"pick full_size={self.full_size}, group_margin={group_margin}")
 
         hold_size = self.full_size * abs(spot_action) // 10000 * 10000
         trade_size = hold_size - self.hold_size
         self.log.info(f"pick buy opt={buy_inst.id}, sell opt={sell_inst.id}, hold_size={hold_size}, trade_size={trade_size}")
-        if abs(trade_size) < 10000:
+        if abs(trade_size) < self.config.min_trade_size:
             self.log.info(f"trade size is too small, skip this, size={trade_size}")
             return
 
@@ -189,15 +203,16 @@ class StrategySyn(Strategy):
         now = self.clock.utc_now() 
         tick_id = tick.instrument_id
         opt_info: OptionInfo = self.infos[self.id_inst[tick_id]]
-        if now.date() == opt_info.last_day:
+        if (now.date() == opt_info.last_day
+            and now.hour == 6 and now.minute > 55):
             self.close_all()
-        if self.size_mode % 2 == 1:
-            if now.hour == 6 and now.minute > 40:
+        if self.config.daily_close:
+            if now.hour == 6 and now.minute > 55:
                 if self.sell_hold_id is not None or self.buy_hold_id is not None:
-                    self.log.info(f"now is after 14:40, close daliy option position.")
+                    self.log.info(f"now is after 14:55, close daliy option position.")
                     self.close_all()
 
-    def pick_available_options(self, now: datetime.datetime):
+    def pick_available_options(self, now: datetime.datetime) -> pd.DataFrame:
         now_date = now.date()
         days = self.df_info['expiry_date']
         select_day = days[days > now_date].min()
@@ -215,8 +230,8 @@ class StrategySyn(Strategy):
         else:
             avail = avail.loc[avail['cp'] == -1].copy()
         
-        def read_delta(inst: Instrument) -> float:
-            quote: MyQuoteTick = self.cache.quote_tick(inst.id)
+        def read_delta(inst: Instrument) -> Optional[float]:
+            quote: Optional[MyQuoteTick] = self.cache.quote_tick(inst.id)
             # self.log.info(f"read_delta: {inst.id}, quote={quote}")
             if quote is None:
                 return None
@@ -265,4 +280,4 @@ class StrategySyn(Strategy):
             return res1
         else:
             return min(res1, strike)
-    
+

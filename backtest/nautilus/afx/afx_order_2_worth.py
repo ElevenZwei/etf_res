@@ -7,6 +7,7 @@ import pandas as pd
 import pytz
 from datetime import datetime, tzinfo
 from collections import defaultdict
+from typing import Tuple
 
 from backtest.config import DATA_DIR
 
@@ -44,6 +45,7 @@ def make_order_df(df: pd.DataFrame):
 class PosMan:
     def __init__(self):
         self.pos = []
+        self.realized_pnl = 0.0
     
     def open_pos(self, code, amount, price):
         self.pos.append({
@@ -53,7 +55,7 @@ class PosMan:
         })
 
     def calc_holdings_pnl(self, opt_line):
-        res = 0
+        res = 0.0
         for hold in self.pos:
             code = hold['code']
             opt_price = getattr(opt_line, code)
@@ -63,18 +65,46 @@ class PosMan:
             # print(f'dt={opt_line.Index}, code={code}, price={opt_price}, open_price={hold['price']}, pnl={opt_pnl}')
             res += opt_pnl
         return res
+
+    def calc_total_pnl(self, opt_line):
+        return self.realized_pnl + self.calc_holdings_pnl(opt_line)
     
-    def compress_pos(self):
+    def net_pos(self):
         pos = defaultdict(lambda: 0)
         for hold in self.pos:
             pos[hold['code']] += hold['amount']
         pos = { x: pos[x] for x in pos if pos[x] != 0}
         return pos
-    
-def calc_pnls(opt_df: pd.DataFrame, order_df: pd.DataFrame):
+
+    def compress_pos(self):
+        pos = defaultdict(lambda: {'amount': 0, 'total_cost': 0.0})
+        for hold in self.pos:
+            code = hold['code']
+            amount = hold['amount']
+            price = hold['price']
+            pos[code]['amount'] += amount
+            pos[code]['total_cost'] += amount * price
+        new_pos = []
+        for code in pos:
+            amount = pos[code]['amount']
+            if amount == 0:
+                self.realized_pnl += - pos[code]['total_cost']
+                continue
+            total_cost = pos[code]['total_cost']
+            avg_price = total_cost / amount
+            new_pos.append({
+                'code': code,
+                'amount': amount,
+                'price': avg_price,
+            })
+        self.pos = new_pos
+
+
+def calc_pnls(opt_df: pd.DataFrame, order_df: pd.DataFrame) -> Tuple[pd.DataFrame, PosMan]:
     pos = PosMan()
     pnls = []
     last_opt_dt = datetime(2024, 1, 1, tzinfo=pytz.timezone('Asia/Shanghai'))
+    cnt = 0
     for opt_line in tqdm.tqdm(opt_df.itertuples(), total=opt_df.shape[0]):
         dt = opt_line.Index
         # print(opt_line)
@@ -85,20 +115,23 @@ def calc_pnls(opt_df: pd.DataFrame, order_df: pd.DataFrame):
         last_opt_dt = dt
         for order in orders.itertuples():
             pos.open_pos(order.code, order.amount, order.price)
+        cnt += 1
+        if cnt % 1000 == 0:
+            pos.compress_pos()
         # if orders.shape[0] > 0:
             # print(f'orders on {dt}')
             # print(orders)
             # exit(1)
-        pnl_now = pos.calc_holdings_pnl(opt_line)
+        pnl_now = pos.calc_total_pnl(opt_line)
         pnls.append({'dt': dt, 'pnl': pnl_now})
-    print(pos.compress_pos())
     pnl_df = pd.DataFrame(pnls)
-    return pnl_df
+    return pnl_df, pos
 
 def main(suffix: str, principal: float = 1000000.0):
     # order_df = pd.read_csv(f'{DATA_DIR}/output/opt_bullsp_order_5_t.csv')
     order_df = pd.read_csv(f'{DATA_DIR}/output/opt_order_{suffix}_t.csv')
     order_df = make_order_df(order_df)
+    order_max_dt = order_df.index.max()
 
     # opt_df = pd.read_csv(f'{DATA_DIR}/input/tl_greeks_159915_all_fixed.csv')
     opt_df = pd.read_csv(f'{DATA_DIR}/input/opt_159915_2025_greeks.csv')
@@ -119,14 +152,21 @@ def main(suffix: str, principal: float = 1000000.0):
     # print(order_only_dt)
 
     # print(order_df)
-    pnl_df = calc_pnls(opt_df, order_df)
+    pnl_df, posman = calc_pnls(opt_df, order_df)
+    print('final positions: ', posman.net_pos())
+    if len(posman.net_pos()) == 0:
+        print('all positions closed, clipping pnl to last order dt')
+        pnl_df = pnl_df[pnl_df['dt'] <= order_max_dt + pd.Timedelta(minutes=1)]
     pnl_df = pnl_df.set_index('dt').resample('1d').last().reset_index()
     pnl_df = pnl_df[~pnl_df['pnl'].isna()]
     pnl_df['dt'] = pnl_df['dt'].dt.date
+    pnl_df['pnl_diff'] = pnl_df['pnl'].diff().fillna(0)
+    pnl_df.loc[0, 'pnl_diff'] = pnl_df.loc[0, 'pnl']
     pnl_df['ratio'] = pnl_df['pnl'] / principal
     pnl_df['ratio_diff'] = pnl_df['ratio'].diff().fillna(0)
+    pnl_df.loc[0, 'ratio_diff'] = pnl_df.loc[0, 'ratio']
     # print(pnl_df)
-    pnl_df.to_csv(f'{DATA_DIR}/output/pnl_{suffix}.csv', index=False, float_format='%.2f')
+    pnl_df.to_csv(f'{DATA_DIR}/output/pnl_{suffix}.csv', index=False, float_format='%.4f')
 
 @click.command(context_settings=dict(help_option_names=['-h', '--help']))
 @click.option('-s', '--suffix', type=str, default='', help='suffix for output file')

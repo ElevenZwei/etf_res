@@ -18,6 +18,7 @@ def process_file(df: pd.DataFrame):
         'avg_px': 'price',
     })
     df = df.drop(columns=['time_in_force', 'is_reduce_only'])
+    df.sort_values(by=['dt', 'code', 'direction', 'amount'], inplace=True)
     return df
 
 def main(fpathstr: str):

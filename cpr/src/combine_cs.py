@@ -98,6 +98,14 @@ def diff_position_2r(r):
     else:
         return clamp(r['position_avg'] * 2, -1, 1)
 
+def diff_position_2rs(r):
+    pos = diff_position_2r(r)
+    if pos > 0.15:
+        return 1
+    if pos < -0.15:
+        return -1
+    return 0
+
 def diff_position_3(r):
     if r['position_diff_abs'] > 0.5:
         return (r['position_399'] * 0.7 + r['position_159'] * 0.3)
@@ -120,7 +128,24 @@ def mask_position_1(r):
     else:
         return r['position_avg']
 
-def sign_position_1a(r, col):
+def sign_position_1(r, col):
+    avg = r[col]
+    if avg < -0.2:
+        return np.maximum(avg * 3, -1)
+    if avg > 0.2:
+        return np.minimum(avg * 3, 1)
+    return 0
+
+def sign_position_1x(r, col):
+    avg = r[col]
+    if avg < -0.1:
+        return np.maximum(avg * 7, -1)
+    if avg > 0.1:
+        return np.minimum(avg * 7, 1)
+    return 0
+
+
+def sign_position_1y(r, col):
     avg = r[col]
     if avg < -0.4:
         return np.maximum(avg * 2, -1)
@@ -133,26 +158,72 @@ def sign_position_1a(r, col):
     return 0
 
 
+def sign_position_2(r, col):
+    avg = r[col]
+    diff = r['position_diff_abs']
+    if diff > 1.4:
+        return 0
+    if avg < -0.2:
+        return np.maximum(avg * 3, -1)
+    if avg > 0.2:
+        return np.minimum(avg * 3, 1)
+    return 0
+
+def sign_position_2x(r, col):
+    avg = r[col]
+    diff = r['position_diff_abs']
+    if diff > 1.4:
+        return 0
+    if avg < -0.15:
+        return -1
+    if avg > 0.15:
+        return 1
+    return 0
+
+def sign_position_2z(r, col):
+    avg = r[col]
+    diff = r['position_diff_abs']
+    if diff > 1.4:
+        return 0
+    if avg < -0.15:
+        return np.maximum(avg * 6, -1)
+    if avg > 0.15:
+        return np.minimum(avg * 6, 1)
+    return 0
+
+
 def combine_1():
     df1 = df_signal.copy()
-    # df1['position_cd1a'] = df1.apply(diff_position_1a, axis=1)
-    # df1['position_cd1b'] = df1.apply(diff_position_1b, axis=1)
-    # df1['position_cd1r'] = df1.apply(diff_position_1r, axis=1)
-    # df1['position_cd2'] = df1.apply(diff_position_2, axis=1)
-    # df1['position_cd2r'] = df1.apply(diff_position_2r, axis=1)
-    # df1['position_cd3'] = df1.apply(diff_position_3, axis=1)
-    # df1['position_cd3r'] = df1.apply(diff_position_3r, axis=1)
+    df1['position_cd1a'] = df1.apply(diff_position_1a, axis=1)
+    df1['position_cd1b'] = df1.apply(diff_position_1b, axis=1)
+    df1['position_cd1r'] = df1.apply(diff_position_1r, axis=1)
+    df1['position_cd2'] = df1.apply(diff_position_2, axis=1)
+    df1['position_cd2r'] = df1.apply(diff_position_2r, axis=1)
+    df1['position_cd2rs'] = df1.apply(diff_position_2rs, axis=1)
+    df1['position_cd3'] = df1.apply(diff_position_3, axis=1)
+    df1['position_cd3r'] = df1.apply(diff_position_3r, axis=1)
     df1['position_cm1'] = df1.apply(mask_position_1, axis=1)
 
     df1['position_3a7b'] = df1['position_399'] * 0.7 + df1['position_159'] * 0.3
     df1['position_7a3b'] = df1['position_399'] * 0.3 + df1['position_159'] * 0.7
 
-    df1['position_cs1a_avg'] = df1.apply(lambda r: sign_position_1a(r, 'position_avg'), axis=1)
+    df1['position_cs1'] = df1.apply(lambda r: sign_position_1(r, 'position_avg'), axis=1)
+    df1['position_cs1x'] = df1.apply(lambda r: sign_position_1x(r, 'position_avg'), axis=1)
+    df1['position_cs1y'] = df1.apply(lambda r: sign_position_1y(r, 'position_avg'), axis=1)
+    df1['position_cs2'] = df1.apply(lambda r: sign_position_2(r, 'position_avg'), axis=1)
+    df1['position_cs2z'] = df1.apply(lambda r: sign_position_2z(r, 'position_avg'), axis=1)
+    df1['position_cs2x'] = df1.apply(lambda r: sign_position_2x(r, 'position_avg'), axis=1)
 
-    df1['position_cs1a_159'] = df1.apply(lambda r: sign_position_1a(r, 'position_159'), axis=1)
-    df1['position_cs1a_399'] = df1.apply(lambda r: sign_position_1a(r, 'position_399'), axis=1)
-    df1['position_cs1a_3a7b'] = df1.apply(lambda r: sign_position_1a(r, 'position_3a7b'), axis=1)
-    df1['position_cs1a_7a3b'] = df1.apply(lambda r: sign_position_1a(r, 'position_7a3b'), axis=1)
+    # df1['position_cs159'] = df1.apply(lambda r: sign_position_1(r, 'position_159'), axis=1)
+    df1['position_cs1x_159'] = df1.apply(lambda r: sign_position_1x(r, 'position_159'), axis=1)
+    # df1['position_cs399'] = df1.apply(lambda r: sign_position_1(r, 'position_399'), axis=1)
+    df1['position_cs1x_399'] = df1.apply(lambda r: sign_position_1x(r, 'position_399'), axis=1)
+    df1['position_cs1x_3a7b'] = df1.apply(lambda r: sign_position_1x(r, 'position_3a7b'), axis=1)
+    df1['position_cs1x_7a3b'] = df1.apply(lambda r: sign_position_1x(r, 'position_7a3b'), axis=1)
+    df1['position_cs2z_3a7b'] = df1.apply(lambda r: sign_position_2z(r, 'position_3a7b'), axis=1)
+    df1['position_cs2z_7a3b'] = df1.apply(lambda r: sign_position_2z(r, 'position_7a3b'), axis=1)
+    df1['position_cs2x_3a7b'] = df1.apply(lambda r: sign_position_2x(r, 'position_3a7b'), axis=1)
+    df1['position_cs2x_7a3b'] = df1.apply(lambda r: sign_position_2x(r, 'position_7a3b'), axis=1)
 
     return df1
 
@@ -196,20 +267,39 @@ net_1_char = net_1_char.set_index('name')
 net_1_char['return_per_year'] = net_1_char['mean'] * 252
 net_1_char['ratio'] = net_1_char['mean'] / net_1_char['std'] * 252**0.5
 net_1_char = net_1_char.sort_values(by='mean')
+
 print(net_1_char)
-net_1_char_ends = pd.concat([net_1_char.head(1), net_1_char.tail(1)])
+net_1_char_159 = net_1_char.loc['net_1_position_159']
+net_1_char_399 = net_1_char.loc['net_1_position_399']
+net_1_char_ends = pd.concat([net_1_char_159.to_frame().T, net_1_char_399.to_frame().T])
+
 
 fig, ax = plt.subplots(figsize=(5, 5), layout='constrained')
 # ax.scatter(net_1_char['std'], net_1_char['mean'], label='combinations')
 # ax.plot(net_1_char_ends['std'], net_1_char_ends['mean'], label='baseline')
 # ax.set_xlabel('std')
 # ax.set_ylabel('mean')
-ax.plot(worth1d.index, worth1d['net_1_position_cs1a_avg'], label='cs1a_avg')
+# ax.plot(worth1d.index, worth1d['net_1_position_cd1a'], label='cd1a')
+# ax.plot(worth1d.index, worth1d['net_1_position_cd1b'], label='cd1b')
+# ax.plot(worth1d.index, worth1d['net_1_position_cd1r'], label='cd1r')
+ax.plot(worth1d.index, worth1d['net_1_position_cd2r'], label='cd2r')
+ax.plot(worth1d.index, worth1d['net_1_position_cd2rs'], label='cd2rs')
 
-ax.plot(worth1d.index, worth1d['net_1_position_cs1a_3a7b'], label='cs1a_3a7b')
-ax.plot(worth1d.index, worth1d['net_1_position_cs1a_7a3b'], label='cs1a_7a3b')
-ax.plot(worth1d.index, worth1d['net_1_position_cs1a_159'], label='cs1a_159')
-ax.plot(worth1d.index, worth1d['net_1_position_cs1a_399'], label='cs1a_399')
+# ax.plot(worth1d.index, worth1d['net_1_position_cs1'], label='cs1')
+ax.plot(worth1d.index, worth1d['net_1_position_cs1x'], label='cs1x')
+ax.plot(worth1d.index, worth1d['net_1_position_cs1y'], label='cs1y')
+ax.plot(worth1d.index, worth1d['net_1_position_cs2'], label='cs2')
+ax.plot(worth1d.index, worth1d['net_1_position_cs2z'], label='cs2')
+ax.plot(worth1d.index, worth1d['net_1_position_cs2x'], label='cs2')
+
+ax.plot(worth1d.index, worth1d['net_1_position_cs1x_3a7b'], label='cs1x_3a7b')
+ax.plot(worth1d.index, worth1d['net_1_position_cs1x_7a3b'], label='cs1x_7a3b')
+ax.plot(worth1d.index, worth1d['net_1_position_cs2x_3a7b'], label='cs2x_3a7b')
+ax.plot(worth1d.index, worth1d['net_1_position_cs2x_7a3b'], label='cs2x_7a3b')
+ax.plot(worth1d.index, worth1d['net_1_position_cs2z_3a7b'], label='cs2z_3a7b')
+ax.plot(worth1d.index, worth1d['net_1_position_cs2z_7a3b'], label='cs2z_7a3b')
+ax.plot(worth1d.index, worth1d['net_1_position_cs1x_159'], label='cs1x_159')
+ax.plot(worth1d.index, worth1d['net_1_position_cs1x_399'], label='cs1x_399')
 # # ax.plot(worth1d.index, worth1d['net_1_position_cm1'], label='cm1')
 ax.plot(worth1d.index, worth1d['net_1_position_159'], label='159')
 ax.plot(worth1d.index, worth1d['net_1_position_399'], label='399')
@@ -217,3 +307,6 @@ ax.plot(worth1d.index, worth1d['net_1_position_avg'], label='avg')
 
 ax.legend()
 plt.show()
+
+# 这里可以做一些真正实验性的东西。
+# 我们发现 cd2r 和 cd2rs 效果较好，且波动较小，可以考虑进一步优化这两个策略。

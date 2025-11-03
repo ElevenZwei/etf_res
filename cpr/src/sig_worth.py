@@ -28,11 +28,8 @@ def merge_position(pos: pd.DataFrame, etf: pd.DataFrame):
     # some position files use NaN for no position
     pos['position'] = pos['position'].fillna(0)
     etf = etf.set_index('dt')
-    etf = etf.resample('1min').agg({
-            'spot_price': ['first', 'last'],
-           }).dropna()
-    etf.columns = etf.columns.droplevel(0)
-    etf.columns = ['spot_open', 'spot_close']
+    etf = etf.rename(columns={ 'openp': 'spot_open', 'closep': 'spot_close' })
+    etf = etf[['spot_open', 'spot_close']]
     # print(etf.head())
     df = pos.join(etf, how='outer')
     return df
@@ -53,13 +50,13 @@ def calc_intraday_profit(merged: pd.DataFrame):
     # shift to avoid lookahead bias
     df['position_actual'] = df['position'].shift(1)
     df['position_actual'] = df['position_actual'].ffill().fillna(0)
-    # method 1 fixed unit
-    df['worth_1_diff'] = df['position_actual'] * df['spot_diff']
-    df['net_1_intraday_diff'] = df.groupby('date')['worth_1_diff'].cumsum().ffill().fillna(0)
-    # method 2 compound investment
-    df['worth_2_logret'] = np.log(df['position_actual'] * df['spot_ratio'] + 1)
+    # method 1 - fixed unit
+    df['tick_1_diff'] = df['position_actual'] * df['spot_diff']
+    df['net_1_intraday_diff'] = df.groupby('date')['tick_1_diff'].cumsum().fillna(0)
+    # method 2 - compound investment
+    df['tick_2_logret'] = np.log(df['position_actual'] * df['spot_ratio'] + 1)
     # sum(logret) over (partition by date order by dt)
-    df['net_2_intraday_logret'] = df.groupby('date')['worth_2_logret'].cumsum().ffill().fillna(0)
+    df['net_2_intraday_logret'] = df.groupby('date')['tick_2_logret'].cumsum().fillna(0)
     df['net_2_intraday'] = np.exp(df['net_2_intraday_logret']) - 1
     return df
 
@@ -71,12 +68,28 @@ def calc_worth(merged: pd.DataFrame) -> (pd.DataFrame, pd.DataFrame):
         'net_1_intraday_diff': 'last',
         'net_2_intraday': 'last',
     })
+    # method 1 - fixed unit
     df_daily['net_1_intraday'] = df_daily['net_1_intraday_diff'] / df_daily['spot_open']
     df_daily['net_1_daily'] = df_daily['net_1_intraday'].cumsum()
+    df_daily['net_1_prev_daily'] = df_daily['net_1_daily'].shift(1).fillna(0)
+    # method 2 - compound investment
     df_daily['net_2_daily'] = (df_daily['net_2_intraday'] + 1).cumprod() - 1
-    # method 3 intraday compound, daily cumulative
+    # method 3 - intraday compound, daily cumulative
     df_daily['net_3_daily'] = df_daily['net_2_intraday'].cumsum()
-    return df_intra, df_daily
+    df_daily['net_3_prev_daily'] = df_daily['net_3_daily'].shift(1).fillna(0)
+
+    # join back to intraday df
+    df_daily_clip = df_daily[['spot_open', 'net_1_prev_daily', 'net_3_prev_daily']]
+    df_daily_clip = df_daily_clip.rename(columns={'spot_open': 'spot_open_daily'})
+    df_intra = df_intra.join(df_daily_clip, on='date', how='left')
+    df_intra['net_1_intraday'] = df_intra['net_1_intraday_diff'] / df_intra['spot_open']
+    df_intra['net_1_total'] = df_intra['net_1_prev_daily'] + df_intra['net_1_intraday']
+    df_intra['net_2_total'] = np.exp(df_intra['tick_2_logret'].cumsum().ffill().fillna(0)) - 1
+    df_intra['net_3_total'] = df_intra['net_3_prev_daily'] + df_intra['net_2_intraday']
+
+    df_daily_final = df_daily[['spot_open', 'net_1_daily', 'net_2_daily', 'net_3_daily']]
+
+    return df_intra, df_daily_final
 
 
 def signal_worth(pos: pd.DataFrame, etf: pd.DataFrame,
@@ -123,9 +136,11 @@ def prepare_df(df: pd.DataFrame, dt_from: datetime, dt_to: datetime) -> pd.DataF
 
 
 def main():
-    dt_from = datetime(2025, 1, 13)
-    dt_to = datetime(2025, 9, 30, 23, 59)
-    etf1 = pd.read_csv(DATA_DIR / 'fact' / 'oi_159915_full.csv')
+    # dt_from = datetime(2025, 1, 13)
+    dt_from = datetime(2025, 10, 1)
+    # dt_to = datetime(2025, 9, 30, 23, 59)
+    dt_to = datetime(2025, 10, 31, 23, 59)
+    etf1 = pd.read_csv(DATA_DIR / 'fact' / 'spot_159915_2025_dsp.csv')
     # p1 = pd.read_csv(DATA_DIR / 'signal' / 'pos_399006.csv')
     p2 = prepare_df(pd.read_csv(DATA_DIR / 'signal' / 'roll_159915_1.csv'), dt_from, dt_to)
     # p3 = prepare_df(pd.read_csv(DATA_DIR / 'signal' / 'roll_159915_2.csv'), dt_from, dt_to)

@@ -124,8 +124,31 @@ def sign_position_1a(r, col):
     avg = r[col]
     if avg < -0.4:
         return np.maximum(avg * 2, -1)
+    if avg < -0.2:
+        multiplier = (-0.2 - avg) / 0.2 * 1 + 1
+        return np.maximum(avg * multiplier, -1)
     if avg > 0.4:
         return np.minimum(avg * 2, 1)
+    if avg > 0.2:
+        multiplier = (avg - 0.2) / 0.2 * 1 + 1
+        return np.minimum(avg * multiplier, 1)
+    return avg * abs(avg) / 0.2
+
+def sign_position_4(r, col):
+    avg = r[col]
+    diff = r['position_diff_abs']
+    multiplier = 2.0
+    if diff > 0.6:
+        multiplier = 1.0
+    if diff > 1:
+        multiplier = 0.5
+    if diff > 1.4:
+        return 0
+
+    if avg < -0.4:
+        return np.maximum(avg * multiplier, -1)
+    if avg > 0.4:
+        return np.minimum(avg * multiplier, 1)
     if avg < -0.2:
         return avg
     if avg > 0.2:
@@ -154,6 +177,13 @@ def combine_1():
     df1['position_cs1a_3a7b'] = df1.apply(lambda r: sign_position_1a(r, 'position_3a7b'), axis=1)
     df1['position_cs1a_7a3b'] = df1.apply(lambda r: sign_position_1a(r, 'position_7a3b'), axis=1)
 
+    df1['position_cs4_avg'] = df1.apply(lambda r: sign_position_4(r, 'position_avg'), axis=1)
+
+    df1['position_cs4_159'] = df1.apply(lambda r: sign_position_4(r, 'position_159'), axis=1)
+    df1['position_cs4_399'] = df1.apply(lambda r: sign_position_4(r, 'position_399'), axis=1)
+    df1['position_cs4_3a7b'] = df1.apply(lambda r: sign_position_4(r, 'position_3a7b'), axis=1)
+    df1['position_cs4_7a3b'] = df1.apply(lambda r: sign_position_4(r, 'position_7a3b'), axis=1)
+
     return df1
 
 df1 = combine_1().reset_index()
@@ -163,7 +193,7 @@ df1 = combine_1().reset_index()
 # dfp = df1[['position_cumsum', 'position_159_cumsum', 'position_399_cumsum']]
 # dfp.plot()
 
-etf1 = pd.read_csv(DATA_DIR / 'fact' / 'oi_159915_full.csv')
+etf1 = pd.read_csv(DATA_DIR / 'fact' / 'spot_159915_2025_dsp.csv')
 worth1 = signal_worth_mimo(df1,
        [
            *[col for col in df1.columns if col.startswith('position_c')],
@@ -186,12 +216,16 @@ print('net diff corr:', corr1d)
 
 # 收益特征比较
 means, stds = [], []
+vol_sums = []
 for col in net_1_cols:
     desc = worth1d[col].diff().describe()
     means.append(desc['mean'])
     stds.append(desc['std'])
+    input_col = col.replace('net_1_position_', 'position_')
+    vol_s = df1[input_col].diff().abs().sum()
+    vol_sums.append(vol_s)
     print(desc)
-net_1_char = pd.DataFrame({'mean': means, 'std': stds, 'name': net_1_cols})
+net_1_char = pd.DataFrame({'mean': means, 'std': stds, 'vol_sum': vol_sums, 'name': net_1_cols, })
 net_1_char = net_1_char.set_index('name')
 net_1_char['return_per_year'] = net_1_char['mean'] * 252
 net_1_char['ratio'] = net_1_char['mean'] / net_1_char['std'] * 252**0.5
@@ -210,6 +244,12 @@ ax.plot(worth1d.index, worth1d['net_1_position_cs1a_3a7b'], label='cs1a_3a7b')
 ax.plot(worth1d.index, worth1d['net_1_position_cs1a_7a3b'], label='cs1a_7a3b')
 ax.plot(worth1d.index, worth1d['net_1_position_cs1a_159'], label='cs1a_159')
 ax.plot(worth1d.index, worth1d['net_1_position_cs1a_399'], label='cs1a_399')
+ax.plot(worth1d.index, worth1d['net_1_position_cs4_avg'], label='cs4_avg')
+
+ax.plot(worth1d.index, worth1d['net_1_position_cs4_3a7b'], label='cs4_3a7b')
+ax.plot(worth1d.index, worth1d['net_1_position_cs4_7a3b'], label='cs4_7a3b')
+ax.plot(worth1d.index, worth1d['net_1_position_cs4_159'], label='cs4_159')
+ax.plot(worth1d.index, worth1d['net_1_position_cs4_399'], label='cs4_399')
 # # ax.plot(worth1d.index, worth1d['net_1_position_cm1'], label='cm1')
 ax.plot(worth1d.index, worth1d['net_1_position_159'], label='159')
 ax.plot(worth1d.index, worth1d['net_1_position_399'], label='399')

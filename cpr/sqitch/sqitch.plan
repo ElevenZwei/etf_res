@@ -14,3 +14,5 @@
 011_md 2025-09-15T06:38:17Z anon <anon@localhost> # Add market data.
 012_md_func 2025-09-15T09:22:00Z anon <anon@localhost> # Add functions to market data tables.
 013_external_signal 2025-09-28T05:18:23Z anon <anon@localhost> # Add external signal storage.
+014_hb_record 2025-10-30T05:56:43Z anon <anon@localhost> # add hb trade record.
+015_combine_signal 2025-11-05T09:04:33Z anon <anon@localhost> # add signal combination tables.

@@ -1,14 +1,6 @@
 """
 这个文件可以更加轻松地下载 Open Interest 数据。
 使用新的数据库以及经过了事先聚合的数据。
-
-但是事先聚合的数据在每分钟上都是 last_value，
-不是为了在一分钟各个时间点的运行有一致性选择的 first_value。
-这可能会导致在某些回测中出现细微差异，而且会出现这一分钟到底开还是不开的抖动。
-尤其是 cpr.roll_merged 和 cpr.roll_export_run 两组信号之间的差异。
-有一个简单的方法是用上一分钟的 last_value 作为当前分钟的 first_value。
-这样会有一点点的滞后，但是可以保证一致性。
-
 """
 
 import click
@@ -79,7 +71,7 @@ def pivot_sum(df: pd.DataFrame, col: str, tag: str):
     计算 call or put oi 数据的总和。
     """
     df = df.pivot(index='dt', columns='strike', values=col)
-    df = df.ffill()#.bfill().astype('int64')
+    df = df.ffill()
     # print(df)
     df.to_csv(f'{OI_DIR}/debug_cpr_pivot_sum_{tag}.csv')
     return df.sum(axis=1)
@@ -98,9 +90,27 @@ def calc_oi(df: pd.DataFrame):
     return df2.reset_index('dt')
 
 
+def dl_spot_data(spot: str, dt_from: datetime.date, dt_to: datetime.date) -> pd.DataFrame:
+    query = sa.text("""
+        select dt, tradecode as code, open as openp, close as closep
+        from md.contract_price_minute
+        where tradecode = :spot
+            and dt >= :dt_from and dt <= :dt_to
+        order by dt asc;
+    """)
+    with engine.connect() as conn:
+        df = pd.read_sql(query, conn, params={
+            'spot': spot,
+            'dt_from': dt_from,
+            'dt_to': dt_to
+        })
+    return df
+
+
 expiry = (dl_nearest_expiry('159915', datetime.date(2025, 10, 23)))
 if expiry is not None:
     oi = (dl_oi_data('159915', expiry, datetime.date(2025, 10, 23)))
     print(oi)
     print(calc_oi(oi))
-
+spot = dl_spot_data('159915', datetime.date(2025, 11, 3), datetime.date(2025, 11, 4))
+print(spot)

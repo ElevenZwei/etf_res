@@ -1,4 +1,5 @@
-# update roll_position.csv file from cpr.roll_merged table
+# update roll_159915_<roll_args_id>.csv file from cpr.roll_merged table
+# update stock_399006_avg.csv file from cpr.stock_signal table
 
 import pandas as pd
 from config import DATA_DIR, get_engine

@@ -1,23 +1,14 @@
 import click
-from export_run import RollExportFrom, run_roll_export_from, aggr_filter_diff
 from sakana import SakanaScheduler
 from datetime import datetime, date
 from typing import Optional
+from combine_signal_realtime import load_and_combine_signals
 
 def task_callback(today: Optional[date] = None):
     if today is None:
         today = date.today()
-    df = run_roll_export_from(
-            RollExportFrom(
-                source='db',
-                db_roll_args_id=1,
-                db_roll_top=10,
-                db_dt_from=today,
-                db_dt_to=today,
-            ), 'db', today, today)
-    diff_df = aggr_filter_diff(df)
-    print(f"Signal changes:\n{diff_df}")
-    # print(df)
+    load_and_combine_signals(
+            today, roll_args_id=1, roll_top=10)
 
 
 def main():
@@ -30,6 +21,7 @@ def main():
     )
     scheduler.set_callback(task_callback)
     scheduler.run()
+
 
 @click.command()
 @click.option('-d', '--date', type=click.DateTime(formats=["%Y-%m-%d"]), default=None, help='Run the task for a specific date')

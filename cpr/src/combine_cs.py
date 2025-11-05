@@ -234,7 +234,7 @@ df1 = combine_1().reset_index()
 # dfp = df1[['position_cumsum', 'position_159_cumsum', 'position_399_cumsum']]
 # dfp.plot()
 
-etf1 = pd.read_csv(DATA_DIR / 'fact' / 'oi_159915_full.csv')
+etf1 = pd.read_csv(DATA_DIR / 'fact' / 'spot_159915_2025_dsp.csv')
 worth1 = signal_worth_mimo(df1,
        [
            *[col for col in df1.columns if col.startswith('position_c')],
@@ -257,12 +257,16 @@ print('net diff corr:', corr1d)
 
 # 收益特征比较
 means, stds = [], []
+vol_sums = []
 for col in net_1_cols:
     desc = worth1d[col].diff().describe()
     means.append(desc['mean'])
     stds.append(desc['std'])
+    input_col = col.replace('net_1_position_', 'position_')
+    vol_s = df1[input_col].diff().abs().sum()
+    vol_sums.append(vol_s)
     print(desc)
-net_1_char = pd.DataFrame({'mean': means, 'std': stds, 'name': net_1_cols})
+net_1_char = pd.DataFrame({'mean': means, 'std': stds, 'vol_sum': vol_sums, 'name': net_1_cols, })
 net_1_char = net_1_char.set_index('name')
 net_1_char['return_per_year'] = net_1_char['mean'] * 252
 net_1_char['ratio'] = net_1_char['mean'] / net_1_char['std'] * 252**0.5

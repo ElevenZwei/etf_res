@@ -22,7 +22,7 @@ def cut_df(df: pd.DataFrame, dt_from: datetime, dt_to: datetime):
     return df
 
 
-def merge_position(pos: pd.DataFrame, etf: pd.DataFrame):
+def merge_position(pos: pd.DataFrame, etf: pd.DataFrame, twap_count: int):
     pos = pos.set_index('dt')
     pos = pos[['position']]
     # some position files use NaN for no position
@@ -30,23 +30,34 @@ def merge_position(pos: pd.DataFrame, etf: pd.DataFrame):
     etf = etf.set_index('dt')
     etf = etf.rename(columns={ 'openp': 'spot_open', 'closep': 'spot_close' })
     etf = etf[['spot_open', 'spot_close']]
+    etf = calc_spot_twap_trade_price(etf, cnt=twap_count)
     # print(etf.head())
     df = pos.join(etf, how='outer')
     return df
 
 
+def calc_spot_twap_trade_price(etf: pd.DataFrame, cnt: int):
+    price = etf['spot_close'].copy()
+    for i in range(1, cnt):
+        price += etf['spot_close'].shift(-i).ffill()
+    price = price / cnt
+    etf['spot_twap_trade_price'] = price
+    print(etf.head(10))
+    return etf
+
+
 def cut_merge(pos: pd.DataFrame, etf: pd.DataFrame, dt_from: datetime, dt_to: datetime):
     pos = cut_df(pos, dt_from, dt_to)
     etf = cut_df(etf, dt_from, dt_to)
-    return merge_position(pos, etf)
+    return merge_position(pos, etf, 1)
 
 
 def calc_intraday_profit(merged: pd.DataFrame):
     df = merged.copy()
     df['date'] = df.index.date
-    df['spot_prev_close'] = df['spot_close'].shift(1)
-    df['spot_diff'] = df['spot_close'] - df['spot_prev_close']
-    df['spot_ratio'] = df['spot_close'] / df['spot_prev_close'] - 1
+    df['spot_prev_trade_price'] = df['spot_twap_trade_price'].shift(1)
+    df['spot_diff'] = df['spot_twap_trade_price'] - df['spot_prev_trade_price']
+    df['spot_ratio'] = df['spot_twap_trade_price'] / df['spot_prev_trade_price'] - 1
     # shift to avoid lookahead bias
     df['position_actual'] = df['position'].shift(1)
     df['position_actual'] = df['position_actual'].ffill().fillna(0)

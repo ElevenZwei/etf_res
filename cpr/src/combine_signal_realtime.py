@@ -162,7 +162,7 @@ def upload_combine_signal(merge_df: pd.DataFrame, combine_schema: list):
         id serial primary key,
         scheme_id integer not null references cpr.combine_signal_scheme(id) on delete cascade,
         dt timestamptz not null,
-        code text not null,
+        product text not null,
         position float8 not null default 0,
         inserted_at timestamptz not null default now(),
         check(position >= -1 and position <= 1)
@@ -173,7 +173,7 @@ def upload_combine_signal(merge_df: pd.DataFrame, combine_schema: list):
         sig = item['function'](merge_df)
         df = pd.DataFrame({'position': sig})
         df['scheme_id'] = item['id']
-        df['code'] = '159915'
+        df['product'] = '159915'
         df.to_sql('combine_signal', engine, schema='cpr',
                 if_exists='append', index_label='dt',
                 method=upsert_combine_signal)
@@ -188,7 +188,7 @@ def upsert_combine_signal(table, conn, keys, data_iter):
         }
         condition = (stmt.excluded.position != table.table.c.position)
         stmt = stmt.on_conflict_do_update(
-                index_elements=['scheme_id', 'dt', 'code'],
+                index_elements=['scheme_id', 'dt', 'product'],
                 set_=update_dict,
                 where=condition)
         conn.execute(stmt)

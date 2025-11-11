@@ -160,11 +160,9 @@ def main(suffix: str, principal: float = 1000000.0):
     pnl_df = pnl_df.set_index('dt').resample('1d').last().reset_index()
     pnl_df = pnl_df[~pnl_df['pnl'].isna()]
     pnl_df['dt'] = pnl_df['dt'].dt.date
-    pnl_df['pnl_diff'] = pnl_df['pnl'].diff().fillna(0)
-    pnl_df.loc[0, 'pnl_diff'] = pnl_df.loc[0, 'pnl']
+    pnl_df['pnl_diff'] = pnl_df['pnl'].diff().fillna(pnl_df['pnl'])
     pnl_df['ratio'] = pnl_df['pnl'] / principal
-    pnl_df['ratio_diff'] = pnl_df['ratio'].diff().fillna(0)
-    pnl_df.loc[0, 'ratio_diff'] = pnl_df.loc[0, 'ratio']
+    pnl_df['ratio_diff'] = pnl_df['ratio'].diff().fillna(pnl_df['ratio'])
     # print(pnl_df)
     pnl_df.to_csv(f'{DATA_DIR}/output/pnl_{suffix}.csv', index=False, float_format='%.4f')
 

@@ -147,12 +147,12 @@ def prepare_df(df: pd.DataFrame, dt_from: datetime, dt_to: datetime) -> pd.DataF
 
 
 def main():
-    # dt_from = datetime(2025, 1, 13)
+    dt_from = datetime(2025, 1, 13)
     # dt_from = datetime(2025, 10, 1)
-    dt_from = datetime(2025, 11, 1)
+    # dt_from = datetime(2025, 9, 23)
     # dt_to = datetime(2025, 9, 30, 23, 59)
     # dt_to = datetime(2025, 10, 31, 23, 59)
-    dt_to = datetime(2025, 11, 7, 23, 59)
+    dt_to = datetime(2025, 11, 11, 23, 59)
     etf1 = pd.read_csv(DATA_DIR / 'fact' / 'spot_minute_159915.csv')
     # print(etf1.tail())
     # sig = pd.read_csv(DATA_DIR / 'signal' / 'pos_399006.csv')

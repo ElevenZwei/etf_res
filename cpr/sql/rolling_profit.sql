@@ -13,15 +13,19 @@ begin;
 -- 实际我们操作的时候，多个策略之间的权重相同指的是投入相同的手数，而不是价格，而且价格的微小差异无法连续反映在数量上。
 -- 这个角度上面的统计需要加权开仓价格平均，而不是简单平均。
 -- 也就是 sum(profit) / sum(price_open) 
+-- 不不不，2025-09-23 告诉我这个算出来完全不对，(a/b + c/d)/2 != (a+c)/(b+d)
 
 -- 但是这个计算方式又引发了新的问题，如果十个策略里面只有两个策略在交易，但是我们需要准备十个策略的资金。
 -- 用这两个策略的平均收益代表十个策略的平均收益也有问题，
 -- 所以我们需要再加上一个交易了的策略数量的修正因子，count(distinct trade_args_id) / total_count .
 -- 这样已经非常接近真实情况了。
+-- 所以综合起来的正确做法是
+-- sum(profit_percent) / rank_arg as profit_percent_weighted_avg,
+
 do $$
 declare
     dt_bg date = '2025-01-01';
-    dt_ed date = '2025-10-01';
+    dt_ed date = '2025-11-01';
     -- dt_ed date = '2025-01-16';
     roll_args_id_arg int = 1;
     rank_arg int = 10;
@@ -49,8 +53,12 @@ begin
         order by rr.dt_from, rr.dt_to, trade_args_id, ctp.dt_open
     ), roll_profit_daily as (
         select dat,
-        sum(profit) / sum(price_open) * count(distinct trade_args_id) / rank_arg
-            as profit_percent_weighted_avg
+        -- sum(profit) / sum(price_open) * count(distinct trade_args_id) / rank_arg
+        --     as profit_percent_weighted_avg
+        sum(profit_percent) / rank_arg
+            as profit_percent_weighted_avg,
+        count(*) as trades_cnt,
+        count(distinct trade_args_id) as active_args_cnt
         from roll_profit
         group by dat
         order by dat
@@ -60,9 +68,9 @@ begin
         from roll_profit_daily
         order by dat
     )
-    select * from roll_profit_daily_accu;
-    -- select * from roll_profit_daily;
     -- select * from roll_profit;
+    -- select * from roll_profit_daily;
+    select * from roll_profit_daily_accu;
 end $$;
 
 select * from tt;

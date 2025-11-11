@@ -413,7 +413,7 @@ def aggr_cut(aggr_df: pd.DataFrame) -> pd.DataFrame:
 
 def aggr_filter_diff(aggr_df: pd.DataFrame) -> pd.DataFrame:
     # keep only rows with position different from previous row
-    aggr_df['position_diff'] = aggr_df['position'].diff().fillna(0.0)
+    aggr_df['position_diff'] = aggr_df['position'].diff().fillna(aggr_df['position'])
     aggr_df = aggr_df[aggr_df['position_diff'] != 0.0].copy()
     aggr_df.drop(columns=['position_diff'], inplace=True)
     return aggr_df

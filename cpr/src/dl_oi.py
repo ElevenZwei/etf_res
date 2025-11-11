@@ -440,9 +440,11 @@ def click_main(target: str, spot: str, begin: str, end: str):
     下载并计算 oi 数据。
     """
     begin_date = datetime.datetime.strptime(begin, '%Y%m%d').date() if begin else datetime.date.today()
-    end_date = datetime.datetime.strptime(end, '%Y%m%d').date() if end else datetime.date.today()
+    end_date = datetime.datetime.strptime(end, '%Y%m%d').date() if end else begin_date
     if target == 'spot':
         df = dl_spot_range(spot, begin_date, end_date)
+        begin = begin_date.strftime('%Y%m%d')
+        end = end_date.strftime('%Y%m%d')
         fpath = f"{DATA_DIR}/fact/spot/spot_{spot}_{begin}_{end}.csv"
         df.to_csv(fpath, index=False)
         print(f"Saved spot data to {fpath}")

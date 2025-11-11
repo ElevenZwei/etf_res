@@ -73,8 +73,8 @@ def fetch_contract_info_new(spot: str, dt: datetime.date) -> pd.DataFrame:
 
 
 @click.command()
-@click.argument('spot')
-@click.argument('dt', type=click.DateTime(formats=["%Y-%m-%d"]))
+@click.option('-s', '--spot', required=True, type=str, help='Spot code, e.g., 159915.')
+@click.option('-d', '--dt', required=True, type=click.DateTime(formats=["%Y%m%d"]), help='Date to find nearest expiry after, format YYYYMMDD.')
 def cli(spot: str, dt: datetime.datetime):
     """ Download option contract information of given spot with nearest expiry after given date. """
     df = dl_contract_info(spot, dt.date())

@@ -107,10 +107,11 @@ def dl_spot_data(spot: str, dt_from: datetime.date, dt_to: datetime.date) -> pd.
     return df
 
 
-expiry = (dl_nearest_expiry('159915', datetime.date(2025, 10, 23)))
-if expiry is not None:
-    oi = (dl_oi_data('159915', expiry, datetime.date(2025, 10, 23)))
-    print(oi)
-    print(calc_oi(oi))
-spot = dl_spot_data('159915', datetime.date(2025, 11, 3), datetime.date(2025, 11, 4))
-print(spot)
+if __name__ == '__main__':
+    expiry = (dl_nearest_expiry('159915', datetime.date(2025, 10, 23)))
+    if expiry is not None:
+        oi = (dl_oi_data('159915', expiry, datetime.date(2025, 10, 23)))
+        print(oi)
+        print(calc_oi(oi))
+    spot = dl_spot_data('159915', datetime.date(2025, 11, 3), datetime.date(2025, 11, 4))
+    print(spot)

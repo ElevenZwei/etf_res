@@ -17,18 +17,18 @@ from config import DATA_DIR, PG_CPR_CONN_INFO, PG_OI_CONN_INFO, get_engine
 
 OI_DIR = f'{DATA_DIR}/fact/oi_daily/'
 OI_MERGE_DIR = f'{DATA_DIR}/fact/oi_merge/'
+SPOT_DIR = f'{DATA_DIR}/fact/spot/'
 USE_NEW_DB = True
 
 if not os.path.exists(OI_DIR):
     os.makedirs(OI_DIR, exist_ok=True)
 if not os.path.exists(OI_MERGE_DIR):
     os.makedirs(OI_MERGE_DIR, exist_ok=True)
+if not os.path.exists(SPOT_DIR):
+    os.makedirs(SPOT_DIR, exist_ok=True)
 
 def get_engine_wrapper() -> sa.engine.Engine:
     return get_engine(PG_CPR_CONN_INFO if USE_NEW_DB else PG_OI_CONN_INFO)
-
-engine: sa.engine.Engine = get_engine_wrapper()
-
 
 def dl_expiry_date(spot: str, year: int, month: int) -> Optional[datetime.date]:
     d_from = datetime.datetime(year, month, 1)
@@ -48,7 +48,7 @@ def fetch_expiry_date_old(spot: str, d_from: datetime.date, d_to: datetime.date)
             and expirydate >= :d_from
             and expirydate <= :d_to
     """)
-    with engine.connect() as conn:
+    with get_engine_wrapper().connect() as conn:
         df = pd.read_sql(query, conn, params={
             'spot_code': f'{spot}%',
             'd_from': d_from.strftime('%Y-%m-%d'),
@@ -66,7 +66,7 @@ def fetch_expiry_date_new(spot: str, d_from: datetime.date, d_to: datetime.date)
                     where expiry >= :d_from and expiry <= :d_to
                     and spotcode = :spot
     """)
-    with engine.connect() as conn:
+    with get_engine_wrapper().connect() as conn:
         df = pd.read_sql(query, conn, params={
             'spot': spot,
             'd_from': d_from.strftime('%Y-%m-%d'),
@@ -113,7 +113,7 @@ def fetch_oi_data_old(spot: str, expiry_date: datetime.date,
         )
         select * from OI order by dt asc;
     """)
-    with engine.connect() as conn:
+    with get_engine_wrapper().connect() as conn:
         df = pd.read_sql(query, conn, params={
             'spot': spot,
             'expiry_date': expiry_date.strftime('%Y-%m-%d'),
@@ -138,7 +138,7 @@ def fetch_oi_data_new(spot: str, expiry_date: datetime.date,
         )
         select * from oi order by dt asc;
     """)
-    with engine.connect() as conn:
+    with get_engine_wrapper().connect() as conn:
         df = pd.read_sql(query, conn, params={
             'spot': spot,
             'expiry_date': expiry_date.strftime('%Y-%m-%d'),
@@ -403,7 +403,7 @@ def fetch_spot_data_old(spot: str,
         and code = :spot
         order by dt asc;
     """)
-    with engine.connect() as conn:
+    with get_engine_wrapper().connect() as conn:
         df = pd.read_sql(query, conn, params={
             'spot': spot,
             'bg_datetime': bg_datetime_str,
@@ -421,7 +421,7 @@ def fetch_spot_data_new(spot: str,
         and tradecode = :spot
         order by dt asc;
     """)
-    with engine.connect() as conn:
+    with get_engine_wrapper().connect() as conn:
         df = pd.read_sql(query, conn, params={
             'spot': spot,
             'bg_datetime': bg_datetime_str,
@@ -431,17 +431,24 @@ def fetch_spot_data_new(spot: str,
 
 
 @click.command()
+@click.option('-t', '--target', type=str, required=True, help="oi or spot")
 @click.option('-s', '--spot', type=str, required=True, help="Spot code: e.g., 159915 510050")
 @click.option('-b', '--begin', type=str, help="Begin date in format YYYYMMDD")
 @click.option('-e', '--end', type=str, help="End date in format YYYYMMDD")
-def click_main(spot: str, begin: str, end: str):
+def click_main(target: str, spot: str, begin: str, end: str):
     """
     下载并计算 oi 数据。
     """
     begin_date = datetime.datetime.strptime(begin, '%Y%m%d').date() if begin else datetime.date.today()
     end_date = datetime.datetime.strptime(end, '%Y%m%d').date() if end else datetime.date.today()
-    dl_calc_oi_range(spot, begin_date, end_date)
-    oi_csv_merge(spot)
+    if target == 'spot':
+        df = dl_spot_range(spot, begin_date, end_date)
+        fpath = f"{DATA_DIR}/fact/spot/spot_{spot}_{begin}_{end}.csv"
+        df.to_csv(fpath, index=False)
+        print(f"Saved spot data to {fpath}")
+    else:
+        dl_calc_oi_range(spot, begin_date, end_date)
+        oi_csv_merge(spot)
 
 
 if __name__ == '__main__':

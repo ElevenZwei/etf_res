@@ -56,7 +56,8 @@ begin
     if found then
         update cpr.stock_signal set
             ps = new.ps,
-            if_final = new.if_final
+            if_final = new.if_final,
+            modified_time = now()
         where id = old_id;
         return null;
     end if;

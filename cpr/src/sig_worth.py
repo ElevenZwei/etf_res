@@ -125,7 +125,7 @@ def signal_worth_mimo(pos: pd.DataFrame,
     for col in pos_columns:
         df = pos[['dt', col]].copy()
         df = df.rename(columns={col: 'position'})
-        merged = merge_position(df, etf)
+        merged = merge_position(df, etf, 1)
         _, daily = calc_worth(merged)
         daily = daily[['net_1_daily', 'net_2_daily', 'net_3_daily']]
         daily = daily.rename(columns={

@@ -7,10 +7,11 @@ import matplotlib.pyplot as plt
 from config import DATA_DIR
 from sig_worth import cut_df, signal_worth_mimo
 
-df_399 = pd.read_csv(DATA_DIR / 'signal' / 'pos_399006.csv')
+df_399 = pd.read_csv(DATA_DIR / 'signal' / 'stock_399006_avg.csv')
 df_159 = pd.read_csv(DATA_DIR / 'signal' / 'roll_159915_1.csv')
-dt_from = pd.to_datetime('2025-01-13')
-dt_to = pd.to_datetime('2025-09-19 23:59')
+etf1 = pd.read_csv(DATA_DIR / 'fact' / 'spot_minute_159915.csv')
+dt_from = pd.to_datetime('2025-10-01')
+dt_to = pd.to_datetime('2025-11-15 23:59')
 
 def prepare_df(df: pd.DataFrame) -> pd.DataFrame:
     df = cut_df(df, dt_from, dt_to)
@@ -28,8 +29,8 @@ df_signal['position_diff_abs'] = df_signal['position_diff'].abs()
 df_signal['position_avg'] = (df_signal['position_159'] + df_signal['position_399']) / 2
 # print(df_signal)
 
-print(df_signal['position_diff'].describe())
-print(df_signal['position_diff_abs'].describe())
+# print(df_signal['position_diff'].describe())
+# print(df_signal['position_diff_abs'].describe())
 df_signal.to_csv(DATA_DIR / 'signal' / 'combined' / 'pos_combined.csv', index=True)
 
 # df_signal['position_diff'].cumsum().plot()
@@ -193,7 +194,6 @@ df1 = combine_1().reset_index()
 # dfp = df1[['position_cumsum', 'position_159_cumsum', 'position_399_cumsum']]
 # dfp.plot()
 
-etf1 = pd.read_csv(DATA_DIR / 'fact' / 'spot_159915_2025_dsp.csv')
 worth1 = signal_worth_mimo(df1,
        [
            *[col for col in df1.columns if col.startswith('position_c')],
@@ -224,7 +224,7 @@ for col in net_1_cols:
     input_col = col.replace('net_1_position_', 'position_')
     vol_s = df1[input_col].diff().abs().sum()
     vol_sums.append(vol_s)
-    print(desc)
+    # print(desc)
 net_1_char = pd.DataFrame({'mean': means, 'std': stds, 'vol_sum': vol_sums, 'name': net_1_cols, })
 net_1_char = net_1_char.set_index('name')
 net_1_char['return_per_year'] = net_1_char['mean'] * 252
@@ -256,4 +256,4 @@ ax.plot(worth1d.index, worth1d['net_1_position_399'], label='399')
 ax.plot(worth1d.index, worth1d['net_1_position_avg'], label='avg')
 
 ax.legend()
-plt.show()
+# plt.show()

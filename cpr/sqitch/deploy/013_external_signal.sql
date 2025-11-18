@@ -5,7 +5,7 @@ BEGIN;
 -- XXX Add DDLs here.
 
 -- 股票组写入信号数据的表格，数据列名称按他们现有的风格。
--- 
+-- Stock Signal in realtime
 create table if not exists cpr.stock_signal (
     -- 股票代码，例如 399006
     id serial primary key,

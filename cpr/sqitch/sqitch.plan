@@ -16,3 +16,4 @@
 013_external_signal 2025-09-28T05:18:23Z anon <anon@localhost> # Add external signal storage.
 014_hb_record 2025-10-30T05:56:43Z anon <anon@localhost> # add hb trade record.
 015_combine_signal 2025-11-05T09:04:33Z anon <anon@localhost> # add signal combination tables.
+016_external_signal_archive 2025-11-17T07:17:26Z anon <anon@localhost> # add imported external signal table.

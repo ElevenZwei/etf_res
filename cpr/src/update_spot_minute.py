@@ -9,7 +9,7 @@ spot_dl['dt'] = pd.to_datetime(spot_dl['dt'])
 spot_dl = spot_dl.set_index('dt').tz_convert('Asia/Shanghai')
 print(spot_dl)
 
-spot_old = pd.read_csv(DATA_DIR / 'fact' / 'spot_159915_2025_dsp.csv')
+spot_old = pd.read_csv(DATA_DIR / 'fact' / 'spot_159915_2025_old.csv')
 spot_old['dt'] = pd.to_datetime(spot_old['dt'])
 spot_old = spot_old.set_index('dt')
 

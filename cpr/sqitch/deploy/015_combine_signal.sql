@@ -63,14 +63,14 @@ create table if not exists cpr.combine_signal (
     id serial primary key,
     scheme_id integer not null references cpr.combine_signal_scheme(id) on delete cascade,
     dt timestamptz not null,
-    code text not null,
+    product text not null,
     position float8 not null default 0,
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now(),
     check(position >= -1 and position <= 1)
 );
-create unique index if not exists idx_combine_signal_scheme_dt_code
-    on cpr.combine_signal(scheme_id, dt, code);
+create unique index if not exists idx_combine_signal_scheme_dt_product
+    on cpr.combine_signal(scheme_id, dt, product);
 
 create or replace function cpr.update_combine_signal_modified_time()
 returns trigger language plpgsql as $$

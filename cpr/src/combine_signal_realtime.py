@@ -77,7 +77,7 @@ def merge_signals(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:
 
 
 # 请勿修改下面的函数签名和实现，需要保持一致以便对应数据库中的记录。
-# 你只能增加新的 combine 函数，并将其添加到 combine_schema 列表中。
+# 你只能增加新的 combine 函数，并将其添加到 combine_schemes 列表中。
 def amp1_row(row: pd.Series, col: str) -> int:
     """一个连续的非线性变换函数，将输入映射到 -1 到 1 之间，且在 -0.2 到 0.2 之间平滑过渡。"""
     input = row.loc[col]
@@ -107,7 +107,7 @@ def combine_amp1_7a3b(df: pd.DataFrame) -> pd.Series:
     return amp1(df, 'position_7a3b')
 
 
-default_combine_schema = [
+default_combine_schemes = [
     {
         'name': 'amp1_avg',
         'description': 'Combine amp1 using average of CPR and stock signals.',
@@ -127,14 +127,14 @@ default_combine_schema = [
 ]
 
 
-def get_combine_schema_id(schema: list) -> list:
+def combine_schemes_with_fetched_id(schemes: list) -> list:
     """
-    Upload the combine schema to the database.
+    Upload the combine schemes to the database.
     create or replace function cpr.get_or_create_combine_signal_scheme(
         scheme_name_arg text, description_arg text, code_arg text)
         returns integer language plpgsql
     """
-    for item in schema:
+    for item in schemes:
         query = sa.text('''
             select cpr.get_or_create_combine_signal_scheme(
                 :scheme_name_arg,
@@ -152,10 +152,10 @@ def get_combine_schema_id(schema: list) -> list:
             df = pd.DataFrame(result.fetchall(), columns=result.keys())
         print(f"Uploaded combine scheme '{item['name']}' with id {df.iloc[0]['id']}.")
         item['id'] = int(df.iloc[0]['id'])
-    return schema
+    return schemes
 
 
-def upload_combine_signal(merge_df: pd.DataFrame, combine_schema: list):
+def upload_combine_signal(merge_df: pd.DataFrame, combine_schemes: list):
     """
     Upload the combined signals to the database.
     create table if not exists cpr.combine_signal (
@@ -168,8 +168,8 @@ def upload_combine_signal(merge_df: pd.DataFrame, combine_schema: list):
         check(position >= -1 and position <= 1)
     );
     """
-    schema = get_combine_schema_id(combine_schema)
-    for item in schema:
+    schemes_with_id = combine_schemes_with_fetched_id(combine_schemes)
+    for item in schemes_with_id:
         sig = item['function'](merge_df)
         df = pd.DataFrame({'position': sig})
         df['scheme_id'] = item['id']
@@ -196,14 +196,14 @@ def upsert_combine_signal(table, conn, keys, data_iter):
 
 def load_and_combine_signals(dt: datetime.date,
                              roll_args_id: int, roll_top: int,
-                             combine_schema: list = default_combine_schema):
+                             combine_schemes: list = default_combine_schemes):
     reid = load_cpr_roll_export_id(
             roll_args_id=roll_args_id, top=roll_top, dt=dt)
     print('Loaded roll_export_id:', reid)
     df1 = load_cpr_signal(dt, reid)
     df2 = load_stock_signal(dt)
     df = merge_signals(df1, df2)
-    upload_combine_signal(df, combine_schema)
+    upload_combine_signal(df, combine_schemes)
 
 
 
@@ -212,7 +212,7 @@ def load_and_combine_signals(dt: datetime.date,
 @click.option('-r', '--roll-args-id', required=False, default=1, type=int, help='Roll arguments ID for CPR signal.')
 @click.option('--top', required=False, default=10, type=int, help='Top N contracts for CPR signal.')
 def cli(dt, roll_args_id, top):
-    load_and_combine_signals(dt.date(), roll_args_id, top, default_combine_schema)
+    load_and_combine_signals(dt.date(), roll_args_id, top, default_combine_schemes)
 
 if __name__ == '__main__':
     cli()

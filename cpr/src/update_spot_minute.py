@@ -4,7 +4,7 @@ from dl_oi_new import dl_spot_data
 from config import DATA_DIR
 
 
-spot_dl = dl_spot_data('159915', datetime.date(2025, 10, 28), datetime.datetime.now().date())
+spot_dl = dl_spot_data('159915', datetime.date(2025, 10, 28), datetime.datetime.now().date() + datetime.timedelta(days=1))
 spot_dl['dt'] = pd.to_datetime(spot_dl['dt'])
 spot_dl = spot_dl.set_index('dt').tz_convert('Asia/Shanghai')
 print(spot_dl)

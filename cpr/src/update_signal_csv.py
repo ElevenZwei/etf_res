@@ -9,6 +9,7 @@ from config import DATA_DIR, get_engine
 engine = get_engine()
 
 roll_args_ids = [1, 2]
+combine_scheme_names = ['amp1_7a3b']
 
 def fetch_roll_csv(dt_from: datetime.date, roll_args_id: int):
     query = sa.text('''
@@ -121,12 +122,63 @@ def concat_stock_csv():
     print(f"Concatenated stock signal to stock_399006_avg.csv with {len(df)} rows.")
 
 
+def fetch_combined_signal(dt_from: datetime.date, scheme_name: str):
+    query = sa.text('''
+            select scheme_id, scheme_name, product, dt, position
+            from cpr.combine_signal cs join cpr.combine_signal_scheme css
+                on cs.scheme_id = css.id
+            where cs.dt >= :dt_from
+                and css.scheme_name = :scheme_name
+                and product = '159915'
+            order by dt;
+            ''')
+    with engine.connect() as conn:
+        df = pl.read_database(query, conn, execute_options={ 'parameters': {
+                'dt_from': dt_from,
+                'scheme_name': scheme_name
+        }})
+    df = df.cast({
+        'scheme_id': pl.Int64,
+        'scheme_name': pl.Utf8,
+        'product': pl.Utf8,
+        'dt': pl.Datetime,
+        'position': pl.Float64})
+    df = df.with_columns(
+            pl.col("dt").dt.convert_time_zone("Asia/Shanghai").alias("dt"),
+    )
+    return df
+
+
+def update_combined_signal_csv(scheme_name: str):
+    fname = f'combined_signal_159915_{scheme_name}.csv'
+    fpath = DATA_DIR / 'signal' / fname
+    dt_from = datetime.date(2025, 11, 7)
+    df = pl.DataFrame()
+    if fpath.exists():
+        df = pl.read_csv(fpath)
+        df = df.with_columns(
+            pl.col("dt").str.strptime(pl.Datetime, "%Y-%m-%dT%H:%M:%S%.f%z")
+                .dt.convert_time_zone("Asia/Shanghai").alias("dt"),
+        )
+        dt_max = df.select(pl.col('dt').max()).to_series()[0]
+        dt_from = dt_max.date() + datetime.timedelta(days=1)
+        print(f"Existing combined signal data up to {dt_max}, fetching from {dt_from} for scheme {scheme_name}.")
+    df_dl = fetch_combined_signal(dt_from, scheme_name)
+    if fpath.exists():
+        df_all = pl.concat([df, df_dl], how='vertical')
+    else:
+        df_all = df_dl
+    df_all.write_csv(fpath)
+    print(f"fetched {len(df_dl)} rows from cpr.combined_signal with existing {len(df)} rows for scheme {scheme_name} to {fname}.")
+
 
 if __name__ == '__main__':
     for roll_args_id in roll_args_ids:
         update_roll_csv(roll_args_id)
     update_stock_csv()
     concat_stock_csv()
+    for scheme_name in combine_scheme_names:
+        update_combined_signal_csv(scheme_name)
 
 
 

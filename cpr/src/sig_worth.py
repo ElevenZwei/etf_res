@@ -98,7 +98,7 @@ def calc_worth(merged: pd.DataFrame) -> (pd.DataFrame, pd.DataFrame):
     df_intra['net_2_total'] = np.exp(df_intra['tick_2_logret'].cumsum().ffill().fillna(0)) - 1
     df_intra['net_3_total'] = df_intra['net_3_prev_daily'] + df_intra['net_2_intraday']
 
-    df_daily_final = df_daily[['spot_open', 'net_1_daily', 'net_2_daily', 'net_3_daily']]
+    df_daily_final = df_daily[['spot_open', 'net_1_daily', 'net_1_intraday', 'net_2_daily', 'net_2_intraday', 'net_3_daily']]
 
     return df_intra, df_daily_final
 
@@ -147,18 +147,19 @@ def prepare_df(df: pd.DataFrame, dt_from: datetime, dt_to: datetime) -> pd.DataF
 
 
 def main():
-    dt_from = datetime(2025, 1, 13)
+    # dt_from = datetime(2025, 1, 13)
     # dt_from = datetime(2025, 10, 1)
-    # dt_from = datetime(2025, 9, 23)
-    dt_to = datetime(2025, 9, 30, 23, 59)
+    dt_from = datetime(2025, 11, 7)
+    # dt_to = datetime(2025, 9, 30, 23, 59)
     # dt_to = datetime(2025, 10, 31, 23, 59)
-    # dt_to = datetime(2025, 11, 16, 23, 59)
+    dt_to = datetime(2025, 11, 21, 23, 59)
     etf1 = pd.read_csv(DATA_DIR / 'fact' / 'spot_minute_159915.csv')
     # print(etf1.tail())
     # sig = pd.read_csv(DATA_DIR / 'signal' / 'pos_399006.csv')
     # sig = pd.read_csv(DATA_DIR / 'signal' / 'stock_399006_avg.csv')
     # sig = prepare_df(pd.read_csv(DATA_DIR / 'signal' / 'roll_159915_1.csv'), dt_from, dt_to)
-    sig = prepare_df(pd.read_csv(DATA_DIR / 'signal' / 'roll_159915_2.csv'), dt_from, dt_to)
+    # sig = prepare_df(pd.read_csv(DATA_DIR / 'signal' / 'roll_159915_2.csv'), dt_from, dt_to)
+    sig = prepare_df(pd.read_csv(DATA_DIR / 'signal' / 'combined_signal_159915_amp1_7a3b.csv'), dt_from, dt_to)
     intra, daily = signal_worth(sig, etf1, dt_from, dt_to)
     
     # df_signal = p2.join(p3, lsuffix='_1', rsuffix='_2', how='outer')

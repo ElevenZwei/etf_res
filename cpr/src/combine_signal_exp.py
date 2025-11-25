@@ -10,8 +10,8 @@ from sig_worth import cut_df, signal_worth_mimo
 df_399 = pd.read_csv(DATA_DIR / 'signal' / 'stock_399006_avg.csv')
 df_159 = pd.read_csv(DATA_DIR / 'signal' / 'roll_159915_1.csv')
 etf1 = pd.read_csv(DATA_DIR / 'fact' / 'spot_minute_159915.csv')
-dt_from = pd.to_datetime('2025-10-01')
-dt_to = pd.to_datetime('2025-11-15 23:59')
+dt_from = pd.to_datetime('2025-08-01')
+dt_to = pd.to_datetime('2025-11-24 23:59')
 
 def prepare_df(df: pd.DataFrame) -> pd.DataFrame:
     df = cut_df(df, dt_from, dt_to)
@@ -123,17 +123,42 @@ def mask_position_1(r):
 
 def sign_position_1a(r, col):
     avg = r[col]
+    multiplier = 1.0
     if avg < -0.4:
-        return np.maximum(avg * 2, -1)
+        multiplier *= 2.0
+        return np.maximum(avg * multiplier, -1)
     if avg < -0.2:
-        multiplier = (-0.2 - avg) / 0.2 * 1 + 1
+        multiplier *= (-0.2 - avg) / 0.2 * 1 + 1
         return np.maximum(avg * multiplier, -1)
     if avg > 0.4:
-        return np.minimum(avg * 2, 1)
-    if avg > 0.2:
-        multiplier = (avg - 0.2) / 0.2 * 1 + 1
+        multiplier *= 2.0
         return np.minimum(avg * multiplier, 1)
-    return avg * abs(avg) / 0.2
+    if avg > 0.2:
+        multiplier *= (avg - 0.2) / 0.2 * 1 + 1
+        return np.minimum(avg * multiplier, 1)
+    return multiplier * avg * abs(avg) / 0.2
+
+def sign_position_1b(r, col):
+    avg = r[col]
+    multiplier = 1.0
+    diff = r['position_diff_abs']
+    if diff > 1.4:
+        return 0
+    if diff > 1.2:
+        multiplier *= 1 - (diff - 1.2) / 0.2
+    if avg < -0.4:
+        multiplier *= 2.0
+        return np.maximum(avg * multiplier, -1)
+    if avg < -0.2:
+        multiplier *= (-0.2 - avg) / 0.2 * 1 + 1
+        return np.maximum(avg * multiplier, -1)
+    if avg > 0.4:
+        multiplier *= 2.0
+        return np.minimum(avg * multiplier, 1)
+    if avg > 0.2:
+        multiplier *= (avg - 0.2) / 0.2 * 1 + 1
+        return np.minimum(avg * multiplier, 1)
+    return multiplier * avg * abs(avg) / 0.2
 
 def sign_position_4(r, col):
     avg = r[col]
@@ -172,14 +197,18 @@ def combine_1():
     df1['position_7a3b'] = df1['position_399'] * 0.3 + df1['position_159'] * 0.7
 
     df1['position_cs1a_avg'] = df1.apply(lambda r: sign_position_1a(r, 'position_avg'), axis=1)
-
     df1['position_cs1a_159'] = df1.apply(lambda r: sign_position_1a(r, 'position_159'), axis=1)
     df1['position_cs1a_399'] = df1.apply(lambda r: sign_position_1a(r, 'position_399'), axis=1)
     df1['position_cs1a_3a7b'] = df1.apply(lambda r: sign_position_1a(r, 'position_3a7b'), axis=1)
     df1['position_cs1a_7a3b'] = df1.apply(lambda r: sign_position_1a(r, 'position_7a3b'), axis=1)
 
-    df1['position_cs4_avg'] = df1.apply(lambda r: sign_position_4(r, 'position_avg'), axis=1)
+    df1['position_cs1b_avg'] = df1.apply(lambda r: sign_position_1b(r, 'position_avg'), axis=1)
+    df1['position_cs1b_159'] = df1.apply(lambda r: sign_position_1b(r, 'position_159'), axis=1)
+    df1['position_cs1b_399'] = df1.apply(lambda r: sign_position_1b(r, 'position_399'), axis=1)
+    df1['position_cs1b_3a7b'] = df1.apply(lambda r: sign_position_1b(r, 'position_3a7b'), axis=1)
+    df1['position_cs1b_7a3b'] = df1.apply(lambda r: sign_position_1b(r, 'position_7a3b'), axis=1)
 
+    df1['position_cs4_avg'] = df1.apply(lambda r: sign_position_4(r, 'position_avg'), axis=1)
     df1['position_cs4_159'] = df1.apply(lambda r: sign_position_4(r, 'position_159'), axis=1)
     df1['position_cs4_399'] = df1.apply(lambda r: sign_position_4(r, 'position_399'), axis=1)
     df1['position_cs4_3a7b'] = df1.apply(lambda r: sign_position_4(r, 'position_3a7b'), axis=1)

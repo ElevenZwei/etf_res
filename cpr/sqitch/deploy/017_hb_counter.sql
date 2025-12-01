@@ -14,7 +14,7 @@ create table if not exists hb.counter (
 );
 
 -- 不要在这个表格上定义唯一约束，这里接受并发写入，允许覆盖更新。
-create index if not exists idx_hb_counter_username_dt_counter_config
-    on hb.counter (username, dt, counter_name, config_name);
+create index if not exists idx_hb_counter_dt_counter_username_config
+    on hb.counter (dt, counter_name, username, config_name);
 
 COMMIT;

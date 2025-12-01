@@ -58,7 +58,9 @@ create table if not exists cpr.future_option_trade (
 
 """
 
-# 准备测试数据
+# 这里准备三条测试数据
+# 数据里面的 dt 可以不提供，会自动使用当前时间
+# 需要提供一个用户名，以便后续查询和清理。
 df = pl.DataFrame({
     'username': ['test_user'] * 3,
     'tradecode': ['ps2601-C-63000', 'ps2601-P-54000', 'ps2601-C-64000'],

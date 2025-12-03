@@ -18,4 +18,11 @@ create table if not exists cpr.future_option_trade (
 create index if not exists idx_future_option_trade_dt_username_tradecode
     on cpr.future_option_trade (dt, username, tradecode);
 
+create index if not exists idx_future_option_trade_username_id
+    on cpr.future_option_trade (username, id);
+
+create extension if not exists pg_trgm;
+create index if not exists idx_future_option_trade_tradecode_gist
+    on cpr.future_option_trade using gist (tradecode gist_trgm_ops);
+
 COMMIT;

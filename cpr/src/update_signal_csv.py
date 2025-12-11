@@ -9,7 +9,7 @@ from config import DATA_DIR, get_engine
 engine = get_engine()
 
 roll_args_ids = [1, 2]
-combine_scheme_names = ['amp1_7a3b']
+combine_scheme_names = ['amp1_7a3b', 'amp2_7a3b']
 
 def fetch_roll_csv(dt_from: datetime.date, roll_args_id: int):
     query = sa.text('''
@@ -160,6 +160,11 @@ def update_combined_signal_csv(scheme_name: str):
             pl.col("dt").str.strptime(pl.Datetime, "%Y-%m-%dT%H:%M:%S%.f%z")
                 .dt.convert_time_zone("Asia/Shanghai").alias("dt"),
         )
+        df = df.cast({
+            'scheme_id': pl.Int64,
+            'scheme_name': pl.Utf8,
+            'product': pl.Utf8,
+            'position': pl.Float64})
         dt_max = df.select(pl.col('dt').max()).to_series()[0]
         dt_from = dt_max.date() + datetime.timedelta(days=1)
         print(f"Existing combined signal data up to {dt_max}, fetching from {dt_from} for scheme {scheme_name}.")

@@ -3,7 +3,7 @@ import polars as pl
 
 # fix contract_price_tick.csv from old table format to new table format
 def fix_contract_price_tick():
-    df = pl.read_csv('../data/dump/contract_price_tick.csv')
+    df = pl.read_csv('../../data/dump/contract_price_tick.csv')
     empty = pl.lit(None)
     df = df.with_columns([
         empty.alias('ask4_price'),
@@ -30,11 +30,11 @@ def fix_contract_price_tick():
         'ask5_size', 'bid5_size',
         'inserted_at',
     ])
-    df.write_csv('../data/dump/contract_price_tick_fixed.csv')
+    df.write_csv('../../data/dump/contract_price_tick_fixed.csv')
 
 
 def fix_contract_price_minute():
-    df = pl.read_csv('../data/dump/contract_price_minute.csv')
+    df = pl.read_csv('../../data/dump/contract_price_minute.csv')
     empty = pl.lit(None)
     df = df.with_columns([
         empty.alias('oi_open'),
@@ -48,11 +48,11 @@ def fix_contract_price_minute():
         'oi_open', 'oi_close',
         'inserted_at', 'updated_at',
     ])
-    df.write_csv('../data/dump/contract_price_minute_fixed.csv')
+    df.write_csv('../../data/dump/contract_price_minute_fixed.csv')
 
 
 def fix_contract_price_daily():
-    df = pl.read_csv('../data/dump/contract_price_daily.csv')
+    df = pl.read_csv('../../data/dump/contract_price_daily.csv')
     empty = pl.lit(None)
     df = df.with_columns([
         empty.alias('oi_open'),
@@ -66,7 +66,7 @@ def fix_contract_price_daily():
         'oi_open', 'oi_close', 'days_left',
         'inserted_at', 'updated_at',
     ])
-    df.write_csv('../data/dump/contract_price_daily_fixed.csv')
+    df.write_csv('../../data/dump/contract_price_daily_fixed.csv')
 
 if __name__ == '__main__':
     # fix_contract_price_tick()

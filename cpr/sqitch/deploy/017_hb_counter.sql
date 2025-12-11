@@ -6,7 +6,7 @@ BEGIN;
 create table if not exists hb.counter (
     id serial primary key,
     username text not null,
-    config_name text,
+    config_name text not null,
     counter_name text not null,
     dt timestamptz not null default now(),
     value int not null,

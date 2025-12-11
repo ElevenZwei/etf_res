@@ -53,6 +53,10 @@ def load_cpr_signal(dt: datetime.date, roll_export_id: int) -> pl.DataFrame:
                 'roll_export_id': roll_export_id
             }
         })
+    df = df.cast({'position': pl.Float64})
+    df = df.with_columns(
+            pl.col("dt").dt.convert_time_zone("Asia/Shanghai").alias("dt"),
+    )
     return df
 
 
@@ -77,6 +81,18 @@ def load_stock_signal(dt: datetime.date) -> pl.DataFrame:
     with engine.connect() as conn:
         df = pl.read_database(query, conn, execute_options={
             'parameters': { 'dt': dt }})
+    df = df.cast({'position': pl.Float64})
+    df = df.with_columns(
+            pl.col("dt").dt.convert_time_zone("Asia/Shanghai").alias("dt"),
+    )
+    # overwrite position after 14:51 to 0
+    df = df.with_columns(
+            pl.when((pl.col('dt').dt.hour() > 14)
+                | ((pl.col('dt').dt.hour() == 14) & (pl.col('dt').dt.minute() >= 51)))
+            .then(0.0)
+            .otherwise(pl.col('position'))
+            .alias('position')
+    )
     return df
 
 

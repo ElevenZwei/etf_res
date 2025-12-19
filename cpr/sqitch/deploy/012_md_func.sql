@@ -11,8 +11,10 @@ insert into md.exchange_info (exchange, name, timezone, is_commodity)
     ('DCE', 'Dalian Commodity Exchange', 'Asia/Shanghai', true),
     ('CZCE', 'Zhengzhou Commodity Exchange', 'Asia/Shanghai', true),
     ('INE', 'Shanghai International Energy Exchange', 'Asia/Shanghai', true),
+    ('GFEX', 'Guangzhou Futures Exchange', 'Asia/Shanghai', true),
     ('SSE', 'Shanghai Stock Exchange', 'Asia/Shanghai', false),
     ('SZSE', 'Shenzhen Stock Exchange', 'Asia/Shanghai', false)
+    ('BSE', 'Beijing Stock Exchange', 'Asia/Shanghai', false)
     on conflict (exchange) do nothing;
 
 insert into md.contract_info (tradecode, name, exchange, lot_size, callput) values

@@ -28,8 +28,7 @@ def get_dataset_id(spot: str):
 
 
 def load_data(spot: str, dt_bg: date, dt_ed: date):
-    dl_calc_oi_range(spot, dt_bg, dt_ed)
-    oi_df = oi_csv_merge(spot)
+    oi_df = dl_calc_oi_range(spot, dt_bg, dt_ed)
     upload_oi_df_to_cpr(spot, oi_df)
     spot_df = dl_spot_range(spot, dt_bg, dt_ed);
     convert_df_to_bars(spot, spot_df)

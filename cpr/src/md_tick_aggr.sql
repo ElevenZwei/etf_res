@@ -11,7 +11,15 @@ create or replace function md.tick_to_candle_aggr(
         select tradecode,
             dt,
             case when candle_interval_arg = interval '1 day' then
-                date_trunc('day', dt)
+                case when extract(hour from dt) >= 19 then
+                    case when extract(dow from dt) = 5 then
+                        date_trunc('day', dt) + interval '3 day'
+                    else
+                        date_trunc('day', dt) + interval '1 day'
+                    end
+                else
+                    date_trunc('day', dt)
+                end
             else
                 time_bucket(candle_interval_arg, dt)
             end as bucket_dt,
@@ -54,7 +62,26 @@ create or replace function md.tick_to_candle_aggr(
     order by dt asc;
 $$;
 
-create or replace function md.tick_to_minute_update(
+create or replace function md.tick_to_minute_update_single(
+        tradecode_arg text, dt_from_arg timestamptz, dt_to_arg timestamptz
+) returns void language sql as $$
+    insert into md.contract_price_minute(
+        tradecode, dt, open, high, low, close, vol_open, vol_close, oi_open, oi_close)
+    select * from md.tick_to_candle_aggr(
+        tradecode_arg, dt_from_arg, dt_to_arg, interval '1 minute')
+    on conflict(tradecode, dt) do update set
+        open = excluded.open,
+        high = excluded.high,
+        low = excluded.low,
+        close = excluded.close,
+        vol_open = excluded.vol_open,
+        vol_close = excluded.vol_close,
+        oi_open = excluded.oi_open,
+        oi_close = excluded.oi_close,
+        updated_at = now();
+$$;
+
+create or replace function md.tick_to_minute_update_all(
     dt_from_arg timestamptz, dt_to_arg timestamptz
 ) returns void language plpgsql as $$
 declare
@@ -64,55 +91,55 @@ begin
         from md.contract_price_tick
         where dt >= dt_from_arg and dt < dt_to_arg;
     for i in array_lower(tradecode_arr, 1)..array_upper(tradecode_arr, 1) loop
-        insert into md.contract_price_minute(tradecode, dt, open, high, low, close, vol_open, vol_close, oi_open, oi_close)
-        select * from md.tick_to_candle_aggr(
-            tradecode_arr[i], dt_from_arg, dt_to_arg, interval '1 minute')
-        on conflict(tradecode, dt) do update set
-            open = excluded.open,
-            high = excluded.high,
-            low = excluded.low,
-            close = excluded.close,
-            vol_open = excluded.vol_open,
-            vol_close = excluded.vol_close,
-            oi_open = excluded.oi_open,
-            oi_close = excluded.oi_close,
-            updated_at = now();
+        perform md.tick_to_minute_update_single(
+            tradecode_arr[i], dt_from_arg, dt_to_arg);
         raise notice 'Updated minute candle for tradecode % between % and %. (% / %)',
             tradecode_arr[i], dt_from_arg, dt_to_arg, i, array_upper(tradecode_arr, 1);
     end loop;
 end;
 $$;
 
-create or replace function md.tick_to_daily_update(
-    dt_from_arg timestamptz, dt_to_arg timestamptz
+create or replace function md.tick_to_daily_update_single(
+        tradecode_arg text, dt_from_arg date, dt_to_arg date
+) returns void language sql as $$
+    insert into md.contract_price_daily(
+        tradecode, dt, open, high, low, close, vol_open, vol_close, oi_open, oi_close)
+    select * from md.tick_to_candle_aggr(
+        tradecode_arg,
+        dt_from_arg::timestamptz - interval '8 hour',
+        dt_to_arg::timestamptz - interval '8 hour',
+        interval '1 day')
+    on conflict(tradecode, dt) do update set
+        open = excluded.open,
+        high = excluded.high,
+        low = excluded.low,
+        close = excluded.close,
+        vol_open = excluded.vol_open,
+        vol_close = excluded.vol_close,
+        oi_open = excluded.oi_open,
+        oi_close = excluded.oi_close,
+        updated_at = now();
+$$;
+
+create or replace function md.tick_to_daily_update_all(
+    dt_from_arg date, dt_to_arg date
 ) returns void language plpgsql as $$
 declare
     tradecode_arr text[];
 begin
-    dt_from_arg := date_trunc('day', dt_from_arg);
-    dt_to_arg := date_trunc('day', dt_to_arg);
     select array_agg(distinct tradecode) into tradecode_arr
         from md.contract_price_tick
-        where dt >= dt_from_arg and dt < dt_to_arg;
+        where dt >= dt_from and dt < dt_to;
     for i in array_lower(tradecode_arr, 1)..array_upper(tradecode_arr, 1) loop
-        insert into md.contract_price_daily(tradecode, dt, open, high, low, close, vol_open, vol_close, oi_open, oi_close)
-        select * from md.tick_to_candle_aggr(
-            tradecode_arr[i], dt_from_arg, dt_to_arg, interval '1 day')
-        on conflict(tradecode, dt) do update set
-            open = excluded.open,
-            high = excluded.high,
-            low = excluded.low,
-            close = excluded.close,
-            vol_open = excluded.vol_open,
-            vol_close = excluded.vol_close,
-            oi_open = excluded.oi_open,
-            oi_close = excluded.oi_close,
-            updated_at = now();
+        perform md.tick_to_daily_update_single(
+            tradecode_arr[i], dt_from_arg, dt_to_arg);
         raise notice 'Updated daily candle for tradecode % between % and %. (% / %)',
             tradecode_arr[i], dt_from_arg, dt_to_arg, i, array_upper(tradecode_arr, 1);
     end loop;
 end;
 $$;
+
+
 
 
 insert into md.contract_price_minute(tradecode, dt, open, high, low, close, vol_open, vol_close, oi_open, oi_close)

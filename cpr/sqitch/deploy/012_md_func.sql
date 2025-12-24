@@ -168,9 +168,9 @@ begin
 end;
 $$;
 
--- last_price_arg is nullable.
-create or replace function md.update_contract_price_daily(
-    tradecode_arg text, dt_arg timestamptz,
+-- last_price_arg / vol_arg / oi_arg is nullable.
+create or replace function md.update_contract_price_daily1(
+    tradecode_arg text, dt_arg date,
     last_price_arg float8, vol_arg bigint, oi_arg integer)
     returns integer language plpgsql as $$
 declare
@@ -178,7 +178,7 @@ declare
 begin
     select id into price_daily_id
         from md.contract_price_daily cpd
-        where cpd.tradecode = tradecode_arg and cpd.dt = dt_arg::date;
+        where cpd.tradecode = tradecode_arg and cpd.dt = dt_arg;
 
     if price_daily_id is not null then
         update md.contract_price_daily cpd
@@ -201,10 +201,10 @@ begin
         open, high, low, close,
         vol_open, vol_close, oi_open, oi_close, days_left)
     values (
-        tradecode_arg, dt_arg::date,
+        tradecode_arg, dt_arg,
         last_price_arg, last_price_arg, last_price_arg, last_price_arg,
         vol_arg, vol_arg, oi_arg, oi_arg,
-        (select case when ci.expiry is not null then (ci.expiry - dt_arg::date + 1)
+        (select case when ci.expiry is not null then (ci.expiry - dt_arg + 1)
                 else null end
             from md.contract_info ci
             where ci.tradecode = tradecode_arg)
@@ -212,12 +212,33 @@ begin
     returning id into price_daily_id;
 
     if price_daily_id is null then
-        select md.update_contract_price_daily(
+        select md.update_contract_price_daily1(
             tradecode_arg, dt_arg, last_price_arg, vol_arg, oi_arg)
         into price_daily_id;
     end if;
 
     return price_daily_id;
+end;
+$$;
+
+-- last_price_arg / vol_arg / oi_arg is nullable.
+create or replace function md.update_contract_price_daily2(
+    tradecode_arg text, dt_arg timestamptz,
+    last_price_arg float8, vol_arg bigint, oi_arg integer)
+    returns integer language plpgsql as $$
+declare
+    dt_date date = dt_arg::date;
+begin
+    if extract(hour from dt_arg) >= 19 then
+        -- move dt_date to next trade day
+        if extract(dow from dt_arg) >= 5 then
+            dt_date = dt_date + (8 - extract(dow from dt_arg))::int;
+        else
+            dt_date = dt_date + 1;
+        end if;
+    end if;
+    return md.update_contract_price_daily1(
+        tradecode_arg, dt_date, last_price_arg, vol_arg, oi_arg);
 end;
 $$;
 
@@ -297,7 +318,7 @@ begin
         raise exception 'tradecode % not exists', tradecode_arg;
         return false;
     end if;
-    select md.update_contract_price_daily(
+    select md.update_contract_price_daily2(
         tradecode_arg, dt_arg, last_price_arg, vol_arg, oi_arg)
         into price_daily_id;
     if price_daily_id is null then

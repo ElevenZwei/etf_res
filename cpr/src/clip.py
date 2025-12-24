@@ -191,6 +191,7 @@ def calculate_all_clips(spotcode: str, d1: date, d2: date):
             *pd.date_range(start="09:30", end="11:30", freq='1min').time,
             *pd.date_range(start="13:00", end="14:55", freq='1min').time]
     count = 0
+    error_list = []
     for ti in tis:
         for d in days:
             for interval in intervals:
@@ -202,6 +203,11 @@ def calculate_all_clips(spotcode: str, d1: date, d2: date):
                     print(f"#{count} Clip for {spotcode} at {ti} from {bg} to {ed} samples {df.shape[0]} calculated successfully.")
                 except Exception as e:
                     print(f"Error calculating clip for {spotcode} at {ti} from {bg} to {ed}: {e}")
+                    error_list.append((spotcode, ti, bg, ed, str(e)))
+    if error_list:
+        print("Errors occurred during clip calculation:")
+        for error in error_list:
+            print(f"Spotcode: {error[0]}, Time: {error[1]}, From: {error[2]}, To: {error[3]}, Error: {error[4]}")
 
 if __name__ == "__main__":
     # calculate_all_clips("159915", date(2025, 1, 3), date(2025, 1, 4))

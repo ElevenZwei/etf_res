@@ -12,13 +12,31 @@ import pandas as pd
 from typing import Optional, List
 from dateutil.relativedelta import relativedelta
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from enum import Enum
 
 from config import DATA_DIR, PG_CPR_CONN_INFO, PG_OI_CONN_INFO, get_engine
 
 OI_DIR = f'{DATA_DIR}/fact/oi_daily/'
 OI_MERGE_DIR = f'{DATA_DIR}/fact/oi_merge/'
 SPOT_DIR = f'{DATA_DIR}/fact/spot/'
-USE_NEW_DB = True
+
+class DBVersion(Enum):
+    NEW = 1
+    OLD = 2
+    VERY_OLD = 3
+
+USE_DB_VERSION = DBVersion.NEW
+
+def switch_db(dt: datetime.date):
+    global USE_DB_VERSION
+    if dt <= datetime.date(2024, 10, 31):
+        USE_DB_VERSION = DBVersion.VERY_OLD
+        print("Switching to very old database for spot data download.")
+    elif dt <= datetime.date(2025, 10, 23):
+        print("Switching to old database for spot data download.")
+        USE_DB_VERSION = DBVersion.OLD
+    else:
+        USE_DB_VERSION = DBVersion.NEW
 
 if not os.path.exists(OI_DIR):
     os.makedirs(OI_DIR, exist_ok=True)
@@ -28,25 +46,29 @@ if not os.path.exists(SPOT_DIR):
     os.makedirs(SPOT_DIR, exist_ok=True)
 
 def get_engine_wrapper() -> sa.engine.Engine:
-    return get_engine(PG_CPR_CONN_INFO if USE_NEW_DB else PG_OI_CONN_INFO)
+    return get_engine(PG_CPR_CONN_INFO
+                      if USE_DB_VERSION == DBVersion.NEW else PG_OI_CONN_INFO)
+
 
 def dl_expiry_date(spot: str, year: int, month: int) -> Optional[datetime.date]:
     d_from = datetime.datetime(year, month, 1)
     d_to = datetime.datetime(year, month, 28)
-    if USE_NEW_DB:
-        return fetch_expiry_date_new(spot, d_from.date(), d_to.date())
-    else:
-        return fetch_expiry_date_old(spot, d_from.date(), d_to.date())
+    fetch_expiry_date = {
+            DBVersion.NEW: fetch_expiry_date_new,
+            DBVersion.OLD: fetch_expiry_date_old,
+            DBVersion.VERY_OLD: fetch_expiry_date_old,
+    }[USE_DB_VERSION]
+    return fetch_expiry_date(spot, d_from.date(), d_to.date())
 
 
 def fetch_expiry_date_old(spot: str, d_from: datetime.date, d_to: datetime.date) -> Optional[datetime.date]:
     # latex: ci.expirydate \in [d_from, d_to]
     query = sa.text("""
-            select min(expirydate) as expirydate
-            from contract_info ci
-            where spotcode like :spot_code
-            and expirydate >= :d_from
-            and expirydate <= :d_to
+        select min(expirydate) as expirydate
+        from contract_info ci
+        where spotcode like :spot_code
+        and expirydate >= :d_from
+        and expirydate <= :d_to
     """)
     with get_engine_wrapper().connect() as conn:
         df = pd.read_sql(query, conn, params={
@@ -61,10 +83,10 @@ def fetch_expiry_date_old(spot: str, d_from: datetime.date, d_to: datetime.date)
 
 def fetch_expiry_date_new(spot: str, d_from: datetime.date, d_to: datetime.date) -> Optional[datetime.date]:
     query = sa.text("""
-                    select min(expiry)
-                    from "md"."contract_info"
-                    where expiry >= :d_from and expiry <= :d_to
-                    and spotcode = :spot
+        select min(expiry)
+        from "md"."contract_info"
+        where expiry >= :d_from and expiry <= :d_to
+        and spotcode = :spot
     """)
     with get_engine_wrapper().connect() as conn:
         df = pd.read_sql(query, conn, params={
@@ -87,11 +109,48 @@ def dl_oi_data(spot: str, expiry_date: datetime.date,
     """
     bg_datetime_str = bg_date.strftime('%Y-%m-%d') + ' ' + bg_time.strftime('%H:%M:%S')
     ed_datetime_str = ed_date.strftime('%Y-%m-%d') + ' ' + ed_time.strftime('%H:%M:%S')
-    if USE_NEW_DB:
-        fetch_oi_data = fetch_oi_data_new(spot, expiry_date, bg_datetime_str, ed_datetime_str)
+    fetch_oi_data = {
+            DBVersion.NEW: fetch_oi_data_new,
+            DBVersion.OLD: fetch_oi_data_old,
+            DBVersion.VERY_OLD: fetch_oi_data_very_old,
+    }[USE_DB_VERSION]
+    return fetch_oi_data(spot, expiry_date, bg_datetime_str, ed_datetime_str)
+
+
+def fetch_oi_data_very_old(spot: str, expiry_date: datetime.date,
+                           bg_datetime_str: str, ed_datetime_str: str) -> pd.DataFrame:
+    if spot == '159915':
+        suffix = '.SZ'
     else:
-        fetch_oi_data = fetch_oi_data_old(spot, expiry_date, bg_datetime_str, ed_datetime_str)
-    return fetch_oi_data
+        suffix = '.SH'
+    query = sa.text("""
+        set enable_nestloop=false;
+        with tradecodes as (
+            select code, tradecode, spotcode, expirydate, strike, callput
+            from contract_info ci 
+            where ci.spotcode = :spot || :suffix
+            and ci.expirydate = :expiry_date
+            and code like '%' || :suffix)
+        , mdt as (
+            select
+                dt, spotcode, expirydate, callput, strike, code as tradecode,
+                openinterest as oi
+            from market_data dt join tradecodes using(code)
+            where dt >= :bg_datetime and dt <= :ed_datetime)
+        select * from mdt order by dt asc;
+    """)
+    print('expiry_date:', expiry_date,)
+    with get_engine_wrapper().connect() as conn:
+        df = pd.read_sql(query, conn, params={
+            'spot': spot,
+            'suffix': suffix,
+            'expiry_date': expiry_date.strftime('%Y-%m-%d'),
+            'bg_datetime': bg_datetime_str,
+            'ed_datetime': ed_datetime_str,
+        })
+    df['spotcode'] = df['spotcode'].str.replace(suffix, '', regex=False)
+    df['tradecode'] = df['tradecode'].str.replace(suffix, '', regex=False)
+    return df
 
 
 def fetch_oi_data_old(spot: str, expiry_date: datetime.date,
@@ -103,7 +162,7 @@ def fetch_oi_data_old(spot: str, expiry_date: datetime.date,
             select *
             from (
                 select
-                    dt, spotcode, expirydate, callput, strike, tradecode,
+                    dt, spotcode, expirydate, callput, strike, code as tradecode,
                     open_interest as oi
                 from market_data_tick mdt join contract_info ci using(code)
                 where mdt.dt >= :bg_datetime and mdt.dt <= :ed_datetime
@@ -208,10 +267,10 @@ def dl_save_range_oi(spot: str, expiry_date: datetime.date,
     else:
         dfs = [df2] if df2 is not None and df2.shape[0] != 0 else []
     if dfs == []:
-        raise RuntimeError("db is empty.")
+        raise RuntimeError(f"db is empty on {bg_date}.")
     df = pd.concat(dfs, ignore_index=True)
     if df.shape[0] == 0:
-        raise RuntimeError("db is empty.")
+        raise RuntimeError(f"db is empty on {bg_date}.")
     # 手动将时间戳转换为字符串格式，因为自动转换有的带微秒，有的微秒恰好是 0 ，格式里面会有差异。
     df['dt'] = df['dt'].dt.strftime('%Y-%m-%dT%H:%M:%S%z')
     df.to_csv(fpath, index=False)
@@ -264,13 +323,6 @@ def calc_oi(df: pd.DataFrame):
         'put_oi_sum': put_sum,
     })
     return df2.reset_index()
-    # spot_price = df[['dt', 'spot_price']].drop_duplicates()
-    # spot_price = spot_price.set_index('dt')
-    # df2 = pd.merge(df2, spot_price,
-    #                left_index=True,
-    #                right_index=True,
-    #                how='inner')
-    # return df2.reset_index()
 
 
 def dl_calc_oi(spot: str, dt: datetime.date, refresh: bool = False) -> pd.DataFrame:
@@ -299,6 +351,17 @@ def dl_calc_oi(spot: str, dt: datetime.date, refresh: bool = False) -> pd.DataFr
 def date_range(bg_date: datetime.date, ed_date: datetime.date) -> List[datetime.date]:
     dt_list: List[pd.Timestamp] = pd.date_range(bg_date, ed_date).to_list()
     holidays = [
+        '2024-01-01',
+        '2024-02-09', '2024-02-10', '2024-02-11', '2024-02-12', '2024-02-13',
+        '2024-02-14', '2024-02-15', '2024-02-16', '2024-02-17',
+        '2024-04-04', '2024-04-05', '2024-04-06',
+        '2024-05-01', '2024-05-02', '2024-05-03', '2024-05-04', '2024-05-05',
+        '2024-06-08', '2024-06-09', '2024-06-10',
+        '2024-09-15', '2024-09-16', '2024-09-17',
+        '2024-10-01', '2024-10-02', '2024-10-03', '2024-10-04',
+        '2024-10-05', '2024-10-06', '2024-10-07',
+
+        '2025-01-01',
         '2025-01-28', '2025-01-29', '2025-01-30', '2025-01-31',
         '2025-02-01', '2025-02-02', '2025-02-03', '2025-02-04',
         '2025-04-04',
@@ -326,10 +389,7 @@ def dl_calc_oi_range(
     """
     下载并计算一段时间内的 oi 数据。
     """
-    global USE_NEW_DB
-    if bg_date <= datetime.date(2025, 10, 23):
-        print("Switching to old database for oi calculation.")
-        USE_NEW_DB = False
+    switch_db(bg_date)
 
     dt_list = date_range(bg_date, ed_date)
     df_list = []
@@ -342,7 +402,7 @@ def dl_calc_oi_range(
     #     except Exception as e:
     #         print(f"Error processing {spot} on {dt}: {e}")
     #       # raise e
-    with ProcessPoolExecutor(initializer=init_worker, max_workers=10) as executor:
+    with ProcessPoolExecutor(initializer=init_worker, max_workers=2) as executor:
         futures = {executor.submit(dl_calc_oi, spot, dt, True): dt
                    for dt in dt_list}
         for future in as_completed(futures):
@@ -379,18 +439,40 @@ def dl_spot_range(spot: str, bg_date: datetime.date, ed_date: datetime.date) -> 
     """
     下载一段时间内的现货数据。
     """
-    global USE_NEW_DB
-    if bg_date <= datetime.date(2025, 10, 23):
-        print("Switching to old database for spot data download.")
-        USE_NEW_DB = False
+    switch_db(bg_date)
+    
+    fetch_spot_data = {
+            DBVersion.NEW: fetch_spot_data_new,
+            DBVersion.OLD: fetch_spot_data_old,
+            DBVersion.VERY_OLD: fetch_spot_data_very_old,
+    }[USE_DB_VERSION]
 
-    if USE_NEW_DB:
-        fetch_spot_data = fetch_spot_data_new
-    else:
-        fetch_spot_data = fetch_spot_data_old
     bg_datetime_str = bg_date.strftime('%Y-%m-%d') + ' 09:30:00'
     ed_datetime_str = ed_date.strftime('%Y-%m-%d') + ' 15:00:00'
     df = fetch_spot_data(spot, bg_datetime_str, ed_datetime_str)
+    return df
+
+
+def fetch_spot_data_very_old(spot: str,
+        bg_datetime_str: str, ed_datetime_str: str) -> pd.DataFrame:
+    if spot == '159915':
+        suffix = '.SZ'
+    else:
+        suffix = '.SH'
+    query = sa.text("""
+        select dt, code as spot, closep as spot_price
+        from market_data
+        where dt >= :bg_datetime and dt <= :ed_datetime
+        and code = :spot
+    """)
+    print("Using very old database for spot data fetch.")
+    with get_engine_wrapper().connect() as conn:
+        df = pd.read_sql(query, conn, params={
+            'spot': spot + suffix,
+            'bg_datetime': bg_datetime_str,
+            'ed_datetime': ed_datetime_str,
+        })
+    df['spot'] = df['spot'].str.replace(suffix, '', regex=False)
     return df
 
 
@@ -433,24 +515,24 @@ def fetch_spot_data_new(spot: str,
 @click.command()
 @click.option('-t', '--target', type=str, required=True, help="oi or spot")
 @click.option('-s', '--spot', type=str, required=True, help="Spot code: e.g., 159915 510050")
-@click.option('-b', '--begin', type=str, help="Begin date in format YYYYMMDD")
-@click.option('-e', '--end', type=str, help="End date in format YYYYMMDD")
-def click_main(target: str, spot: str, begin: str, end: str):
+@click.option('-b', '--begin', type=click.DateTime(formats=["%Y-%m-%d"]), required=True, help='Start date (YYYY-MM-DD)')
+@click.option('-e', '--end', type=click.DateTime(formats=["%Y-%m-%d"]), required=True, help='End date (YYYY-MM-DD)')
+def click_main(target: str, spot: str, begin: datetime.datetime, end: datetime.datetime):
     """
     下载并计算 oi 数据。
     """
-    begin_date = datetime.datetime.strptime(begin, '%Y%m%d').date() if begin else datetime.date.today()
-    end_date = datetime.datetime.strptime(end, '%Y%m%d').date() if end else begin_date
+    begin_date = begin.date() if isinstance(begin, datetime.datetime) else datetime.now().date()
+    end_date = end.date() if isinstance(end, datetime.datetime) else datetime.now().date()
     if target == 'spot':
         df = dl_spot_range(spot, begin_date, end_date)
-        begin = begin_date.strftime('%Y%m%d')
-        end = end_date.strftime('%Y%m%d')
-        fpath = f"{DATA_DIR}/fact/spot/spot_{spot}_{begin}_{end}.csv"
+        begin_str = begin_date.strftime('%Y%m%d')
+        end_str = end_date.strftime('%Y%m%d')
+        fpath = f"{DATA_DIR}/fact/spot/spot_{spot}_{begin_str}_{end_str}.csv"
         df.to_csv(fpath, index=False)
         print(f"Saved spot data to {fpath}")
     else:
         dl_calc_oi_range(spot, begin_date, end_date)
-        oi_csv_merge(spot)
+        # oi_csv_merge(spot)
 
 
 if __name__ == '__main__':

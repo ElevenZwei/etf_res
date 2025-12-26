@@ -9,11 +9,15 @@ spot_dl['dt'] = pd.to_datetime(spot_dl['dt'])
 spot_dl = spot_dl.set_index('dt').tz_convert('Asia/Shanghai')
 print(spot_dl)
 
-spot_old = pd.read_csv(DATA_DIR / 'fact' / 'spot_159915_2025_old.csv')
+spot_2025 = pd.read_csv(DATA_DIR / 'fact' / 'spot_159915_2025_old.csv')
+spot_2025['dt'] = pd.to_datetime(spot_2025['dt'])
+spot_2025 = spot_2025.set_index('dt')
+
+spot_old = pd.read_csv(DATA_DIR / 'fact' / 'spot_159915_2023_2024.csv')
 spot_old['dt'] = pd.to_datetime(spot_old['dt'])
 spot_old = spot_old.set_index('dt')
 
-spot_new = pd.concat([spot_old, spot_dl])
+spot_new = pd.concat([spot_old, spot_2025, spot_dl])
 print(spot_new)
 spot_new.to_csv(DATA_DIR / 'fact' / 'spot_minute_159915.csv')
 

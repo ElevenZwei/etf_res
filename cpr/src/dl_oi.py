@@ -351,6 +351,15 @@ def dl_calc_oi(spot: str, dt: datetime.date, refresh: bool = False) -> pd.DataFr
 def date_range(bg_date: datetime.date, ed_date: datetime.date) -> List[datetime.date]:
     dt_list: List[pd.Timestamp] = pd.date_range(bg_date, ed_date).to_list()
     holidays = [
+        '2023-01-01', '2023-01-02',
+        '2023-01-21', '2023-01-22', '2023-01-23', '2023-01-24', '2023-01-25',
+        '2023-01-26', '2023-01-27',
+        '2023-04-05',
+        '2023-04-29', '2023-04-30', '2023-05-01', '2023-05-02', '2023-05-03',
+        '2023-06-22', '2023-06-23', '2023-06-24',
+        '2023-09-29', '2023-10-02', '2023-10-03', '2023-10-04',
+        '2023-10-05', '2023-10-06', '2023-10-07',
+
         '2024-01-01',
         '2024-02-09', '2024-02-10', '2024-02-11', '2024-02-12', '2024-02-13',
         '2024-02-14', '2024-02-15', '2024-02-16', '2024-02-17',
@@ -388,6 +397,7 @@ def dl_calc_oi_range(
         spot: str, bg_date: datetime.date, ed_date: datetime.date) -> pd.DataFrame:
     """
     下载并计算一段时间内的 oi 数据。
+    ed_date is inclusive.
     """
     switch_db(bg_date)
 
@@ -438,6 +448,7 @@ def oi_csv_merge(spot: str):
 def dl_spot_range(spot: str, bg_date: datetime.date, ed_date: datetime.date) -> pd.DataFrame:
     """
     下载一段时间内的现货数据。
+    ed_date is inclusive.
     """
     switch_db(bg_date)
     

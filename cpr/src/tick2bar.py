@@ -1,6 +1,7 @@
 import pandas as pd
+import sqlalchemy.dialects.postgresql as pg
 
-from config import get_engine, upsert_on_conflict_skip
+from config import get_engine
 
 INPUT_DIR = "../data/fact/"
 
@@ -11,6 +12,20 @@ OI_CSV = {
         # '510500': 'oi_510500_20250101_20250710.csv',
         '159915': 'oi_merge/oi_159915.csv',
 }
+
+def upsert_table_market_minute(table, conn, keys, data_iter):
+    data = [dict(zip(keys, row)) for row in data_iter]
+    stmt = pg.insert(table.table).values(data)
+    update_dict = {
+            'openp': stmt.excluded.openp,
+            'closep': stmt.excluded.closep,
+            'highp': stmt.excluded.highp,
+            'lowp': stmt.excluded.lowp,
+    }
+    stmt = stmt.on_conflict_do_update(
+            index_elements=['dt', 'code'],
+            set_=update_dict)
+    conn.execute(stmt)
 
 
 def tick2bar(series: pd.Series) -> pd.DataFrame:
@@ -40,7 +55,7 @@ def convert_df_to_bars(spot: str, df: pd.DataFrame):
     # Save to database
     bar_df.to_sql('market_minute', get_engine(), schema='cpr',
             if_exists='append', index=False,
-            method=upsert_on_conflict_skip,
+            method=upsert_table_market_minute,
             chunksize=1000,)
     return bar_df
 

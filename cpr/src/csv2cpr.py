@@ -1,7 +1,8 @@
 import pandas as pd
 import sqlalchemy
+import sqlalchemy.dialects.postgresql as pg
 
-from config import get_engine, upsert_on_conflict_skip
+from config import get_engine
 
 INPUT_DIR = "../data/fact/"
 
@@ -17,9 +18,20 @@ engine = get_engine()
 metadata = sqlalchemy.MetaData()
 dataset_table = sqlalchemy.Table('dataset', metadata, autoload_with=engine, schema='cpr')
 
+
+def upsert_table_cpr(table, conn, keys, data_iter):
+    data = [dict(zip(keys, row)) for row in data_iter]
+    stmt = pg.insert(table.table).values(data)
+    update_dict = {'call': stmt.excluded.call, 'put': stmt.excluded.put}
+    stmt = stmt.on_conflict_do_update(
+            index_elements=['dt', 'dataset_id'],
+            set_=update_dict)
+    conn.execute(stmt)
+
+
 def get_dataset_id(spotcode: str, expiry_priority: int, strike: float):
     # insert a new row and return the id, or return the existing id if it already exists
-    stmt = (sqlalchemy.dialects.postgresql.insert(dataset_table)
+    stmt = (pg.insert(dataset_table)
         .values(spotcode=spotcode, expiry_priority=expiry_priority, strike=strike)
         .on_conflict_do_nothing(index_elements=['spotcode', 'expiry_priority', 'strike'])
         .returning(dataset_table.c.id))
@@ -47,6 +59,11 @@ def downsample_time(df: pd.DataFrame, interval_sec: int):
 
 
 def upload_oi_df_to_cpr(spot: str, df: pd.DataFrame):
+    """
+    This function upload oi csv file to cpr database.
+    It processes the dataframe to downsample to 1 minute,
+    and forward fill missing values.
+    """
     df = df.set_index(pd.to_datetime(df['dt']))
     df = downsample_time(df, 60)  # downsample to 1 minute
     df = df[['call_oi_sum', 'put_oi_sum']]
@@ -59,7 +76,7 @@ def upload_oi_df_to_cpr(spot: str, df: pd.DataFrame):
     print(df.head())
     df.to_sql('cpr', engine, schema='cpr',
               if_exists='append', index=False,
-              method=upsert_on_conflict_skip,
+              method=upsert_table_cpr,
               chunksize=1000)
     return df
 

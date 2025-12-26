@@ -61,13 +61,16 @@ def load_data(spot: str, dt_bg: date, dt_ed: date):
         """)
         df = pd.read_sql(query, conn, params={
             "dt_bg": dt_bg,
-            "dt_ed": dt_ed,
+            "dt_ed": dt_ed + timedelta(days=1),
             "dataset_id": get_dataset_id(spot)})
         print("Updated daily data head and tail:")
         print(df)
 
 
 def clip_data(spot: str, dt_bg: date, dt_ed: date):
+    """
+    dt_bg and dt_ed are inclusive
+    """
     calculate_all_clips(spot, dt_bg, dt_ed)
 
 

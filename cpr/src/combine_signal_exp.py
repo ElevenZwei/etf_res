@@ -10,8 +10,8 @@ from sig_worth import cut_df, signal_worth_mimo
 df_399 = pd.read_csv(DATA_DIR / 'signal' / 'stock_399006_avg.csv')
 df_159 = pd.read_csv(DATA_DIR / 'signal' / 'roll_159915_1.csv')
 etf1 = pd.read_csv(DATA_DIR / 'fact' / 'spot_minute_159915.csv')
-dt_from = pd.to_datetime('2025-08-01')
-dt_to = pd.to_datetime('2025-11-24 23:59')
+dt_from = pd.to_datetime('2025-10-01')
+dt_to = pd.to_datetime('2025-12-25 23:59')
 
 def prepare_df(df: pd.DataFrame) -> pd.DataFrame:
     df = cut_df(df, dt_from, dt_to)
@@ -31,7 +31,7 @@ df_signal['position_avg'] = (df_signal['position_159'] + df_signal['position_399
 
 # print(df_signal['position_diff'].describe())
 # print(df_signal['position_diff_abs'].describe())
-df_signal.to_csv(DATA_DIR / 'signal' / 'combined' / 'pos_combined.csv', index=True)
+# df_signal.to_csv(DATA_DIR / 'signal' / 'combined' / 'pos_combined.csv', index=True)
 
 # df_signal['position_diff'].cumsum().plot()
 # df_signal.plot.hist(column=['position_diff_abs'], bins=20)
@@ -160,6 +160,28 @@ def sign_position_1b(r, col):
         return np.minimum(avg * multiplier, 1)
     return multiplier * avg * abs(avg) / 0.2
 
+def sign_position_1c(r, col):
+    avg = r[col]
+    multiplier = 1.0
+    diff = r['position_diff_abs']
+    if diff > 1.4:
+        return 0
+    if diff > 1.2:
+        multiplier *= 1 - (diff - 1.2) / 0.2
+    if avg < -0.8:
+        multiplier *= 2.0
+        return np.maximum(avg * multiplier, -1)
+    if avg < -0.5:
+        multiplier *= (-0.5 - avg) / 0.3 * 1 + 1
+        return np.maximum(avg * multiplier, -1)
+    if avg > 0.8:
+        multiplier *= 2.0
+        return np.minimum(avg * multiplier, 1)
+    if avg > 0.5:
+        multiplier *= (avg - 0.5) / 0.3 * 1 + 1
+        return np.minimum(avg * multiplier, 1)
+    return multiplier * avg * abs(avg) / 0.5
+
 def sign_position_4(r, col):
     avg = r[col]
     diff = r['position_diff_abs']
@@ -208,6 +230,12 @@ def combine_1():
     df1['position_cs1b_3a7b'] = df1.apply(lambda r: sign_position_1b(r, 'position_3a7b'), axis=1)
     df1['position_cs1b_7a3b'] = df1.apply(lambda r: sign_position_1b(r, 'position_7a3b'), axis=1)
 
+    df1['position_cs1c_avg'] = df1.apply(lambda r: sign_position_1c(r, 'position_avg'), axis=1)
+    df1['position_cs1c_159'] = df1.apply(lambda r: sign_position_1c(r, 'position_159'), axis=1)
+    df1['position_cs1c_399'] = df1.apply(lambda r: sign_position_1c(r, 'position_399'), axis=1)
+    df1['position_cs1c_3a7b'] = df1.apply(lambda r: sign_position_1c(r, 'position_3a7b'), axis=1)
+    df1['position_cs1c_7a3b'] = df1.apply(lambda r: sign_position_1c(r, 'position_7a3b'), axis=1)
+
     df1['position_cs4_avg'] = df1.apply(lambda r: sign_position_4(r, 'position_avg'), axis=1)
     df1['position_cs4_159'] = df1.apply(lambda r: sign_position_4(r, 'position_159'), axis=1)
     df1['position_cs4_399'] = df1.apply(lambda r: sign_position_4(r, 'position_399'), axis=1)
@@ -217,6 +245,7 @@ def combine_1():
     return df1
 
 df1 = combine_1().reset_index()
+df1.to_csv(DATA_DIR / 'signal' / 'combined' / 'pos_combined_exp.csv', index=False)
 # df1['position_cumsum'] = df1['position'].cumsum()
 # df1['position_159_cumsum'] = df1['position_159'].cumsum()
 # df1['position_399_cumsum'] = df1['position_399'].cumsum()

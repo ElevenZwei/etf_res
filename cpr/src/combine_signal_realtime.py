@@ -112,6 +112,7 @@ def merge_signals(df1: pl.DataFrame, df2: pl.DataFrame) -> pl.DataFrame:
     df = df.with_columns([
         ((pl.col('position_cpr') + pl.col('position_stock')) / 2).alias('position_avg'),
         (pl.col('position_cpr') * 0.7 + pl.col('position_stock') * 0.3).alias('position_7a3b'),
+        (pl.col('position_cpr') * 0.3 + pl.col('position_stock') * 0.7).alias('position_3a7b'),
         (pl.col('position_cpr') - pl.col('position_stock')).alias('position_diff'),
         (pl.col('position_cpr') - pl.col('position_stock')).abs().alias('position_diff_abs'),
     ])
@@ -149,10 +150,17 @@ def combine_amp1_avg(df: pl.DataFrame) -> pl.DataFrame:
     """对 position_avg 列应用 amp1 函数。"""
     return amp1(df, 'position_avg')
 
+def combine_amp1_cpr(df: pl.DataFrame) -> pl.DataFrame:
+    """对 position_cpr 列应用 amp1 函数。"""
+    return amp1(df, 'position_cpr')
+
 def combine_amp1_7a3b(df: pl.DataFrame) -> pl.DataFrame:
     """对 position_7a3b 列应用 amp1 函数。"""
     return amp1(df, 'position_7a3b')
 
+def combine_amp1_3a7b(df: pl.DataFrame) -> pl.DataFrame:
+    """对 position_3a7b 列应用 amp1 函数。"""
+    return amp1(df, 'position_3a7b')
 
 def amp2_row(row: dict, col: str, diff_col: str) -> float:
     """一个连续的非线性变换函数，将输入映射到 -1 到 1 之间，且在 -0.2 到 0.2 之间平滑过渡。"""
@@ -192,9 +200,14 @@ def amp2(df: pl.DataFrame, col: str, diff_col: str) -> pl.DataFrame:
 def combine_amp2_avg(df: pl.DataFrame) -> pl.DataFrame:
     return amp2(df, 'position_avg', 'position_diff_abs')
 
+def combine_amp2_cpr(df: pl.DataFrame) -> pl.DataFrame:
+    return amp2(df, 'position_cpr', 'position_diff_abs')
+
 def combine_amp2_7a3b(df: pl.DataFrame) -> pl.DataFrame:
     return amp2(df, 'position_7a3b', 'position_diff_abs')
 
+def combine_amp2_3a7b(df: pl.DataFrame) -> pl.DataFrame:
+    return amp2(df, 'position_3a7b', 'position_diff_abs')
 
 default_combine_schemes = [
     {
@@ -202,6 +215,14 @@ default_combine_schemes = [
         'description': 'Combine amp1 using average of CPR and stock signals.',
         'function': combine_amp1_avg,
         'code': inspect.getsource(combine_amp1_avg)
+                + '\n' + inspect.getsource(amp1)
+                + '\n' + inspect.getsource(amp1_row),
+    },
+    {
+        'name': 'amp1_cpr',
+        'description': 'Combine amp1 using average of CPR and stock signals.',
+        'function': combine_amp1_cpr,
+        'code': inspect.getsource(combine_amp1_cpr)
                 + '\n' + inspect.getsource(amp1)
                 + '\n' + inspect.getsource(amp1_row),
     },
@@ -214,6 +235,14 @@ default_combine_schemes = [
                 + '\n' + inspect.getsource(amp1_row),
     },
     {
+        'name': 'amp1_3a7b',
+        'description': 'Combine amp1 using 30% CPR and 70% stock signals.',
+        'function': combine_amp1_3a7b,
+        'code': inspect.getsource(combine_amp1_3a7b)
+                + '\n' + inspect.getsource(amp1)
+                + '\n' + inspect.getsource(amp1_row),
+    },
+    {
         'name': 'amp2_avg',
         'description': 'Combine amp2 using average of CPR and stock signals.',
         'function': combine_amp2_avg,
@@ -222,10 +251,26 @@ default_combine_schemes = [
                 + '\n' + inspect.getsource(amp2_row),
     },
     {
+        'name': 'amp2_cpr',
+        'description': 'Combine amp2 using average of CPR and stock signals.',
+        'function': combine_amp2_cpr,
+        'code': inspect.getsource(combine_amp2_cpr)
+                + '\n' + inspect.getsource(amp2)
+                + '\n' + inspect.getsource(amp2_row),
+    },
+    {
         'name': 'amp2_7a3b',
         'description': 'Combine amp2 using 70% CPR and 30% stock signals.',
         'function': combine_amp2_7a3b,
         'code': inspect.getsource(combine_amp2_7a3b)
+                + '\n' + inspect.getsource(amp2)
+                + '\n' + inspect.getsource(amp2_row),
+    },
+    {
+        'name': 'amp2_3a7b',
+        'description': 'Combine amp2 using 30% CPR and 70% stock signals.',
+        'function': combine_amp2_3a7b,
+        'code': inspect.getsource(combine_amp2_3a7b)
                 + '\n' + inspect.getsource(amp2)
                 + '\n' + inspect.getsource(amp2_row),
     },

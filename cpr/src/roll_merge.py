@@ -25,10 +25,20 @@ from dataclasses import dataclass
 
 from datetime import date, time, timedelta
 from dateutil.relativedelta import relativedelta
+import sqlalchemy.dialects.postgresql as pg
 
-from config import get_engine, upsert_on_conflict_skip
+from config import get_engine
 
 engine = get_engine()
+
+def upsert_table_roll_merged(table, conn, keys, data_iter):
+    data = [dict(zip(keys, row)) for row in data_iter]
+    stmt = pg.insert(table.table).values(data)
+    update_dict = {'position': stmt.excluded.position} 
+    stmt = stmt.on_conflict_do_update(
+            index_elements=['roll_args_id', 'top', 'dt'],
+            set_=update_dict)
+    conn.execute(stmt)
 
 
 def load_roll_args(roll_args_id: int) -> Dict[str, int]:
@@ -215,6 +225,7 @@ def calculate_merged_positions(roll_args_id: int, top: int, dt_from: date, dt_to
     merged_positions = pd.concat(merged_positions_list, ignore_index=True)
     print(f"Merged positions for roll_args_id {roll_args_id} from {dt_from} to {dt_to}:")
     print(merged_positions.head())
+    print(merged_positions.tail())
 
     # only keep the lines with position value different from previous line
     merged_positions = merged_positions.sort_values(by="dt")
@@ -224,6 +235,8 @@ def calculate_merged_positions(roll_args_id: int, top: int, dt_from: date, dt_to
     merged_positions = merged_positions[['dt', 'position',]]
     merged_positions['roll_args_id'] = roll_args_id
     merged_positions['top'] = top
+    print(f"Merged positions change for roll_args_id {roll_args_id} from {dt_from} to {dt_to}:")
+    print(merged_positions)
 
     return merged_positions
 
@@ -237,19 +250,20 @@ def save_merged_positions(merged_positions: pd.DataFrame) -> None:
             schema='cpr',
             if_exists='append',
             index=False,
-            method=upsert_on_conflict_skip,
+            method=upsert_table_roll_merged,
             chunksize=1000,
         )
     print("Merged positions saved to roll_merged table.")
 
 
 if __name__ == "__main__":
+    # for roll_args_id in [1]:
     for roll_args_id in [1, 2]:
         merged_positions = calculate_merged_positions(
                 roll_args_id=roll_args_id,
                 top=10,
                 dt_from=date(2025, 1, 1),
-                dt_to=date(2025, 9, 30))
+                dt_to=date(2025, 5, 18))
         save_merged_positions(merged_positions)
 
 

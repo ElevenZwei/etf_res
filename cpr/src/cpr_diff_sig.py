@@ -15,9 +15,33 @@ import json
 import numpy as np
 import pandas as pd
 import sqlalchemy as sa
+import sqlalchemy.dialects.postgresql as postgresql
 from config import get_engine, upsert_on_conflict_skip
 
 engine = get_engine()
+
+def upsert_table_clip_trade_backtest(
+    table: sa.Table,
+    conn: sa.engine.Connection,
+    keys: List[str],
+    data_iter: List[tuple],
+):
+    data = [dict(zip(keys, row)) for row in data_iter]
+    stmt = postgresql.insert(table.table).values(data)
+    update_dict = { 
+        'is_trading': stmt.excluded.is_trading,
+        'zone': stmt.excluded.zone,
+        'position': stmt.excluded.position,
+        'value': stmt.excluded.value,
+        'long_open': stmt.excluded.long_open,
+        'long_close': stmt.excluded.long_close,
+        'short_open': stmt.excluded.short_open,
+        'short_close': stmt.excluded.short_close,
+    }
+    stmt = stmt.on_conflict_do_update(
+            index_elements=['dataset_id', 'trade_args_id', 'dt'],
+            set_=update_dict)
+    conn.execute(stmt)
 
 DATASET_CACHE: Dict[str, int] = {}
 def load_dataset_id(spotcode: str):
@@ -333,7 +357,7 @@ def upload_trade(df: pd.DataFrame):
     df = df.dropna(how='any')
     df.to_sql('clip_trade_backtest', engine, schema='cpr',
             if_exists='append', index=False,
-            method=upsert_on_conflict_skip,
+            method=upsert_table_clip_trade_backtest,
             chunksize=1000)
 
 

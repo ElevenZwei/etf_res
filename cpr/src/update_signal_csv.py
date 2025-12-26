@@ -9,7 +9,7 @@ from config import DATA_DIR, get_engine
 engine = get_engine()
 
 roll_args_ids = [1, 2]
-combine_scheme_names = ['amp1_7a3b', 'amp2_7a3b']
+combine_scheme_names = ['amp1_7a3b', 'amp2_7a3b', 'amp2_3a7b']
 
 def fetch_roll_csv(dt_from: datetime.date, roll_args_id: int):
     query = sa.text('''
@@ -29,7 +29,7 @@ def fetch_roll_csv(dt_from: datetime.date, roll_args_id: int):
                   'dt': pl.Datetime,
                   'position': pl.Float64})
     df = df.with_columns(
-            pl.col("dt").dt.convert_time_zone("Asia/Shanghai").alias("dt"),
+            pl.col("dt").dt.convert_time_zone("Asia/Shanghai").alias("dt")
     )
     return df
 
@@ -37,7 +37,7 @@ def fetch_roll_csv(dt_from: datetime.date, roll_args_id: int):
 def update_roll_csv(roll_args_id: int):
     fname = f'roll_159915_{roll_args_id}.csv'
     fpath = DATA_DIR / 'signal' / fname
-    dt_from = datetime.date(2025, 9, 30)
+    dt_from = datetime.date(2023, 7, 1)
     df = pl.DataFrame()
     if fpath.exists():
         df = pl.read_csv(fpath)
@@ -46,7 +46,7 @@ def update_roll_csv(roll_args_id: int):
                 .dt.convert_time_zone("Asia/Shanghai").alias("dt"),
         )
         dt_max = df.select(pl.col('dt').max()).to_series()[0]
-        dt_from = dt_max.date() + datetime.timedelta(days=1)
+        dt_from = dt_max.date()
         print(f"Existing roll signal data up to {dt_max}, fetching from {dt_from} for id {roll_args_id}.")
     df_dl = fetch_roll_csv(dt_from, roll_args_id)
     if fpath.exists():
@@ -101,7 +101,7 @@ def update_stock_csv():
                 .dt.convert_time_zone("Asia/Shanghai").alias("dt"),
         )
         dt_max = df.select(pl.col('dt').max()).to_series()[0]
-        dt_from = dt_max.date() + datetime.timedelta(days=1)
+        dt_from = dt_max.date()
         print(f"Existing stock signal data up to {dt_max}, fetching from {dt_from}.")
     df_dl = fetch_stock_csv(dt_from)
     if not df.is_empty():
@@ -118,6 +118,23 @@ def concat_stock_csv():
     df1 = pl.read_csv(DATA_DIR / 'signal' / fname1)
     df2 = pl.read_csv(DATA_DIR / 'signal' / fname2)
     df = pl.concat([df1, df2], how='vertical').unique(subset=['dt']).sort('dt')
+    df = df.with_columns(
+        pl.col("dt").str.strptime(pl.Datetime, "%Y-%m-%dT%H:%M:%S%.f%z")
+            .dt.convert_time_zone("Asia/Shanghai").alias("dt"),
+    )
+    # forward fill position which dt time between 14:50 and 15:30
+    # first set null to such rows then ffill
+    df = df.with_columns(
+            pl.when(
+                (pl.col('dt').dt.hour() == 14) & (pl.col('dt').dt.minute() > 50)
+                | (pl.col('dt').dt.hour() == 15) & (pl.col('dt').dt.minute() <= 30)
+            ).then(pl.lit(None)).otherwise(pl.col('position'))
+            # .fill_null(strategy='forward')
+            .fill_null(0)
+            .alias('position')
+    )
+
+    df = df.filter(pl.col('dt').dt.time() != datetime.time(9, 30))
     df.write_csv(DATA_DIR / 'signal' / 'stock_399006_avg.csv')
     print(f"Concatenated stock signal to stock_399006_avg.csv with {len(df)} rows.")
 
@@ -166,7 +183,7 @@ def update_combined_signal_csv(scheme_name: str):
             'product': pl.Utf8,
             'position': pl.Float64})
         dt_max = df.select(pl.col('dt').max()).to_series()[0]
-        dt_from = dt_max.date() + datetime.timedelta(days=1)
+        dt_from = dt_max.date()
         print(f"Existing combined signal data up to {dt_max}, fetching from {dt_from} for scheme {scheme_name}.")
     df_dl = fetch_combined_signal(dt_from, scheme_name)
     if fpath.exists():

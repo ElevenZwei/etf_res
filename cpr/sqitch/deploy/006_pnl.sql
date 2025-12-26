@@ -28,6 +28,12 @@ create or replace function cpr.update_intraday_spot_clip_profit (
     dataset_id_arg integer, trade_args_id_arg integer, dat_arg date)
     returns void language plpgsql as $$
 begin
+    delete from cpr.clip_trade_profit
+        where dataset_id = dataset_id_arg
+            and trade_args_id = trade_args_id_arg
+            and dt_open >= dat_arg::timestamptz
+            and dt_open < (dat_arg + interval '1 day')::timestamptz;
+
     insert into cpr.clip_trade_profit (
         dataset_id, trade_args_id, dt_open, dt_close,
         price_open, price_close,

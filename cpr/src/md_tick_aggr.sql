@@ -30,7 +30,7 @@ create or replace function md.tick_to_candle_aggr(
             and dt < dt_to_arg
     ), open_close as (
         select tradecode, bucket_dt,
-            first_value(last_price) over (partition by bucket_dt order by dt) as open_price,
+            first_value(last_price) over (partition by bucket_dt order by case when last_price is null then 1 else 0 end asc, dt) as open_price,
             first_value(last_price) over (partition by bucket_dt order by dt desc) as close_price,
             first_value(vol) over (partition by bucket_dt order by case when oi is null then 1 else 0 end asc, dt) as vol_open,
             first_value(vol) over (partition by bucket_dt order by case when oi is null then 1 else 0 end asc, dt desc) as vol_close,
@@ -129,7 +129,7 @@ declare
 begin
     select array_agg(distinct tradecode) into tradecode_arr
         from md.contract_price_tick
-        where dt >= dt_from and dt < dt_to;
+        where dt >= dt_from_arg and dt < dt_to_arg;
     for i in array_lower(tradecode_arr, 1)..array_upper(tradecode_arr, 1) loop
         perform md.tick_to_daily_update_single(
             tradecode_arr[i], dt_from_arg, dt_to_arg);

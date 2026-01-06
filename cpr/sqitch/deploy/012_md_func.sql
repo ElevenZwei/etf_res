@@ -222,6 +222,7 @@ end;
 $$;
 
 -- last_price_arg / vol_arg / oi_arg is nullable.
+-- infer trade date from timestamp.
 create or replace function md.update_contract_price_daily2(
     tradecode_arg text, dt_arg timestamptz,
     last_price_arg float8, vol_arg bigint, oi_arg integer)
@@ -323,6 +324,50 @@ begin
         into price_daily_id;
     if price_daily_id is null then
         raise exception 'failed to update daily price for % at %', tradecode_arg, dt_arg;
+        return false;
+    end if;
+    select md.update_contract_price_minute(
+        tradecode_arg, dt_arg, last_price_arg, vol_arg, oi_arg)
+        into price_minute_id;
+    if price_minute_id is null then
+        raise exception 'failed to update minute price for % at %', tradecode_arg, dt_arg;
+        return false;
+    end if;
+    return true;
+end;
+$$;
+
+create or replace function md.update_contract_price1(
+    tradecode_arg text, dt_arg timestamptz, date_arg date,
+    last_price_arg float8, vol_arg bigint, oi_arg integer)
+    returns boolean language plpgsql as $$
+declare
+    tradecode_exists boolean = null;
+    price_daily_id integer = null;
+    price_minute_id integer = null;
+begin
+    -- sanitize inputs.
+    if last_price_arg is not distinct from 'NaN'::numeric then
+        last_price_arg = null;
+    end if;
+    if vol_arg <= 0 then
+        vol_arg = 0;
+    end if;
+    if oi_arg <= 0 then
+        oi_arg = 0;
+    end if;
+    select true into tradecode_exists
+        from md.contract_info ci
+        where ci.tradecode = tradecode_arg;
+    if tradecode_exists is not true then
+        raise exception 'tradecode % not exists', tradecode_arg;
+        return false;
+    end if;
+    select md.update_contract_price_daily1(
+        tradecode_arg, date_arg, last_price_arg, vol_arg, oi_arg)
+        into price_daily_id;
+    if price_daily_id is null then
+        raise exception 'failed to update daily price for % at %', tradecode_arg, date_arg;
         return false;
     end if;
     select md.update_contract_price_minute(

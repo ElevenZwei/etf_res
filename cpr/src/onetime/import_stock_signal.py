@@ -10,6 +10,11 @@ create table if not exists cpr.stock_signal_import (
 );
 """
 
+import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+
 import polars as pl
 import datetime
 
@@ -122,5 +127,5 @@ if __name__ == "__main__":
     # load_and_write(f'{DATA_DIR}/signal/cyb_position/pyelf_CybWoOacVswRR_sif_1_1.parquet')
     # load_and_write(f'{DATA_DIR}/signal/cyb_position/pyelf_CybWoOacVsw_sif_1_1.parquet')
     # select_from_db('pyelf_CybWoOacVswRmRR_sif_1_1', datetime.date(2025, 10, 10), datetime.date(2025, 10, 15))
-    df = select_avg_from_db(datetime.date(2025, 1, 1), datetime.date(2025, 10, 15))
+    df = select_avg_from_db(datetime.date(2024, 1, 1), datetime.date(2025, 10, 15))
     df.write_csv(f'{DATA_DIR}/signal/stock_399006_avg_archive.csv')

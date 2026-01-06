@@ -69,6 +69,7 @@ def calc_intraday_profit(merged: pd.DataFrame):
     # sum(logret) over (partition by date order by dt)
     df['net_2_intraday_logret'] = df.groupby('date')['tick_2_logret'].cumsum().fillna(0)
     df['net_2_intraday'] = np.exp(df['net_2_intraday_logret']) - 1
+    # print(df)
     return df
 
 
@@ -125,7 +126,7 @@ def signal_worth_mimo(pos: pd.DataFrame,
     for col in pos_columns:
         df = pos[['dt', col]].copy()
         df = df.rename(columns={col: 'position'})
-        merged = merge_position(df, etf, 1)
+        merged = merge_position(df, etf, twap_count=1)
         _, daily = calc_worth(merged)
         daily = daily[['net_1_daily', 'net_2_daily', 'net_3_daily']]
         daily = daily.rename(columns={
@@ -147,19 +148,37 @@ def prepare_df(df: pd.DataFrame, dt_from: datetime, dt_to: datetime) -> pd.DataF
 
 
 def main():
-    dt_from = datetime(2025, 1, 13)
-    # dt_from = datetime(2025, 10, 1)
-    # dt_from = datetime(2025, 11, 7)
+    # dt_from = datetime(2023, 7, 1)
+    # dt_from = datetime(2024, 1, 1)
+    dt_from = datetime(2025, 1, 1)
+    # dt_from = datetime(2025, 9, 22)
+    # dt_from = datetime(2025, 10, 13)
+    # dt_from = datetime(2025, 12, 20)
+    # dt_to = datetime(2025, 1, 1)
     # dt_to = datetime(2025, 9, 30, 23, 59)
     # dt_to = datetime(2025, 10, 31, 23, 59)
-    dt_to = datetime(2025, 12, 16, 23, 59)
+    dt_to = datetime(2025, 12, 31, 23, 59)
     etf1 = pd.read_csv(DATA_DIR / 'fact' / 'spot_minute_159915.csv')
+    # print etf1 invalid lines
+    # print(etf1[etf1['openp'].isna() | etf1['closep'].isna()])
     # print(etf1.tail())
-    # sig = pd.read_csv(DATA_DIR / 'signal' / 'pos_399006.csv')
-    # sig = pd.read_csv(DATA_DIR / 'signal' / 'stock_399006_avg.csv')
-    sig = prepare_df(pd.read_csv(DATA_DIR / 'signal' / 'roll_159915_1.csv'), dt_from, dt_to)
+    sig = pd.read_csv(DATA_DIR / 'signal' / 'stock_399006_avg.csv')
+    # # sig = pd.read_csv(DATA_DIR / 'signal' / 'stock_399006_avg_dc.csv')
+    # sig = prepare_df(pd.read_csv(DATA_DIR / 'signal' / 'roll_159915_1.csv'), dt_from, dt_to)
     # sig = prepare_df(pd.read_csv(DATA_DIR / 'signal' / 'roll_159915_2.csv'), dt_from, dt_to)
+
+
     # sig = prepare_df(pd.read_csv(DATA_DIR / 'signal' / 'combined_signal_159915_amp1_7a3b.csv'), dt_from, dt_to)
+    # sig = prepare_df(pd.read_csv(DATA_DIR / 'signal' / 'combined_signal_159915_amp2_7a3b.csv'), dt_from, dt_to)
+    # sig = prepare_df(pd.read_csv(DATA_DIR / 'signal' / 'combined_signal_159915_amp2_3a7b.csv'), dt_from, dt_to)
+
+    # sig = prepare_df(pd.read_csv(DATA_DIR / 'signal' / 'combined' / 'pos_combined_exp.csv').rename(columns={'position_cs1b_3a7b': 'position'}), dt_from, dt_to)
+    # sig = prepare_df(pd.read_csv(DATA_DIR / 'signal' / 'combined' / 'pos_combined_exp.csv').rename(columns={'position_cs1b_7a3b': 'position'}), dt_from, dt_to)
+    # sig = prepare_df(pd.read_csv(DATA_DIR / 'signal' / 'combined' / 'pos_combined_exp.csv').rename(columns={'position_cs1c_3a7b': 'position'}), dt_from, dt_to)
+    # sig = prepare_df(pd.read_csv(DATA_DIR / 'signal' / 'combined' /
+                     #             'pos_combined_exp.csv')
+                     # .rename(columns={'position_cs1c_159': 'position'}), dt_from, dt_to)
+
     intra, daily = signal_worth(sig, etf1, dt_from, dt_to)
     
     # df_signal = p2.join(p3, lsuffix='_1', rsuffix='_2', how='outer')

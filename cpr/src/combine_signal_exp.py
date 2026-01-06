@@ -10,8 +10,8 @@ from sig_worth import cut_df, signal_worth_mimo
 df_399 = pd.read_csv(DATA_DIR / 'signal' / 'stock_399006_avg.csv')
 df_159 = pd.read_csv(DATA_DIR / 'signal' / 'roll_159915_1.csv')
 etf1 = pd.read_csv(DATA_DIR / 'fact' / 'spot_minute_159915.csv')
-dt_from = pd.to_datetime('2025-10-01')
-dt_to = pd.to_datetime('2025-12-25 23:59')
+dt_from = pd.to_datetime('2025-01-01')
+dt_to = pd.to_datetime('2025-12-31 23:59')
 
 def prepare_df(df: pd.DataFrame) -> pd.DataFrame:
     df = cut_df(df, dt_from, dt_to)

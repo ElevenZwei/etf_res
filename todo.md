@@ -499,12 +499,134 @@ intrinsic value / time value 得失可以从 market data 和 trades 记录里面
 最近都在处理奇怪的故障问题。  
 
 最近新的 todo 有这样几项：  
-1. 提前一天换月的功能实现。  
-2. 11-25 上午的数据补齐，新的数据库的补齐方法还需要了解。  
+1. 提前一天换月的功能实现。  --ok
+2. 11-25 / 11-28 上午的数据补齐，新的数据库的补齐方法还需要了解。  --ok
 3. Grafana 上面对于 Account Net Worth 和 Heartbeat 的 SQL 聚合显示，否则每天传输的数据量太大了，根本干不过来。  
 4. 策略层面和执行层面可以分离成两个程序，甚至策略层面可以使用虚拟账户名，由执行层面的程序对各个账户各自承担一部分的敞口。这个可以用 SpiritCatcher 的保存和写入功能来实现。  
 5. 执行层面需要有观望模式，比如说我在 grafana 上面按下一个按钮之后，它就只是单纯监控账户变化，但是不再自己下单任何东西。
 6. 关于清空仓位的一件按钮的方法，然后清空仓位的过程里面，有两种意义上的清理，比如说带有成交持仓比的清理，还有彻底无视问题的清理。  
 7. 11-26 这一天有几个瞬间的 net worth 还是出现了毛刺，我这个还需要再加强一下。基本上是程序刚刚启动，没有足够的市场数据的时候产生的毛刺。  --ok
 
+### 11-27  
+今天 1915 有一个重启是因为，在报单之前没有触发熔断，但是在报单的瞬间触发了熔断，结果它在熔断里面重试了好几次也没有成功交易。我觉得在 SpiritCatcher 里面的重试可以换一个方法，就是不行的话，就退回 SpiritCatcher 的层面，而不是一次次在 OptionBase 层面下单。  
+这种情况真的叫做，常在河边走。  
+这样的话 retry 可以更多记录在数据库里面吗？retry 记录的关键是 ref ，contract 和 limit price 之间的关联。
+
+OrderChange 也需要上传，然后上传的过程里面我们记录下它的第一次出现的时间，远程响应的时间，和消失的时间。  
+
+### 12-01  
+Order Update Record 的设计是一个比较麻烦的任务。  
+这里的关键是怎么设计一条条更新的状态记录。  
+比如说我需要几个时间  
+inserted_at, canceled_at, updated_at, first_filled_at, last_filled_at,  
+
+目前还是按照一条一条日志风格的写入，至于聚合整理交给其他的 SQL 脚本逻辑。
+
+```
+create table if not exists hb.order_record (
+    id serial primary key,
+    dt timestamptz not null default now(),
+    trade_date date not null, -- 订单记录的日期，方便查询
+    username text not null,
+    order_ref integer not null,
+    order_sys_id int8,
+    contract_tradecode text not null,
+    contract_name text,
+    underlying text,
+    direction int2 not null,  -- 1 买入，-1 卖出
+    open_close int2 not null, -- 1 开仓，-1 平仓
+    -- OPEN, CLOSE, CLOSE_TODAY, CLOSE_YESTERDAY
+    offset_flag text not null,  
+    order_amount integer not null,
+    -- LIMIT, MARKET, IOC, FOK
+    order_type text not null,  
+    limit_price float8,
+    -- RISK_BLOCK, ACCEPTED, REJECTED, PARTIAL_FILLED, FILLED, CANCELED
+    order_status text not null,  
+    error_code int,
+    is_canceled boolean not null default false,  
+);
+```
+
+### 12-02  
+现在的 TODO 又有变化了，现在变成了需要解决它那个期货交易品种特别多，需要经常一直换月的问题。  
+所以从订阅到生成期权链都需要自动化地解决问题。  
+而且我还需要一个每日验算仓位是否正确的脚本，我还是担心会有逻辑上面的遗漏。  
+
+我感觉那个应该用反向订阅的方法来完成，就是读到了什么特殊的品种再去订阅那个品种。这个可以通过多提供一些接口的方法来完成。  
+这个已经完成了。
+
+### 12-11  
+信号回测需要 11-25 11-28 的 minute candle 信息，这两天的数据库聚合相关的东西我还没有完成。  
+今天赶紧加急一下。  
+
+### 12-23  
+今天需要解决 Hummingbird 在初始化时候的错误 net_worth 上报的问题。  --ok
+然后需要解决错误开仓之后一件清零的那种 fallback 处理机制和预案。在 11-26 的列表里面说到需要有几种不同的手动清空仓位的方法。比如说关注成交比的锁仓清空。  
+然后需要在 clang-tidy 里面添加未初始化的成员对象的警告项目，发现了一个 FutureState 没有初始化指向 Future 的函数的问题。  --ok
+然后需要做 2024 年的收益回测。  --import ok  
+这个收益回测有很多比想象中更加复杂的事情。
+
+明天要换月了，早上一定要看清楚它应当开仓的是下一个月的合约，是 1 月份的合约。  
+
+### 12-24  
+trade date 在 record 系统里面的上传功能还没有做出来，现在的 trade date 是根据交易时间推断的，没办法跳过节假日的时间。  
+
+关于 roll args 挑选的问题，现在是参数特别多，但是我应该可以绘制一个简单的直方图，收集不同收益率的参数组合的数量。  
+现在的参数放在了 clip_trade_args 表格里面，这个表格里面有 clip_method, date_interval, 还有 long open close / short open close 参数。  
+
+### 12-25  
+关于滑点分析，比较重要的方法是，先得到合成期货的 ETF 价格，我们用一个特殊的品种来储存这个价格。  
+然后需要分析之前的 spot code ，比如说用 159915_202512 表示这一个月的期货价格。我们统一一下名称表示的方法。  
+更新的期货价格之后，有两个地方可以更新，一个是回测的过程，这个更换 sig_worth 和 signal_combine 脚本里面读取 spot price 的代码，另一个是 cpr 选参数的过程，这个换不换区别都不大。  
+我们 cpr 选参数过程，如果要切换成期货价格的话，那么需要重启计算 trade profit 和 roll 的过程。
+更换到期货价格主要是为了滑点分析。
+
+### 12-27  
+现在从大方向上的事情有这样一些：  
+
+1. ETF 期货价格的演算和回测系统的改进，在回测的过程里可以制造一种图表分析盈亏的构成要素。  
+2. 每日启动程序的服务化。这个分成两个阶段，  
+    a. 一个是自动启动意义上的服务化，现在每天有九个程序，都在命令行里面启动迟早发疯。  
+    b. 一个是 CI/CD 对于稳定版本和 Fallback 版本进行封装交付运行的自动化系统。  
+3. 分离 Market Data 的输入过程，因为账户越来越多之后每个账户各自订阅市场数据太占带宽了。  
+4. 关于 CPR 的 Rolling 演化问题，  
+    a. 我们可以用染色排序，对比上周的排序和这周排序的变化过程。  
+    b. 删除一些可用的参数之后做回测，看看和之前的稳定度，从而判断某些参数的结果是否类似。  
+    c. 寻找历史排名稳定的参数，或者说寻找一种区间，这个排名区间的参数不会在下一周里面变化太大。
+
+一些小的分支任务有：  
+
+1. Stock 和 Combined 信号的历史回测。  
+2. 关于期权回测系统能不能有更加自动化的封装，对于 Nautilus 提供的功能更加自动化选择输入输出。  
+3. record trade date 字段上传。 -- ok
+4. 交易过程里面需要用挂单代替吃单，  -- ok
+这个改造过程的核心是下单失败之后的反馈，  
+这个反馈需要从底层提交到 SpiritCatcher 层面，让她持续下单。我想想。  
+AbortOnCancel 设置成 false，然后赶紧追加 OrderChange 的变化日志记录，  
+然后下单层面的 SendOrders 组合应该用不一样的 Journal 系统。
+
+5. 关于持仓比的保证金具体需要留多少，如果保证金一旦用完，程序应当如何回应。  
+如果资金不足以完成底层的开仓请求，那么程序应该在哪个层面回应？  
+比如说这个重试返回到了 SpiritCatcher 层面，它报告原因是资金不足。  
+那么 SC 是不是应该停止调仓？  
+SC 模块是不是应该上报到某种状态日志数据库里面？  
+
+这个过程涉及到 TradeJournal 和集群下单模块的改造。  
+集群下单模块的改造需要分离 OptionBase 和 SendOrders 模块。
+
+### 2025-12-29  
+今天解决了 OrderChange 上传的问题，整理了整个 order status 变化的过程，整理了 Huaxin 和 CTP 里面 Order status 赋值的错误。然后解决了很多小问题。包括 trade date 不一致。包括 commercial 的交易时间判断，包括 offset close 的自动检查等等的问题。  
+这个比我想象中累太多了。  
+CTP 一个成功交易的单据有五次更新，第一次是 local echo，第二次是 send echo，第三次是柜台反馈，第四次是交易所反馈，第五次是成交反馈。  
+如果是 local risk block 那么会有两次反馈，local echo 和 block echo。  
+如果是 OptionBase SendOrders 路径发送的单据，它在第一次下单的时候不会经过 local echo ，但是在 cancel 重新下单的时候会经过 local echo 变化。所以 OptionBase 提交的 local echo PENDING_LOCAL 状态可以同来表示重试的次数。   
+但是这不是一个好的设计，我还是应该用其他的一些标志物表示重试次数，用 CANCELED 会更好，只要没有额外的手动交易带来的取消。
+现在的 order_record 表格里面，如果是程序自己发出的单据那么至少有两个 PENDING_NEW 状态的回复，如果是其他客户端发送的单据，那么只会有一个 PENDING_NEW 是柜台的反馈。
+
+今天解决了 market data tick aggr 中间的 last price null 的问题。今天还解决了 market price grafana 图表的显示问题。今天还补上了 0259 账户的 trade hold ratio 空缺。
+
+### 2025-12-31
+有一个很重要的弱点，目前的弱点是改仓位中途重启，这个重新计算仓位的功能，现在几乎没有方案实现，这个绝对会在将来的一天出事。
+这个想一想怎么做，我们需要在计算仓位的时候，保存上一轮计算的输入 max ，如果输入的 max 有变化的话，那么就应该重新计算仓位。但是没必要重新 pick 期权，这个还挺复杂。
 

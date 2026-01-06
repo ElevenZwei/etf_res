@@ -102,7 +102,7 @@ python weekly_update.py --no-roll-next -s 159915 -b 2025-09-08 -e 2025-09-14
 # -b -e 随意
 ```
 
-如果让它做回测，更新 backtest 结果，更新 roll_result 和 roll_merged 历史信号，但是不写入 roll_export 运行参数表格，使用方法如下：
+如果让它做回测，更新 backtest 结果，更新下一周的 roll_result 和这一周的 roll_merged 历史信号，但是不写入 roll_export 运行参数表格，使用方法如下：
 ```bash
 python weekly_update.py --no-roll-export -s 159915 -b 2025-09-08 -e 2025-09-14  
 # -b -e 随意  
@@ -137,7 +137,9 @@ cpr roll 的结果是储存在 cpr.roll_merged 表格里面，这个表格的数
 2. roll 轮换选择参数的脚本 roll.py 写入轮换结果的函数 `save_roll_output` .  
 3. 合并轮换的历史仓位的脚本 roll_merge.py 写入合并结果的函数。  
 
-滥用的原因来自于很多更新函数的写入都是有重叠的，其实应该是检查和之前的写入数值是否一致，有些允许不一致的时候更新，有些就应该在不一致的时候报错。
+滥用的原因来自于很多更新函数的写入都是有重叠的，其实应该是检查和之前的写入数值是否一致，有些允许不一致的时候更新，有些就应该在不一致的时候报错。  
+
+有些表格不能直接覆盖插入，例如说 roll_export, roll_result, roll_merged 这些表格都应该手动备份之后，清除之前的表格数据，然后去执行。
 
 
 TODO: 关于回测结果，还需要一个安全检查的脚本，检查目前这些 clip_trade_profit 的数据行的开仓时间插口之间有没有重叠的情况。

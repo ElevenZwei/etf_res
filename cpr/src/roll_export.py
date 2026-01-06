@@ -317,7 +317,7 @@ def is_in_same_week(dt1: date, dt2: date) -> bool:
     """
     Check if two dates are in the same week.
     """
-    return dt1.isocalendar()[1] == dt2.isocalendar()[1] and dt1.year == dt2.year
+    return dt1 + timedelta(days=7 - dt1.weekday()) == dt2 + timedelta(days=7 - dt2.weekday())
 
 
 def roll_export(roll_args_id: int, top: int,

@@ -1,6 +1,9 @@
 """
 这个文件的核心任务是下载一天的 Open Interest 数据。
 附带可以把多个 CSV 文件合并成一个 CSV 文件的功能。
+下载 OI 数据带有缓存功能，如果已经下载过某一天的数据，则不会重复下载。
+下载 Spot 数据没有缓存功能，每次都会重新下载。
+
 """
 
 import click
@@ -19,6 +22,7 @@ from config import DATA_DIR, PG_CPR_CONN_INFO, PG_OI_CONN_INFO, get_engine
 OI_DIR = f'{DATA_DIR}/fact/oi_daily/'
 OI_MERGE_DIR = f'{DATA_DIR}/fact/oi_merge/'
 SPOT_DIR = f'{DATA_DIR}/fact/spot/'
+MD_DIR = f'{DATA_DIR}/fact/md/'
 
 class DBVersion(Enum):
     NEW = 1
@@ -44,6 +48,8 @@ if not os.path.exists(OI_MERGE_DIR):
     os.makedirs(OI_MERGE_DIR, exist_ok=True)
 if not os.path.exists(SPOT_DIR):
     os.makedirs(SPOT_DIR, exist_ok=True)
+if not os.path.exists(MD_DIR):
+    os.makedirs(MD_DIR, exist_ok=True)
 
 def get_engine_wrapper() -> sa.engine.Engine:
     return get_engine(PG_CPR_CONN_INFO
@@ -228,8 +234,8 @@ def get_cont_time_from_df(df1: pd.DataFrame) -> datetime.time:
     if first_row is not None:
         if 'tradecode' not in first_row:
             return bg_time
-        last_dt = pd.to_datetime(first_row['dt'])
-        if last_dt.time() > datetime.time(9, 31, 0):
+        first_dt = pd.to_datetime(first_row['dt'])
+        if first_dt.time() > datetime.time(9, 31, 0):
             return bg_time
     last_row = df1.iloc[-1] if not df1.empty else None
     if last_row is not None and 'tradecode' in last_row:
@@ -238,8 +244,7 @@ def get_cont_time_from_df(df1: pd.DataFrame) -> datetime.time:
     return bg_time
 
 
-def dl_save_range_oi(spot: str, expiry_date: datetime.date,
-        bg_date: datetime.date):
+def dl_option_daily_oi(spot: str, expiry_date: datetime.date, bg_date: datetime.date):
     ed_date = bg_date
     fpath = save_fpath(spot, 'raw', bg_date, ed_date, expiry_date)
     bg_time = datetime.time(9, 30, 0)
@@ -277,10 +282,10 @@ def dl_save_range_oi(spot: str, expiry_date: datetime.date,
     return df
 
 
-def get_nearest_expirydate(spot: str, dt: datetime.date):
+def get_nearest_expirydate(spot: str, dt: datetime.date) -> Optional[datetime.date]:
     exp: Optional[datetime.date] = dl_expiry_date(spot, dt.year, dt.month)
     if exp is None:
-        return exp
+        return None
     # 对于当月交割日已经过去的情况，切换到下一个月
     if exp < dt:
         dt += relativedelta(months=1)
@@ -288,11 +293,62 @@ def get_nearest_expirydate(spot: str, dt: datetime.date):
     return exp
 
 
-def dl_raw_daily(spot: str, dt: datetime.date):
+def dl_nearest_option_daily_oi(spot: str, dt: datetime.date):
     expiry_date = get_nearest_expirydate(spot, dt)
     if expiry_date is None:
         raise RuntimeError("cannot find expiry date.")
-    return dl_save_range_oi(spot, expiry_date, dt)
+    return dl_option_daily_oi(spot, expiry_date, dt)
+
+
+
+def fetch_option_md_new(spot: str, expiry_date: datetime.date,
+                        strike_min: float, strike_max: float,
+                        bg_datetime: datetime.datetime,
+                        ed_datetime: datetime.datetime) -> pd.DataFrame:
+    # print(expiry_date)
+    query = sa.text("""
+        with tradecodes as (
+            select spotcode, expiry, callput, strike, tradecode
+            from "md"."contract_info"
+            where expiry = :expiry_date and spotcode = :spot
+            and strike >= :strike_min and strike <= :strike_max
+        )
+        , md as (
+            select dt, spotcode, expiry, callput, strike, tradecode, oi,
+            ask_price, ask_size, ask2_price, ask2_size,
+            bid_price, bid_size, bid2_price, bid2_size
+            from md.contract_price_tick join tradecodes using (tradecode)
+            where dt >= :bg_datetime and dt < :ed_datetime
+        )
+        select * from md order by dt asc;
+    """)
+    with get_engine_wrapper().connect() as conn:
+        df = pd.read_sql(query, conn, params={
+            'spot': spot,
+            'expiry_date': expiry_date.strftime('%Y-%m-%d'),
+            'strike_min': strike_min,
+            'strike_max': strike_max,
+            'bg_datetime': bg_datetime,
+            'ed_datetime': ed_datetime,
+        })
+    return df
+
+
+def dl_option_daily_md(spot: str, expiry_date: datetime.date,
+                       strike_min: float, strike_max: float, dt: datetime.date):
+    df1 = fetch_option_md_new(spot, expiry_date, strike_min, strike_max,
+                              datetime.datetime.combine(dt, datetime.time(9, 30)),
+                              datetime.datetime.combine(dt, datetime.time(15, 0)))
+    print(df1)
+    df1['dt'] = df1['dt'].dt.tz_convert('Asia/Shanghai')
+    return df1
+
+
+def dl_nearest_option_daily_md(spot: str, strike_min: float, strike_max: float, dt: datetime.date):
+    expiry_date = get_nearest_expirydate(spot, dt)
+    if expiry_date is None:
+        raise RuntimeError("cannot find expiry date.")
+    return dl_option_daily_md(spot, expiry_date, strike_min, strike_max, dt)
 
 
 def save_fpath_default(spot: str, tag: str, dt: datetime.date):
@@ -331,13 +387,13 @@ def dl_calc_oi(spot: str, dt: datetime.date, refresh: bool = False) -> pd.DataFr
     """
     if refresh:
         # 如果需要刷新，先下载原始数据
-        df = dl_raw_daily(spot, dt)
+        df = dl_nearest_option_daily_oi(spot, dt)
     else:
         # 如果不需要刷新，直接读取原始数据
         fpath = save_fpath_default(spot, 'raw', dt)
         if not os.path.exists(fpath):
             print(f"File {fpath} does not exist, downloading...")
-            df = dl_raw_daily(spot, dt)
+            df = dl_nearest_option_daily_oi(spot, dt)
         else:
             df = pd.read_csv(fpath)
     # 计算 oi 数据
@@ -442,6 +498,30 @@ def dl_calc_oi_range(
     return df
 
 
+def dl_md_range(spot: str,
+                strike_min: float, strike_max: float,
+                bg_date: datetime.date, ed_date: datetime.date) -> pd.DataFrame:
+    dt_list = date_range(bg_date, ed_date)
+    df_list = []
+    with ProcessPoolExecutor(initializer=init_worker, max_workers=2) as executor:
+        futures = {executor.submit(dl_nearest_option_daily_md, spot, strike_min, strike_max, dt): dt
+                   for dt in dt_list}
+        for future in as_completed(futures):
+            dt = futures[future]
+            try:
+                df = future.result()  # 获取结果，可能会抛出异常
+                print(f"Successfully got oi {spot} on {dt}")
+                print(df.head())
+                print(df.tail())
+                df_list.append(df)
+            except Exception as e:
+                print(f"Error getting oi {spot} on {dt}: {e}")
+                raise e
+    if df_list == []:
+        raise RuntimeError("No data downloaded.")
+    df = pd.concat(df_list, ignore_index=True)
+    return df
+
 def oi_csv_merge(spot: str):
     fs = glob.glob(f"{OI_DIR}/oi_{spot}*.csv")
     dfs = [pd.read_csv(f) for f in fs]
@@ -468,9 +548,9 @@ def dl_spot_range(spot: str, bg_date: datetime.date, ed_date: datetime.date) -> 
             DBVersion.VERY_OLD: fetch_spot_data_very_old,
     }[USE_DB_VERSION]
 
-    bg_datetime_str = bg_date.strftime('%Y-%m-%d') + ' 09:30:00'
-    ed_datetime_str = ed_date.strftime('%Y-%m-%d') + ' 15:00:00'
-    df = fetch_spot_data(spot, bg_datetime_str, ed_datetime_str)
+    bg_datetime = datetime.datetime.combine(bg_date, datetime.time(9, 30))
+    ed_datetime = datetime.datetime.combine(ed_date, datetime.time(15, 0))
+    df = fetch_spot_data(spot, bg_datetime, ed_datetime)
     return df
 
 
@@ -516,7 +596,8 @@ def fetch_spot_data_old(spot: str,
 
 
 def fetch_spot_data_new(spot: str,
-                        bg_datetime_str: str, ed_datetime_str: str) -> pd.DataFrame:
+                        bg_datetime: datetime.datetime,
+                        ed_datetime: datetime.datetime) -> pd.DataFrame:
     query = sa.text("""
         select dt, tradecode as spot, last_price as spot_price
         from "md"."contract_price_tick"
@@ -527,30 +608,37 @@ def fetch_spot_data_new(spot: str,
     with get_engine_wrapper().connect() as conn:
         df = pd.read_sql(query, conn, params={
             'spot': spot,
-            'bg_datetime': bg_datetime_str,
-            'ed_datetime': ed_datetime_str,
+            'bg_datetime': bg_datetime,
+            'ed_datetime': ed_datetime,
         })
     return df
 
 
 @click.command()
-@click.option('-t', '--target', type=str, required=True, help="oi or spot")
+@click.option('-t', '--target', type=str, required=True, help="oi, md or spot")
 @click.option('-s', '--spot', type=str, required=True, help="Spot code: e.g., 159915 510050")
 @click.option('-b', '--begin', type=click.DateTime(formats=["%Y-%m-%d"]), required=True, help='Start date (YYYY-MM-DD)')
-@click.option('-e', '--end', type=click.DateTime(formats=["%Y-%m-%d"]), required=True, help='End date (YYYY-MM-DD)')
+@click.option('-e', '--end', type=click.DateTime(formats=["%Y-%m-%d"]), required=False, help='End date (YYYY-MM-DD)')
 def click_main(target: str, spot: str, begin: datetime.datetime, end: datetime.datetime):
     """
     下载并计算 oi 数据。
     """
-    begin_date = begin.date() if isinstance(begin, datetime.datetime) else datetime.now().date()
-    end_date = end.date() if isinstance(end, datetime.datetime) else datetime.now().date()
+    begin_date = begin.date() if isinstance(begin, datetime.datetime) else datetime.datetime.now().date()
+    end_date = end.date() if isinstance(end, datetime.datetime) else begin_date
     if target == 'spot':
         df = dl_spot_range(spot, begin_date, end_date)
         begin_str = begin_date.strftime('%Y%m%d')
         end_str = end_date.strftime('%Y%m%d')
-        fpath = f"{DATA_DIR}/fact/spot/spot_{spot}_{begin_str}_{end_str}.csv"
+        fpath = f"{SPOT_DIR}/spot_{spot}_{begin_str}_{end_str}.csv"
         df.to_csv(fpath, index=False)
         print(f"Saved spot data to {fpath}")
+    elif target == 'md':
+        df = dl_md_range(spot, 0, 9999, begin_date, end_date)
+        begin_str = begin_date.strftime('%Y%m%d')
+        end_str = end_date.strftime('%Y%m%d')
+        fpath = f"{MD_DIR}/md_{spot}_{begin_str}_{end_str}.csv"
+        df.to_csv(fpath, index=False)
+        print(f"Saved md data to {fpath}")
     else:
         dl_calc_oi_range(spot, begin_date, end_date)
         # oi_csv_merge(spot)

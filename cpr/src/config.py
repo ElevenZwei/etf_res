@@ -8,6 +8,7 @@ def get_file_dir():
     return fpath.parent
 
 DATA_DIR = get_file_dir() / '..' / 'data'
+FORWARD_DIR = DATA_DIR / 'fact' / 'forward_price'
 
 @dataclass(frozen=True)
 class PgConfig:

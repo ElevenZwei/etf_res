@@ -150,14 +150,16 @@ def prepare_df(df: pd.DataFrame, dt_from: datetime, dt_to: datetime) -> pd.DataF
 def main():
     # dt_from = datetime(2023, 7, 1)
     # dt_from = datetime(2024, 1, 1)
-    dt_from = datetime(2025, 1, 1)
+    # dt_from = datetime(2025, 1, 1)
+    dt_from = datetime(2026, 1, 1)
     # dt_from = datetime(2025, 9, 22)
     # dt_from = datetime(2025, 10, 13)
     # dt_from = datetime(2025, 12, 20)
     # dt_to = datetime(2025, 1, 1)
     # dt_to = datetime(2025, 9, 30, 23, 59)
     # dt_to = datetime(2025, 10, 31, 23, 59)
-    dt_to = datetime(2025, 12, 31, 23, 59)
+    # dt_to = datetime(2025, 12, 31, 23, 59)
+    dt_to = datetime(2026, 12, 31, 23, 59)
     etf1 = pd.read_csv(DATA_DIR / 'fact' / 'spot_minute_159915.csv')
     # print etf1 invalid lines
     # print(etf1[etf1['openp'].isna() | etf1['closep'].isna()])

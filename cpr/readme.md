@@ -111,7 +111,7 @@ python weekly_update.py --no-roll-export -s 159915 -b 2025-09-08 -e 2025-09-14
 
 ## 操作清单  
 ### 当需要换月的时候  
-更改 yaml 文件里面的月份数字。
+现在都是自动换月，不必人工干预了。设置在 Yaml 文件的 ChainCount 里面。
 
 ### 当缺少某天的数据时  
 使用 wind 数据库，在启动了 Wind 的 Windows 电脑上运行 `etf_res/datavis/transfer/wind_dl.py` 这是下载期权 Tick 数据的脚本，下载之后更改 `etf_res/datavis/transfer/insert_db.bash` 里面上传数据的日期，这两个文件可以把数据上传到 yuanlan 机器的 postgres 数据库里面。  
@@ -124,10 +124,19 @@ python weekly_update.py --no-roll-export -s 159915 -b 2025-09-08 -e 2025-09-14
 如果这两个都没有问题，然后再手动执行一下 roll_merge.py 得到合成仓位，用这个合成仓位跑一跑回测看看效果是否符合预期。  
 之后再执行 roll_export.py 得到可以运行的 json 配置文件。
 
-
 ### 当需要测试信号效果的时候  
 cpr roll 的结果是储存在 cpr.roll_merged 表格里面，这个表格的数据是 cpr_merge.py 脚本计算的。这个 cpr_merge.py 脚本需要的输入是当时的 cpr.roll_result 轮换排序和 cpr.clip_trade_backtest 仓位。  
 使用 ./src/update_roll_csv.py 脚本可以从 cpr.roll_merged 表格里面到处数据保存在 csv 文件里面。  
+
+## 数据可视化  
+作为我们估计 CPR 指标的准确性，我们需要绘制 CPR 在单日之内的变化，还有触发阈值的四条线。  
+我们也许可以从触发阈值的图形上面发现一些问题。  
+因为现在的问题可能出在两个地方，一个是触发位置，另一个是 CPR 和日内股价的脱离问题。除去这两点之外的话，剩下的问题是 CPR 的上下跳动引起的抗单。  
+触发有触发线，触发线的自适应问题是所有问题的核心。  
+ZScore 或者其它的切片方法的核心是在触发线的选择上有不同的理解。我们现在的挑选模式是中间完全黑盒，完全结果导向。  
+有没有一种形式可以解释其中的统计偏差和因果关系。  
+
+根据 2026 年初的上下跳变的情况，看起来只有 Per Strike CPR 可以清洗这种迷雾。累加的迷雾是问题。  
 
 
 ## TODO
@@ -142,6 +151,7 @@ cpr roll 的结果是储存在 cpr.roll_merged 表格里面，这个表格的数
 有些表格不能直接覆盖插入，例如说 roll_export, roll_result, roll_merged 这些表格都应该手动备份之后，清除之前的表格数据，然后去执行。
 
 
-TODO: 关于回测结果，还需要一个安全检查的脚本，检查目前这些 clip_trade_profit 的数据行的开仓时间插口之间有没有重叠的情况。
+TODO: 关于回测结果，还需要一个安全检查的脚本，检查目前这些 clip_trade_profit 的数据行的开仓时间插口之间有没有重叠的情况。  
+
 
 

@@ -13,7 +13,7 @@ insert into md.exchange_info (exchange, name, timezone, is_commodity)
     ('INE', 'Shanghai International Energy Exchange', 'Asia/Shanghai', true),
     ('GFEX', 'Guangzhou Futures Exchange', 'Asia/Shanghai', true),
     ('SSE', 'Shanghai Stock Exchange', 'Asia/Shanghai', false),
-    ('SZSE', 'Shenzhen Stock Exchange', 'Asia/Shanghai', false)
+    ('SZSE', 'Shenzhen Stock Exchange', 'Asia/Shanghai', false),
     ('BSE', 'Beijing Stock Exchange', 'Asia/Shanghai', false)
     on conflict (exchange) do nothing;
 
@@ -168,6 +168,18 @@ begin
 end;
 $$;
 
+
+create or replace function md.get_days_left(
+    tradecode_arg text, dt_arg date)
+    returns integer language sql as $$
+    select case when ci.expiry is not null then (ci.expiry - dt_arg + 1)
+            else null end
+        from md.contract_info ci
+        where ci.tradecode = tradecode_arg
+        limit 1;
+$$;
+
+
 -- last_price_arg / vol_arg / oi_arg is nullable.
 create or replace function md.update_contract_price_daily1(
     tradecode_arg text, dt_arg date,
@@ -204,14 +216,12 @@ begin
         tradecode_arg, dt_arg,
         last_price_arg, last_price_arg, last_price_arg, last_price_arg,
         vol_arg, vol_arg, oi_arg, oi_arg,
-        (select case when ci.expiry is not null then (ci.expiry - dt_arg + 1)
-                else null end
-            from md.contract_info ci
-            where ci.tradecode = tradecode_arg)
+        (md.get_days_left(tradecode_arg, dt_arg))
     ) on conflict (tradecode, dt) do nothing
     returning id into price_daily_id;
 
     if price_daily_id is null then
+        -- retry once
         select md.update_contract_price_daily1(
             tradecode_arg, dt_arg, last_price_arg, vol_arg, oi_arg)
         into price_daily_id;
@@ -381,5 +391,57 @@ begin
 end;
 $$;
 
+-- set daily price with full OHLC values.
+create or replace function md.set_contract_daily_price(
+    tradecode_arg text, date_arg date,
+    open_arg float8, high_arg float8, low_arg float8, close_arg float8)
+    returns integer language plpgsql as $$
+declare
+    price_daily_id integer = null;
+begin
+    -- sanitize inputs.
+    if open_arg is not distinct from 'NaN'::numeric then
+        open_arg = null;
+    end if;
+
+    if high_arg is not distinct from 'NaN'::numeric then
+        high_arg = null;
+    end if;
+
+    if low_arg is not distinct from 'NaN'::numeric then
+        low_arg = null;
+    end if;
+
+    if close_arg is not distinct from 'NaN'::numeric then
+        close_arg = null;
+    end if;
+
+    select id into price_daily_id
+        from md.contract_price_daily cpd
+        where cpd.tradecode = tradecode_arg and cpd.dt = date_arg;
+
+    if price_daily_id is not null then
+        update md.contract_price_daily cpd
+        set
+            open = open_arg, high = high_arg,
+            low = low_arg, close = coalesce(close_arg, close),
+            updated_at = now()
+        where id = price_daily_id;
+        return price_daily_id;
+    end if;
+
+    insert into md.contract_price_daily (
+        tradecode, dt,
+        open, high, low, close, days_left)
+    values (
+        tradecode_arg, date_arg,
+        open_arg, high_arg, low_arg, close_arg,
+        (md.get_days_left(tradecode_arg, date_arg))
+    ) on conflict (tradecode, dt) do nothing
+    returning id into price_daily_id;
+
+    return price_daily_id;
+end;
+$$;
 
 COMMIT;

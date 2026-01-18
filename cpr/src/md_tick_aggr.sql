@@ -106,7 +106,7 @@ create or replace function md.tick_to_daily_update_single(
         tradecode, dt, open, high, low, close, vol_open, vol_close, oi_open, oi_close)
     select * from md.tick_to_candle_aggr(
         tradecode_arg,
-        dt_from_arg::timestamptz - interval '8 hour',
+        dt_from_arg::timestamptz - interval '3 hour',
         dt_to_arg::timestamptz - interval '8 hour',
         interval '1 day')
     on conflict(tradecode, dt) do update set

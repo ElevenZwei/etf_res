@@ -6,7 +6,7 @@ BEGIN;
 
 insert into md.exchange_info (exchange, name, timezone, is_commodity)
     values
-    ('CFFEX', 'China Financial Futures Exchange', 'Asia/Shanghai', true),
+    ('CFFEX', 'China Financial Futures Exchange', 'Asia/Shanghai', false),
     ('SHFE', 'Shanghai Futures Exchange', 'Asia/Shanghai', true),
     ('DCE', 'Dalian Commodity Exchange', 'Asia/Shanghai', true),
     ('CZCE', 'Zhengzhou Commodity Exchange', 'Asia/Shanghai', true),

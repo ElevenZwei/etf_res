@@ -42,6 +42,14 @@ PG_DB_CONF = PgConfig(
         port=19005,
         db='opt',
 )
+
+PG_NEW_DB_CONF = PgConfig(
+        user='option',
+        pw='option',
+        host='124.222.94.46',
+        port=19018,
+        db='opt',
+)
 ENABLE_PG_DB_UPLOAD = False
 ENABLE_PG_DB_UPLOAD_SIGNAL = False
 

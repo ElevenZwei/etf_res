@@ -67,8 +67,7 @@ def insert_record_files(engine, spot: str, dt: datetime.date):
 
 
 if __name__ == '__main__':
-    spot = '159915.SZ'
-    # dt = datetime.date(2025, 11, 25)
-    dt = datetime.date(2025, 11, 28)
-    engine = get_engine()
-    insert_record_files(engine, spot, dt)
+    for spot in ['510050.SH', '510300.SH', '510500.SH', '588000.SH', '159915.SZ']:
+        for date in [datetime.date(2025, 11, 25), datetime.date(2025, 11, 28)]:
+            engine = get_engine()
+            insert_record_files(engine, spot, date)

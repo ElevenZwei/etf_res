@@ -1,5 +1,6 @@
 # 从 market_data_tick 数据表里面查询 OI 数据并且储存在 csv 文件里。
 
+from enum import Enum
 from typing import Optional
 from collections import deque
 import click
@@ -7,10 +8,10 @@ import datetime
 from dateutil.relativedelta import relativedelta
 import io
 import os
-import sqlalchemy
+import sqlalchemy as sa
 import pandas as pd
 
-from dsp_config import DATA_DIR, PG_DB_CONF, gen_suffix
+from dsp_config import DATA_DIR, PG_DB_CONF, PG_NEW_DB_CONF, PgConfig, gen_suffix
 
 def read_last_row(csv_path: str, encoding: str = "utf-8") -> pd.Series:
     """
@@ -24,31 +25,122 @@ def read_last_row(csv_path: str, encoding: str = "utf-8") -> pd.Series:
     df = pd.read_csv(io.StringIO(csv_fragment))
     return df.iloc[0]  # 返回 Series 类型的一行
 
-def get_engine():
-    return sqlalchemy.create_engine(sqlalchemy.URL.create(
+def get_engine(conn: PgConfig = PG_DB_CONF):
+    return sa.create_engine(sa.URL.create(
         'postgresql',
-        username=PG_DB_CONF.user,
-        password=PG_DB_CONF.pw,
-        host=PG_DB_CONF.host,
-        port=PG_DB_CONF.port,
-        database=PG_DB_CONF.db,
+        username=conn.user,
+        password=conn.pw,
+        host=conn.host,
+        port=conn.port,
+        database=conn.db,
     ))
+
+class DBVersion(Enum):
+    NEW = 1
+    OLD = 2
+
+USE_DB_VERSION = DBVersion.NEW
 
 def dl_expiry_date(spot: str, year: int, month: int) -> Optional[datetime.date]:
     d_from = datetime.datetime(year, month, 1)
     d_to = datetime.datetime(year, month, 28)
-    query = f"""
+    fetch_expiry_date = {
+            DBVersion.NEW: fetch_expiry_date_new,
+            DBVersion.OLD: fetch_expiry_date_old,
+    }[USE_DB_VERSION]
+    return fetch_expiry_date(spot, d_from.date(), d_to.date())
+
+def fetch_expiry_date_old(spot: str, d_from: datetime.date, d_to: datetime.date) -> Optional[datetime.date]:
+    # latex: ci.expirydate \in [d_from, d_to]
+    query = sa.text("""
         select min(expirydate) as expirydate
         from contract_info ci
-        where spotcode like '{spot}%%'
-        and expirydate >= '{d_from.strftime('%Y-%m-%d')}'
-        and expirydate <= '{d_to.strftime('%Y-%m-%d')}'
-    """
+        where spotcode like :spot_code
+        and expirydate >= :d_from
+        and expirydate <= :d_to
+    """)
     with get_engine().connect() as conn:
-        df = pd.read_sql(query, conn)
+        df = pd.read_sql(query, conn, params={
+            'spot_code': f'{spot}%',
+            'd_from': d_from.strftime('%Y-%m-%d'),
+            'd_to': d_to.strftime('%Y-%m-%d'),
+        })
     if df.shape[0] == 0:
         return None
-    return df['expirydate'].iloc[0]
+    return df.iloc[0, 0]
+
+def fetch_expiry_date_new(spot: str, d_from: datetime.date, d_to: datetime.date) -> Optional[datetime.date]:
+    query = sa.text("""
+        select min(expiry)
+        from "md"."contract_info"
+        where expiry >= :d_from and expiry <= :d_to
+        and spotcode = :spot
+    """)
+    with get_engine(PG_NEW_DB_CONF).connect() as conn:
+        df = pd.read_sql(query, conn, params={
+            'spot': spot,
+            'd_from': d_from.strftime('%Y-%m-%d'),
+            'd_to': d_to.strftime('%Y-%m-%d'),
+        })
+    if df.shape[0] == 0:
+        return None
+    return df.iloc[0, 0]
+
+
+def fetch_oi_data_old(spot: str, expiry_date: datetime.date,
+                      bg_datetime_str: str, ed_datetime_str: str) -> pd.DataFrame:
+    # latex: mdt.dt \in [bg_datetime, ed_datetime]
+    query = sa.text("""
+        set enable_nestloop=false;
+        with OI as (
+            select *
+            from (
+                select
+                    dt, spotcode, expirydate, callput, strike, code as tradecode,
+                    open_interest as oi
+                from market_data_tick mdt join contract_info ci using(code)
+                where mdt.dt >= :bg_datetime and mdt.dt <= :ed_datetime
+                and dt::time >= '09:30:00' and dt::time <= '15:00:00'
+                and spotcode = :spot and expirydate = :expiry_date
+            ) as T
+        )
+        select * from OI order by dt asc;
+    """)
+    with get_engine().connect() as conn:
+        df = pd.read_sql(query, conn, params={
+            'spot': spot,
+            'expiry_date': expiry_date.strftime('%Y-%m-%d'),
+            'bg_datetime': bg_datetime_str,
+            'ed_datetime': ed_datetime_str,
+        })
+    return df
+
+
+def fetch_oi_data_new(spot: str, expiry_date: datetime.date,
+                      bg_datetime_str: str, ed_datetime_str: str) -> pd.DataFrame:
+    query = sa.text("""
+        with tradecodes as (
+            select spotcode, expiry, callput, strike, tradecode
+            from "md"."contract_info"
+            where expiry = :expiry_date and spotcode = :spot
+        )
+        , oi as (
+            select dt, spotcode, expiry, callput, strike, tradecode, oi
+            from md.contract_price_tick join tradecodes using (tradecode)
+            where dt >= :bg_datetime and dt < :ed_datetime
+        )
+        select * from oi order by dt asc;
+    """)
+    with get_engine(PG_NEW_DB_CONF).connect() as conn:
+        df = pd.read_sql(query, conn, params={
+            'spot': spot,
+            'expiry_date': expiry_date.strftime('%Y-%m-%d'),
+            'bg_datetime': bg_datetime_str,
+            'ed_datetime': ed_datetime_str,
+        })
+    return df
+
+
 
 def dl_oi_data(spot: str, expiry_date: datetime.date,
         bg_date: datetime.date, ed_date: datetime.date,

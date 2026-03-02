@@ -4,6 +4,7 @@ Dsp Pack
 
 import calendar
 from datetime import date, datetime
+from typing import Optional
 import click
 import s0_md_query as s0
 import s1_dsp as s1
@@ -72,7 +73,8 @@ def calc_signal(spot: str, suffix: str, wide: bool):
     df = s9.calc_signal_csv(spot, suffix + '_s5', wide=wide)
     print(s9.filter_signal_nonzero(df))
 
-def download_data(spot: str, bg_str: str, ed_str: str, year: int, month: int, minute_bar: bool):
+def download_data(spot: str, bg_str: str, ed_str: str,
+                  year: Optional[int], month: Optional[int], minute_bar: bool):
     return s0.auto_dl(spot, year=year, month=month, bg_str=bg_str, ed_str=ed_str, minute_bar=minute_bar)
 
 def date_dsp(spot: str,

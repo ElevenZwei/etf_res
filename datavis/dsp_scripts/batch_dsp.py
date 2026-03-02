@@ -5,6 +5,7 @@ Dsp Batch
 import click
 import date_dsp as dd
 import pandas as pd
+from typing import Optional
 
 def process_date(dt, spot, refresh, plot, signal, year, month, wide: bool, minute_bar: bool):
     try:
@@ -29,18 +30,18 @@ def process_date(dt, spot, refresh, plot, signal, year, month, wide: bool, minut
 
 @click.command()
 @click.option('-s', '--spot', type=str, required=True, help="spot code: 159915 510050")
-@click.option('-b', '--begin', type=str, help="format is %Y%m%d")
-@click.option('-e', '--end', type=str, help="format is %Y%m%d")
+@click.option('-b', '--begin', type=str, required=True, help="format is %Y%m%d")
+@click.option('-e', '--end', type=str, required=True, help="format is %Y%m%d")
 @click.option('-r', '--refresh', is_flag=True, default=False, help="Download new data from database.")
 @click.option('-p', '--plot', is_flag=True, default=False, help="Plot only, use existing data.")
 @click.option('-g', '--signal', is_flag=True, default=False, help="Generate signal only, use existing data.")
 @click.option('-y', '--year', type=int)
 @click.option('-m', '--month', type=int)
-@click.option('--bar', '--minute-bar', is_flag=True, help="download from minute bar table.")
+@click.option('--bar', '--minute-bar', default=False, is_flag=True, help="download from minute bar table.")
 @click.option('--wide', type=bool, default=False, help="use wide plot.")
 def click_main(spot: str, begin: str, end: str,
                refresh: bool, plot: bool, signal: bool,
-               year: int, month: int,
+               year: Optional[int], month: Optional[int],
                wide: bool, bar: bool):
     [process_date(dt, spot, refresh, plot, signal, year, month, wide, bar)
             for dt in pd.date_range(begin, end)

@@ -38,6 +38,7 @@ def get_engine(conn: PgConfig = PG_DB_CONF):
 class DBVersion(Enum):
     NEW = 1
     OLD = 2
+    VERY_OLD = 3
 
 USE_DB_VERSION = DBVersion.NEW
 
@@ -87,6 +88,45 @@ def fetch_expiry_date_new(spot: str, d_from: datetime.date, d_to: datetime.date)
     return df.iloc[0, 0]
 
 
+def fetch_oi_data_very_old(spot: str, expiry_date: datetime.date,
+                      bg_datetime_str: str, ed_datetime_str: str) -> pd.DataFrame:
+    if spot == '159915':
+        suffix = '.SZ'
+    else:
+        suffix = '.SH'
+    query = f"""
+        set enable_nestloop=false;
+        with syms as (
+            select code, tradecode, spotcode, expirydate, strike, callput
+            from contract_info ci 
+            where ci.spotcode = :spot
+            and ci.expirydate = :expiry_date
+            and code like :code_like),
+        opt_mdt as (
+            select
+            dt, code, tradecode,
+            spotcode, expirydate, strike, callput,
+            openinterest as oi
+            from market_data dt join syms using(code)
+            where dt > :bg_datetime and dt < :ed_datetime),
+        select opt_mdt.dt, opt_mdt.spotcode, opt_mdt.expirydate, opt_mdt.strike
+            , opt_mdt.callput, opt_mdt.tradecode, opt_mdt.oi as oi
+            , md.closep as spot_price
+        from opt_mdt join market_data md using(dt)
+        where dt > :bg_datetime and dt < :ed_datetime
+            and md.code = opt_mdt.spotcode
+        order by dt asc;
+    """
+    with get_engine().connect() as conn:
+        df = pd.read_sql(query, conn, params={
+            'spot': spot + suffix,
+            'code_like': '%%' + suffix,
+            'expiry_date': expiry_date.strftime('%Y-%m-%d'),
+            'bg_datetime': bg_datetime_str,
+            'ed_datetime': ed_datetime_str,
+        })
+    return df
+
 def fetch_oi_data_old(spot: str, expiry_date: datetime.date,
                       bg_datetime_str: str, ed_datetime_str: str) -> pd.DataFrame:
     # latex: mdt.dt \in [bg_datetime, ed_datetime]
@@ -104,7 +144,12 @@ def fetch_oi_data_old(spot: str, expiry_date: datetime.date,
                 and spotcode = :spot and expirydate = :expiry_date
             ) as T
         )
-        select * from OI order by dt asc;
+        select oi.dt, oi.spotcode, oi.expirydate, oi.strike
+            , oi.callput, oi.tradecode, oi.oi, mdt.last_price as spot_price
+        from OI join market_data_tick mdt using (dt)
+        where dt > :bg_datetime and dt < :ed_datetime
+        and mdt.code = oi.spotcode
+        order by dt asc;
     """)
     with get_engine().connect() as conn:
         df = pd.read_sql(query, conn, params={
@@ -129,7 +174,12 @@ def fetch_oi_data_new(spot: str, expiry_date: datetime.date,
             from md.contract_price_tick join tradecodes using (tradecode)
             where dt >= :bg_datetime and dt < :ed_datetime
         )
-        select * from oi order by dt asc;
+        select oi.dt, oi.spotcode, oi.expiry as expirydate, oi.strike
+            , oi.callput, oi.tradecode, oi.oi, cpt.last_price as spot_price
+        from oi join md.contract_price_tick cpt using (dt)
+            where dt > :bg_datetime and dt < :ed_datetime
+            and cpt.tradecode = oi.spotcode
+        order by dt asc;
     """)
     with get_engine(PG_NEW_DB_CONF).connect() as conn:
         df = pd.read_sql(query, conn, params={
@@ -141,80 +191,31 @@ def fetch_oi_data_new(spot: str, expiry_date: datetime.date,
     return df
 
 
-
 def dl_oi_data(spot: str, expiry_date: datetime.date,
         bg_date: datetime.date, ed_date: datetime.date,
         bg_time: datetime.time = datetime.time(9, 30, 0),
         ed_time: datetime.time = datetime.time(15, 0, 0),
         minute_bar: bool = False) -> pd.DataFrame:
-    expiry_date_str = expiry_date.strftime('%Y-%m-%d')
-    bg_date_str = bg_date.strftime('%Y-%m-%d')
-    ed_date_str = ed_date.strftime('%Y-%m-%d')
-    bg_time_str = bg_time.strftime('%H:%M:%S')
-    ed_time_str = ed_time.strftime('%H:%M:%S')
+    """
+    bg_date and ed_date are inclusive.
+    bg_time and ed_time are inclusive.
+    """
+    bg_datetime_str = bg_date.strftime('%Y-%m-%d') + ' ' + bg_time.strftime('%H:%M:%S')
+    ed_datetime_str = ed_date.strftime('%Y-%m-%d') + ' ' + ed_time.strftime('%H:%M:%S')
+    global USE_DB_VERSION
     if minute_bar:
-        if spot == '159915':
-            suffix = '.SZ'
-        else:
-            suffix = '.SH'
-        query = f"""
-            set enable_nestloop=false;
-            with syms as (
-                select code, tradecode, spotcode, expirydate, strike, callput
-                from contract_info ci 
-                where ci.spotcode = '{spot}{suffix}'
-                and ci.expirydate = '{expiry_date_str}'
-                and code like '%%{suffix}'),
-            opt_mdt as (
-                select
-                dt, code, tradecode,
-                spotcode, expirydate, strike, callput,
-                openinterest as oi
-                from market_data dt join syms using(code)
-                where dt > '{bg_date_str} {bg_time_str}' and dt < '{ed_date_str} {ed_time_str}'),
-            select opt_mdt.dt, opt_mdt.spotcode, opt_mdt.expirydate, opt_mdt.strike
-            , opt_mdt.callput, opt_mdt.tradecode, opt_mdt.oi as oi
-            , md.closep as spot_price
-            from opt_mdt join market_data md using(dt)
-            where dt > '{bg_date_str} {bg_time_str}' and dt < '{ed_date_str} {ed_time_str}'
-            and md.code = opt_mdt.spotcode
-            order by dt asc;
-        """
-    else:
-        query = f"""
-            set enable_nestloop=false;
-            with OI as (
-                select *
-                from (
-                    select
-                        dt, spotcode, expirydate, callput, strike, tradecode,
-                        open_interest as oi
-                    from market_data_tick mdt join contract_info ci using(code)
-                    where dt > '{bg_date_str} {bg_time_str}' and dt < '{ed_date_str} {ed_time_str}'
-                    and dt::time >= '09:30:00' and dt::time <= '15:00:00'
-                    and spotcode = '{spot}' and expirydate = '{expiry_date_str}'
-                    and tradecode like '{spot}%%M%%'
-                ) as T
-            )
-            select oi.dt, oi.spotcode, oi.expirydate, oi.strike
-                , oi.callput, oi.tradecode, oi.oi, mdt.last_price as spot_price
-            from OI join market_data_tick mdt using (dt)
-            where dt > '{bg_date_str} {bg_time_str}' and dt < '{ed_date_str} {ed_time_str}'
-            and mdt.code = oi.spotcode
-            order by dt asc;
-        """
-    
-    # print(query)
-    with get_engine().connect() as conn:
-        df = pd.read_sql(query, conn)
-    
-    if df.shape[0] == 0:
-        return df
-
+        USE_DB_VERSION = DBVersion.VERY_OLD
+    fetch_oi_data = {
+            DBVersion.NEW: fetch_oi_data_new,
+            DBVersion.OLD: fetch_oi_data_old,
+            DBVersion.VERY_OLD: fetch_oi_data_very_old,
+    }[USE_DB_VERSION]
+    df = fetch_oi_data(spot, expiry_date, bg_datetime_str, ed_datetime_str)
     df['dt'] = df['dt'].dt.tz_convert('Asia/Shanghai')
     df['dt'] = df['dt'].dt.strftime('%Y-%m-%dT%H:%M:%S%z')
     return df
-    
+
+
 def df_calc_open_diff(df: pd.DataFrame) -> pd.DataFrame:
     df = df.drop_duplicates(subset=['dt', 'tradecode'], keep='first')
     call_df = df[df['callput'] == 1]
@@ -321,10 +322,10 @@ def auto_dl(spot: str, bg_str: str, ed_str: str,
             bg_date=bg_dt, ed_date=ed_dt, minute_bar=minute_bar)
 
 @click.command()
-@click.option('-s', '--spot', type=str)
-@click.option('-y', '--year', type=int)
-@click.option('-m', '--month', type=int)
-@click.option('-d', '--date', type=str, help="format is %Y%m%d")
+@click.option('-s', '--spot', required=True, type=str)
+@click.option('-y', '--year', required=False, type=int)
+@click.option('-m', '--month', required=False, type=int)
+@click.option('-d', '--date', required=True, type=str, help="format is %Y%m%d")
 @click.option('--bar', is_flag=True, help="download data from minute bar table.")
 def click_main(spot: str, year: int, month: int, date: str, bar: bool):
     auto_dl(spot=spot, bg_str=date, ed_str=date, year=year, month=month, minute_bar=bar)

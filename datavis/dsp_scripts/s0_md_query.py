@@ -211,6 +211,8 @@ def dl_oi_data(spot: str, expiry_date: datetime.date,
             DBVersion.VERY_OLD: fetch_oi_data_very_old,
     }[USE_DB_VERSION]
     df = fetch_oi_data(spot, expiry_date, bg_datetime_str, ed_datetime_str)
+    if df.shape[0] == 0:
+        return df
     df['dt'] = df['dt'].dt.tz_convert('Asia/Shanghai')
     df['dt'] = df['dt'].dt.strftime('%Y-%m-%dT%H:%M:%S%z')
     return df
@@ -300,7 +302,17 @@ def save_fpath_default(spot: str, tag: str, dt: datetime.date):
         raise RuntimeError("cannot find expiry date.")
     return save_fpath(spot, tag, dt, dt, expiry_date)
 
+def change_db_version(dt: datetime.date):
+    global USE_DB_VERSION
+    if dt < datetime.date(2025, 1, 1):
+        USE_DB_VERSION = DBVersion.VERY_OLD
+    elif dt < datetime.date(2025, 12, 1):
+        USE_DB_VERSION = DBVersion.OLD
+    else:
+        USE_DB_VERSION = DBVersion.NEW
+
 def auto_dl_default(spot: str, dt: datetime.date):
+    change_db_version(dt)
     expiry_date = get_nearest_expirydate(spot, dt)
     if expiry_date is None:
         raise RuntimeError("cannot find expiry date.")
@@ -311,6 +323,7 @@ def auto_dl(spot: str, bg_str: str, ed_str: str,
         minute_bar=False):
     bg_dt = datetime.datetime.strptime(bg_str, '%Y%m%d').date()
     ed_dt = datetime.datetime.strptime(ed_str, '%Y%m%d').date()
+    change_db_version(bg_dt)
     if year is None or month is None:
         exp = get_nearest_expirydate(spot, ed_dt)
     else:

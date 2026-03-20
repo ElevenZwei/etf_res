@@ -20,3 +20,4 @@
 017_hb_counter 2025-11-20T08:49:09Z anon <anon@localhost> # add hummingbird counters table.
 018_hb_daemon 2025-11-28T08:42:55Z anon <anon@localhost> # add hummingbird daemon action table.
 019_future_option_trade 2025-12-01T09:29:24Z anon <anon@localhost> # Add table to receive future option trade commands.
+020_future_info 2026-03-18T06:32:41Z anon <anon@localhost> # Add future info tables to store commodity contracts info.

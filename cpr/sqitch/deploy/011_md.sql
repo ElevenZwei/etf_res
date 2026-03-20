@@ -54,7 +54,7 @@ create table if not exists md.contract_info (
     -- 期权行权价，非期权合约为 null，
     -- 记录真实的行权价，而非名称中的行权价
     strike float8,
-    -- 期权到期日
+    -- 期权或期货的合约到期日
     expiry date,
     -- updated_at 用于记录该合约信息的最后更新时间
     -- 例如，有些合约会变更名称、行权价等信息

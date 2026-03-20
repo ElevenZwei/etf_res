@@ -9,6 +9,8 @@ def task_callback(today: Optional[date] = None):
         today = date.today()
     load_and_combine_signals(
             today, roll_args_id=1, roll_top=10)
+    # load_and_combine_signals(
+    #         today, roll_args_id=2, roll_top=10)
 
 
 def main():

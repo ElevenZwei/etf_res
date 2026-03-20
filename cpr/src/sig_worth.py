@@ -150,8 +150,8 @@ def prepare_df(df: pd.DataFrame, dt_from: datetime, dt_to: datetime) -> pd.DataF
 def main():
     # dt_from = datetime(2023, 7, 1)
     # dt_from = datetime(2024, 1, 1)
-    # dt_from = datetime(2025, 1, 1)
-    dt_from = datetime(2026, 1, 1)
+    dt_from = datetime(2025, 11, 1)
+    # dt_from = datetime(2026, 1, 1)
     # dt_from = datetime(2025, 9, 22)
     # dt_from = datetime(2025, 10, 13)
     # dt_from = datetime(2025, 12, 20)
